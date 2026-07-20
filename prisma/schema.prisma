@@ -1,0 +1,69 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  SELLER
+  BUYER
+  NEST_WORKER
+  DELIVERY_PARTNER
+  SUPPORT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  PENDING
+}
+
+model User {
+  id            String      @id @default(uuid())
+  name          String
+  email         String?     @unique
+  mobile        String      @unique
+  password      String
+  role          UserRole    @default(BUYER)
+  status        UserStatus  @default(ACTIVE)
+
+  refreshToken String?
+
+  seller        Seller?
+  buyer         Buyer?
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+}
+
+
+model Seller {
+  id            String   @id @default(uuid())
+
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+
+  businessName  String
+  gstNumber     String?
+  address       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+
+model Buyer {
+  id            String   @id @default(uuid())
+
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id])
+
+  address       String?
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
