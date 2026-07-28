@@ -1,0 +1,76 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: haatza_postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: Password@2025
+      POSTGRES_DB: haatza_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: haatza_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app_instance1:
+    build: .
+    container_name: haatza_app_1
+    environment:
+      PORT: 3000
+      DATABASE_URL: "postgresql://postgres:Password%402025@postgres:5432/haatza_db?schema=public"
+      DATABASE_POOL_MAX: 20
+      DATABASE_POOL_MIN: 5
+      JWT_SECRET: haatza_backend_secret_key_2026
+      JWT_REFRESH_SECRET: haatza_backend_refresh_secret_key_2026
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  app_instance2:
+    build: .
+    container_name: haatza_app_2
+    environment:
+      PORT: 3000
+      DATABASE_URL: "postgresql://postgres:Password%402025@postgres:5432/haatza_db?schema=public"
+      DATABASE_POOL_MAX: 20
+      DATABASE_POOL_MIN: 5
+      JWT_SECRET: haatza_backend_secret_key_2026
+      JWT_REFRESH_SECRET: haatza_backend_refresh_secret_key_2026
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    container_name: haatza_load_balancer
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - app_instance1
+      - app_instance2
+
+volumes:
+  pgdata:
