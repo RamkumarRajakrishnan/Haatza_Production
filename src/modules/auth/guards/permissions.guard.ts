@@ -34,8 +34,7 @@ export class PermissionsGuard implements CanActivate {
     }
 
     // Fetch user with userRole and role permissions
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const dbUser = (await (this.database.user as any).findUnique({
+    const dbUser = await this.database.user.findUnique({
       where: { id: user.id },
       include: {
         userRole: {
@@ -48,15 +47,7 @@ export class PermissionsGuard implements CanActivate {
           },
         },
       },
-    })) as {
-      userRole?: {
-        permissions: Array<{
-          permission: {
-            code: string;
-          };
-        }>;
-      } | null;
-    } | null;
+    });
 
     if (!dbUser || !dbUser.userRole) {
       return false;

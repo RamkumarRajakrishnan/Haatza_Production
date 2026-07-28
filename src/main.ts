@@ -1,6 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
 // Expand libuv threadpool for high bcrypt concurrency
@@ -13,9 +14,21 @@ async function bootstrap() {
   // Enable Graceful Shutdown Hooks
   app.enableShutdownHooks();
 
-  // Enable CORS for frontend clients
+  // Parse CORS allowed origins from environment
+  const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+  const allowedOrigins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map((origin) => origin.trim())
+    : ['https://seller.haatza.com', 'https://www.haatza.com'];
+
+  // Enable CORS for allowed clients
   app.enableCors({
-    origin: true,
+    origin: (origin, callback) => {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS policy does not allow access from origin ${origin}`));
+      }
+    },
     credentials: true,
   });
 
@@ -37,11 +50,26 @@ async function bootstrap() {
     new ValidationPipe({
       whitelist: true,
       forbidNonWhitelisted: true,
+      transform: true,
     }),
   );
 
   // API Version
   app.setGlobalPrefix('api/v1');
+
+  // Swagger Documentation Setup
+  if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Haatza Seller API')
+      .setDescription('Enterprise NestJS + PostgreSQL Backend API Documentation for Haatza')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+    logger.log('📄 Swagger documentation available at /api/docs');
+  }
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);

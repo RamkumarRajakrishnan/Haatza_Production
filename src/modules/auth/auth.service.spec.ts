@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { DatabaseService } from '../../database/database.service';
 
@@ -37,6 +38,11 @@ describe('AuthService', () => {
             userLoginHistory: {
               create: jest.fn(),
             },
+            otpVerification: {
+              create: jest.fn(),
+              findFirst: jest.fn(),
+              update: jest.fn(),
+            },
           },
         },
         {
@@ -44,6 +50,21 @@ describe('AuthService', () => {
           useValue: {
             signAsync: jest.fn(),
             verifyAsync: jest.fn(),
+          },
+        },
+        {
+          provide: ConfigService,
+          useValue: {
+            get: jest.fn((key: string) => {
+              if (key === 'JWT_REFRESH_SECRET') return 'test_refresh_secret';
+              if (key === 'JWT_SECRET') return 'test_jwt_secret';
+              return null;
+            }),
+            getOrThrow: jest.fn((key: string) => {
+              if (key === 'JWT_REFRESH_SECRET') return 'test_refresh_secret';
+              if (key === 'JWT_SECRET') return 'test_jwt_secret';
+              throw new Error(`Missing ${key}`);
+            }),
           },
         },
       ],

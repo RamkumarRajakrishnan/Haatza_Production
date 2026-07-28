@@ -2,38 +2,38 @@ import {
   Injectable,
   ConflictException,
   UnauthorizedException,
+  BadRequestException,
+  NotFoundException,
   Logger,
 } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
+import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-
-const LoginStatus = {
-  SUCCESS: 'SUCCESS',
-  FAILED: 'FAILED',
-} as const;
+import { GenerateOtpDto } from './dto/generate-otp.dto';
+import { VerifyOtpDto } from './dto/verify-otp.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(
-    private database: DatabaseService,
-    private jwtService: JwtService,
-  ) {}
+  private readonly logger = new Logger(AuthService.name);
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private get db(): any {
-    return this.database as any;
-  }
+  constructor(
+    private readonly database: DatabaseService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
+  ) {}
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
   }
 
   async register(data: RegisterDto) {
-    const existingUser = await this.db.user.findUnique({
+    const existingUser = await this.database.user.findUnique({
       where: {
         mobile: data.mobile,
       },
@@ -45,14 +45,13 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    // Look up corresponding Role record from DB if available
-    const roleRecord = await this.db.role.findFirst({
+    const roleRecord = await this.database.role.findFirst({
       where: {
         OR: [{ name: data.role }, { code: data.role.toLowerCase() }],
       },
     });
 
-    const user = await this.db.user.create({
+    const user = await this.database.user.create({
       data: {
         name: data.name,
         mobile: data.mobile,
@@ -69,13 +68,11 @@ export class AuthService {
     };
   }
 
-  private readonly logger = new Logger(AuthService.name);
-
   async login(
     data: LoginDto,
     reqMeta?: { ipAddress?: string; userAgent?: string },
   ) {
-    const user = await this.db.user.findUnique({
+    const user = await this.database.user.findUnique({
       where: {
         mobile: data.mobile,
       },
@@ -127,9 +124,7 @@ export class AuthService {
       jti: crypto.randomUUID(),
     };
 
-    const refreshSecret =
-      process.env.JWT_REFRESH_SECRET ||
-      'haatza_backend_refresh_secret_key_2026';
+    const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(payload, { expiresIn: '15m' }),
@@ -141,10 +136,9 @@ export class AuthService {
 
     const tokenHash = this.hashToken(refreshToken);
     const sessionTokenHash = this.hashToken(accessToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    // Mandatory Security State Writes
-    const session = await this.db.userSession.create({
+    const session = await this.database.userSession.create({
       data: {
         userId: user.id,
         sessionTokenHash,
@@ -154,7 +148,7 @@ export class AuthService {
       },
     });
 
-    await this.db.refreshToken.create({
+    await this.database.refreshToken.create({
       data: {
         userId: user.id,
         sessionId: session.id,
@@ -163,7 +157,6 @@ export class AuthService {
       },
     });
 
-    // Non-critical side-effects executed asynchronously without delaying login response
     this.recordSuccessSideEffects({
       userId: user.id,
       mobile: data.mobile,
@@ -188,7 +181,7 @@ export class AuthService {
   private recordLoginHistory(data: {
     userId?: string;
     identifier: string;
-    status: string;
+    status: LoginStatus;
     failureReason?: string;
     ipAddress?: string;
     userAgent?: string;
@@ -196,7 +189,7 @@ export class AuthService {
   }) {
     setImmediate(async () => {
       try {
-        await this.db.userLoginHistory.create({
+        await this.database.userLoginHistory.create({
           data: {
             userId: data.userId,
             identifier: data.identifier,
@@ -226,14 +219,14 @@ export class AuthService {
           ? crypto.createHash('md5').update(data.reqMeta.userAgent).digest('hex')
           : 'default_device';
 
-        const existingDevice = await this.db.userDevice.findFirst({
+        const existingDevice = await this.database.userDevice.findFirst({
           where: { userId: data.userId, deviceUuid },
           select: { id: true },
         });
 
         let deviceName = 'Unknown Device';
         if (existingDevice) {
-          await this.db.userDevice.update({
+          await this.database.userDevice.update({
             where: { id: existingDevice.id },
             data: { lastSeenAt: new Date() },
           });
@@ -241,7 +234,7 @@ export class AuthService {
           deviceName = data.reqMeta?.userAgent
             ? data.reqMeta.userAgent.substring(0, 100)
             : 'Unknown Device';
-          await this.db.userDevice.create({
+          await this.database.userDevice.create({
             data: {
               userId: data.userId,
               deviceUuid,
@@ -252,11 +245,11 @@ export class AuthService {
         }
 
         await Promise.allSettled([
-          this.db.user.update({
+          this.database.user.update({
             where: { id: data.userId },
             data: { refreshToken: data.refreshToken, lastLoginAt: new Date() },
           }),
-          this.db.userLoginHistory.create({
+          this.database.userLoginHistory.create({
             data: {
               userId: data.userId,
               identifier: data.mobile,
@@ -274,20 +267,17 @@ export class AuthService {
     });
   }
 
-
-  // Refresh Access Token & Rotate Refresh Token
   async refreshToken(token: string) {
     const incomingHash = this.hashToken(token);
 
-    // 1. Search in RefreshToken table
-    const storedToken = await this.db.refreshToken.findUnique({
+    const storedToken = await this.database.refreshToken.findUnique({
       where: { tokenHash: incomingHash },
       include: { user: true, session: true },
     });
 
     const user = storedToken
       ? storedToken.user
-      : await this.db.user.findFirst({
+      : await this.database.user.findFirst({
           where: { refreshToken: token },
         });
 
@@ -320,19 +310,18 @@ export class AuthService {
       expiresIn: '15m',
     });
 
+    const refreshSecret = this.configService.getOrThrow<string>('JWT_REFRESH_SECRET');
+
     const newRefreshToken = await this.jwtService.signAsync(payload, {
-      secret:
-        process.env.JWT_REFRESH_SECRET ||
-        'haatza_backend_refresh_secret_key_2026',
+      secret: refreshSecret,
       expiresIn: '30d',
     });
 
     const newTokenHash = this.hashToken(newRefreshToken);
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
-    // Rotate token: revoke old token and insert new RefreshToken record
     if (storedToken) {
-      const newTokenRecord = await this.db.refreshToken.create({
+      const newTokenRecord = await this.database.refreshToken.create({
         data: {
           userId: user.id,
           sessionId: storedToken.sessionId,
@@ -342,7 +331,7 @@ export class AuthService {
         },
       });
 
-      await this.db.refreshToken.update({
+      await this.database.refreshToken.update({
         where: { id: storedToken.id },
         data: {
           revokedAt: new Date(),
@@ -351,8 +340,7 @@ export class AuthService {
       });
     }
 
-    // Update legacy refreshToken on user model
-    await this.db.user.update({
+    await this.database.user.update({
       where: { id: user.id },
       data: { refreshToken: newRefreshToken },
     });
@@ -363,36 +351,35 @@ export class AuthService {
     };
   }
 
-  // Logout & Revoke Session
   async logout(token: string) {
     const tokenHash = this.hashToken(token);
 
-    const storedToken = await this.db.refreshToken.findUnique({
+    const storedToken = await this.database.refreshToken.findUnique({
       where: { tokenHash },
     });
 
     if (storedToken) {
-      await this.db.refreshToken.update({
+      await this.database.refreshToken.update({
         where: { id: storedToken.id },
         data: { revokedAt: new Date() },
       });
 
-      await this.db.userSession.update({
+      await this.database.userSession.update({
         where: { id: storedToken.sessionId },
         data: { revokedAt: new Date() },
       });
 
-      await this.db.user.update({
+      await this.database.user.update({
         where: { id: storedToken.userId },
         data: { refreshToken: null },
       });
     } else {
-      const user = await this.db.user.findFirst({
+      const user = await this.database.user.findFirst({
         where: { refreshToken: token },
       });
 
       if (user) {
-        await this.db.user.update({
+        await this.database.user.update({
           where: { id: user.id },
           data: { refreshToken: null },
         });
@@ -402,5 +389,105 @@ export class AuthService {
     return {
       message: 'Logged out successfully',
     };
+  }
+
+  async forgotPassword(dto: ForgotPasswordDto) {
+    const user = await this.database.user.findFirst({
+      where: {
+        OR: [{ mobile: dto.identifier }, { email: dto.identifier }],
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User with provided identifier not found');
+    }
+
+    return this.generateOtp({
+      identifier: dto.identifier,
+      purpose: OtpPurpose.FORGOT_PASSWORD,
+      channel: dto.identifier.includes('@') ? OtpChannel.EMAIL : OtpChannel.SMS,
+    });
+  }
+
+  async generateOtp(dto: GenerateOtpDto) {
+    const isEmail = dto.identifier.includes('@');
+    const identifierType = isEmail ? OtpIdentifierType.EMAIL : OtpIdentifierType.PHONE;
+    const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
+    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+
+    const existingUser = await this.database.user.findFirst({
+      where: isEmail ? { email: dto.identifier } : { mobile: dto.identifier },
+      select: { id: true },
+    });
+
+    const otpRecord = await this.database.otpVerification.create({
+      data: {
+        userId: existingUser?.id ?? null,
+        identifier: dto.identifier,
+        identifierType,
+        otpHash,
+        purpose: dto.purpose ?? OtpPurpose.LOGIN,
+        channel: dto.channel ?? OtpChannel.SMS,
+        expiresAt,
+      },
+    });
+
+    this.logger.log(`Generated OTP for ${dto.identifier}: ${rawOtp}`);
+
+    return {
+      success: true,
+      otpId: otpRecord.id,
+      expiresAt: otpRecord.expiresAt,
+      message: 'OTP generated and sent successfully',
+    };
+  }
+
+  async verifyOtp(dto: VerifyOtpDto) {
+    const otpHash = crypto.createHash('sha256').update(dto.otp).digest('hex');
+
+    const otpRecord = await this.database.otpVerification.findFirst({
+      where: {
+        identifier: dto.identifier,
+        purpose: dto.purpose ?? OtpPurpose.LOGIN,
+        isVerified: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord) {
+      throw new BadRequestException('No active OTP request found for this identifier');
+    }
+
+    if (new Date() > otpRecord.expiresAt) {
+      throw new BadRequestException('OTP has expired');
+    }
+
+    if (otpRecord.attemptCount >= otpRecord.maxAttempts) {
+      throw new BadRequestException('Maximum OTP verification attempts exceeded');
+    }
+
+    if (otpRecord.otpHash !== otpHash) {
+      await this.database.otpVerification.update({
+        where: { id: otpRecord.id },
+        data: { attemptCount: otpRecord.attemptCount + 1 },
+      });
+      throw new BadRequestException('Invalid OTP code');
+    }
+
+    await this.database.otpVerification.update({
+        where: { id: otpRecord.id },
+        data: { isVerified: true, verifiedAt: new Date() },
+    });
+
+    return {
+      success: true,
+      verified: true,
+      message: 'OTP verified successfully',
+    };
+  }
+
+  async resendOtp(dto: GenerateOtpDto) {
+    return this.generateOtp(dto);
   }
 }
