@@ -35,6 +35,16 @@ export class DatabaseService
         await this.$connect();
         this.isConnected = true;
         this.logger.log('✅ Database connected successfully with explicit pg.Pool');
+
+        try {
+          const { execSync } = require('child_process');
+          this.logger.log('Executing automatic DB schema push (npx prisma db push)...');
+          execSync('npx prisma db push --accept-data-loss', { stdio: 'pipe' });
+          this.logger.log('✅ Database tables verified and synchronized successfully!');
+        } catch (pushErr: any) {
+          this.logger.warn(`Prisma db push note: ${pushErr.message || pushErr}`);
+        }
+
         return;
       } catch (err: any) {
         this.logger.warn(
