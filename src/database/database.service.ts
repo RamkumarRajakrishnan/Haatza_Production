@@ -10,6 +10,7 @@ export class DatabaseService
 {
   private readonly logger = new Logger(DatabaseService.name);
   private pool: Pool;
+  private connectionString: string;
   private isConnected = false;
 
   constructor() {
@@ -20,6 +21,7 @@ export class DatabaseService
     const adapter = new PrismaPg(pool);
     super({ adapter });
     this.pool = pool;
+    this.connectionString = connectionString;
   }
 
   async onModuleInit() {
@@ -39,10 +41,13 @@ export class DatabaseService
         try {
           const { execSync } = require('child_process');
           this.logger.log('Executing automatic DB schema push (npx prisma db push)...');
-          execSync('npx prisma db push --accept-data-loss', { stdio: 'pipe' });
-          this.logger.log('✅ Database tables verified and synchronized successfully!');
+          const output = execSync('npx prisma db push --accept-data-loss', {
+            env: { ...process.env, DATABASE_URL: this.connectionString },
+            encoding: 'utf-8',
+          });
+          this.logger.log(`✅ Database tables synchronized successfully:\n${output}`);
         } catch (pushErr: any) {
-          this.logger.warn(`Prisma db push note: ${pushErr.message || pushErr}`);
+          this.logger.error('❌ Prisma db push failed:', pushErr.stdout || pushErr.stderr || pushErr.message);
         }
 
         return;
