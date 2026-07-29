@@ -1,6 +1,6 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe, Logger } from '@nestjs/common';
+import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
@@ -67,7 +67,10 @@ async function bootstrap() {
 
     // API Versioning Prefix (excluding root '/' and '/health' for Cloud Run health checks)
     app.setGlobalPrefix('api/v1', {
-      exclude: ['/', 'health'],
+      exclude: [
+        { path: '/', method: RequestMethod.GET },
+        { path: 'health', method: RequestMethod.GET },
+      ],
     });
 
     // Swagger Documentation Setup
