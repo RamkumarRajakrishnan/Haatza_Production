@@ -9,6 +9,7 @@ RUN npm ci
 
 COPY . .
 
+ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 RUN npx prisma generate
 RUN npm run build
 
@@ -29,4 +30,5 @@ COPY --from=builder /app/dist ./dist
 
 EXPOSE 8080
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/main.js"]
+
