@@ -8,7 +8,19 @@ export class AppController {
 
   @Get()
   getHello() {
-    return this.appService.getHello();
+    return {
+      status: 'ok',
+      service: 'Haatza Seller Backend',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  @Get('health')
+  getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
   }
 
   @Get('routes')
@@ -20,3 +32,4 @@ export class AppController {
     };
   }
 }
+
