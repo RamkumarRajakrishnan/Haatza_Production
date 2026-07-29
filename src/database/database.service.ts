@@ -25,10 +25,12 @@ export class DatabaseService
   }
 
   async onModuleInit() {
-    // Connect asynchronously with retries without blocking HTTP server startup
-    this.connectWithRetry().catch((err) => {
+    // Await database connection and table creation before handling traffic
+    try {
+      await this.connectWithRetry();
+    } catch (err) {
       this.logger.error('Initial background DB connection failed:', err);
-    });
+    }
   }
 
   private async connectWithRetry(retries = 10, delayMs = 3000): Promise<void> {
@@ -70,8 +72,10 @@ export class DatabaseService
     try {
       this.logger.log('Verifying core database tables directly via PostgreSQL pool...');
       await this.pool.query(`
+        CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
         CREATE TABLE IF NOT EXISTS public.users (
-          user_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text PRIMARY KEY,
           seller_id text UNIQUE,
           first_name text NOT NULL,
           last_name text,
@@ -105,7 +109,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.roles (
-          role_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          role_id text PRIMARY KEY,
           role_name text UNIQUE NOT NULL,
           role_code text UNIQUE NOT NULL,
           description text,
@@ -117,8 +121,29 @@ export class DatabaseService
           deleted_at timestamp
         );
 
+        CREATE TABLE IF NOT EXISTS public.permissions (
+          permission_id text PRIMARY KEY,
+          permission_name text UNIQUE NOT NULL,
+          permission_code text UNIQUE NOT NULL,
+          module text NOT NULL,
+          action text,
+          description text,
+          is_active boolean DEFAULT true,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.role_permissions (
+          id text PRIMARY KEY,
+          role_id text NOT NULL,
+          permission_id text NOT NULL,
+          granted_at timestamp DEFAULT now(),
+          granted_by text,
+          created_at timestamp DEFAULT now()
+        );
+
         CREATE TABLE IF NOT EXISTS public.sellers (
-          seller_pk text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          seller_pk text PRIMARY KEY,
           user_id text UNIQUE NOT NULL,
           business_name text NOT NULL,
           gst_number text,
@@ -128,7 +153,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.buyers (
-          buyer_pk text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          buyer_pk text PRIMARY KEY,
           user_id text UNIQUE NOT NULL,
           address text,
           created_at timestamp DEFAULT now(),
@@ -136,7 +161,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.user_sessions (
-          session_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          session_id text PRIMARY KEY,
           user_id text NOT NULL,
           device_id text,
           access_token_jti text UNIQUE,
@@ -153,7 +178,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.refresh_tokens (
-          token_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          token_id text PRIMARY KEY,
           user_id text NOT NULL,
           session_id text NOT NULL,
           device_id text,
@@ -163,14 +188,13 @@ export class DatabaseService
           is_revoked boolean DEFAULT false,
           expires_at timestamp NOT NULL,
           revoked_at timestamp,
-          revoked_at_time timestamp,
           replaced_by_token_id text,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
 
         CREATE TABLE IF NOT EXISTS public.otp_verifications (
-          otp_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          otp_id text PRIMARY KEY,
           user_id text,
           identifier text NOT NULL,
           identifier_type text DEFAULT 'PHONE',
@@ -192,7 +216,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.user_login_histories (
-          login_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          login_id text PRIMARY KEY,
           user_id text,
           identifier text NOT NULL,
           login_method text DEFAULT 'PHONE_PASSWORD',
@@ -209,7 +233,7 @@ export class DatabaseService
         );
 
         CREATE TABLE IF NOT EXISTS public.user_devices (
-          device_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          device_id text PRIMARY KEY,
           user_id text NOT NULL,
           fcm_token text,
           apns_token text,
@@ -230,7 +254,7 @@ export class DatabaseService
       `);
       this.logger.log('✅ Core PostgreSQL tables verified and active!');
     } catch (err: any) {
-      this.logger.error('Error ensuring core tables exist:', err.message || err);
+      this.logger.error('Error rendering core tables:', err.message || err);
     }
   }
 

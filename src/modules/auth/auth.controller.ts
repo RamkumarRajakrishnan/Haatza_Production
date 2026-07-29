@@ -25,7 +25,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Login with mobile and password' })
   @ApiResponse({ status: 200, description: 'Authentication successful, returns tokens' })
-  @Post('login')
+  @Post(['login', 'api/login'])
   login(@Body() data: LoginDto, @Req() req: Request) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
     const userAgent = req.headers['user-agent'];
