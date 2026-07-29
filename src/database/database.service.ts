@@ -32,13 +32,23 @@ export class DatabaseService
     let adapter: PrismaPg;
 
     try {
-      pool = new Pool({
+      // Parse host parameter if using Cloud SQL Unix socket (e.g. ?host=/cloudsql/...)
+      const poolConfig: any = {
         connectionString,
         max: poolMax,
         min: poolMin,
         idleTimeoutMillis,
         connectionTimeoutMillis,
-      });
+      };
+
+      if (connectionString.includes('host=/cloudsql/')) {
+        const match = connectionString.match(/host=([^&]+)/);
+        if (match && match[1]) {
+          poolConfig.host = decodeURIComponent(match[1]);
+        }
+      }
+
+      pool = new Pool(poolConfig);
 
       pool.on('error', (err) => {
         this.logger.error('Unexpected error on idle PostgreSQL client', err.stack);
