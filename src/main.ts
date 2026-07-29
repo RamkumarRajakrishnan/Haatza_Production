@@ -28,13 +28,6 @@ async function bootstrap() {
   try {
     const app = await NestFactory.create(AppModule);
 
-    // Bind HTTP server listener IMMEDIATELY so Cloud Run probes pass on port 8080 without delay
-    const port = Number(process.env.PORT) || 8080;
-    await app.listen(port, '0.0.0.0');
-
-    console.log('Server listening on port', port);
-    logger.log(`🚀 Application is running on port ${port}`);
-
     // Enable Graceful Shutdown Hooks
     app.enableShutdownHooks();
 
@@ -69,12 +62,12 @@ async function bootstrap() {
       next();
     });
 
-    // Validation
+    // Validation - do NOT forbid unknown properties to prevent strict rejection of client payloads
     app.useGlobalPipes(
       new ValidationPipe({
         whitelist: true,
-        forbidNonWhitelisted: true,
         transform: true,
+        transformOptions: { enableImplicitConversion: true },
       }),
     );
 
@@ -94,6 +87,13 @@ async function bootstrap() {
       SwaggerModule.setup('api/docs', app, document);
       logger.log('📄 Swagger documentation available at /api/docs');
     }
+
+    const port = Number(process.env.PORT) || 8080;
+    await app.listen(port, '0.0.0.0');
+
+    console.log('Server listening on port', port);
+    logger.log(`🚀 Application is running on port ${port}`);
+    logger.log(`🚀 API endpoint prefix: /api/v1`);
   } catch (error: any) {
     logger.error('Failed to start NestJS application during bootstrap', error.stack || error);
     process.exit(1);
