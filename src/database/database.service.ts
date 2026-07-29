@@ -13,61 +13,7 @@ export class DatabaseService
   private isConnected = false;
 
   constructor() {
-    const connectionString =
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:postgres@127.0.0.1:5432/haatza';
-
-    const poolMax = parseInt(process.env.DATABASE_POOL_MAX || '25', 10);
-    const poolMin = parseInt(process.env.DATABASE_POOL_MIN || '5', 10);
-    const idleTimeoutMillis = parseInt(
-      process.env.DATABASE_POOL_IDLE_TIMEOUT_MS || '30000',
-      10,
-    );
-    const connectionTimeoutMillis = parseInt(
-      process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS || '5000',
-      10,
-    );
-
-    let pool: Pool;
-    let adapter: PrismaPg;
-
-    try {
-      // Parse host parameter if using Cloud SQL Unix socket (e.g. ?host=/cloudsql/...)
-      const poolConfig: any = {
-        connectionString,
-        max: poolMax,
-        min: poolMin,
-        idleTimeoutMillis,
-        connectionTimeoutMillis,
-      };
-
-      if (connectionString.includes('host=/cloudsql/')) {
-        const match = connectionString.match(/host=([^&]+)/);
-        if (match && match[1]) {
-          poolConfig.host = decodeURIComponent(match[1]);
-        }
-      }
-
-      pool = new Pool(poolConfig);
-
-      pool.on('error', (err) => {
-        this.logger.error('Unexpected error on idle PostgreSQL client', err.stack);
-      });
-
-      adapter = new PrismaPg(pool, {
-        disposeExternalPool: true,
-        onPoolError: (err) => {
-          this.logger.error('Prisma PG Adapter pool error', err.stack);
-        },
-      });
-
-      super({ adapter });
-      this.pool = pool;
-    } catch (err: any) {
-      super();
-      console.error('Failed to initialize PrismaPg adapter', err.stack || err.message);
-      this.pool = null as any;
-    }
+    super();
   }
 
   async onModuleInit() {
