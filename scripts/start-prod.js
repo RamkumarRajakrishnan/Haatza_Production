@@ -1,7 +1,20 @@
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 
 const rootDir = path.resolve(__dirname, '..');
+
+// Auto-sync database tables (public.users, etc.) on container startup if DATABASE_URL is set
+if (process.env.DATABASE_URL) {
+  try {
+    console.log('Synchronizing PostgreSQL schema with Database...');
+    execSync('npx prisma db push --skip-generate', { stdio: 'inherit', cwd: rootDir });
+    console.log('✅ Database schema synchronized successfully!');
+  } catch (err) {
+    console.warn('⚠️ Warning: Prisma db push encountered an issue:', err.message);
+  }
+}
+
 const candidates = [
   path.join(rootDir, 'dist', 'src', 'main.js'),
   path.join(rootDir, 'dist', 'main.js'),
