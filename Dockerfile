@@ -18,7 +18,8 @@ EXPOSE 8080
 ENV PORT=8080
 ENV NODE_ENV=production
 
-CMD ["sh", "-c", "npx prisma db push --skip-generate && node dist/src/main.js"]
+CMD ["node", "dist/src/main.js"]
+
 
 
 
