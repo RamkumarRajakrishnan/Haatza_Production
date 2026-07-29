@@ -21,4 +21,4 @@ ENV NODE_ENV=production
 CMD ["sh", "-c", "if [ -f dist/main.js ]; then node dist/main.js; else node dist/src/main.js; fi"]
 
 
-
+
