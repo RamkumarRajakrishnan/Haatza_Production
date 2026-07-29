@@ -27,10 +27,17 @@ export class AllExceptionsFilter implements ExceptionFilter {
         ? exception.getStatus()
         : HttpStatus.INTERNAL_SERVER_ERROR;
 
+    const errorMessageDetails =
+      exception instanceof Error
+        ? exception.message
+        : typeof exception === 'string'
+          ? exception
+          : JSON.stringify(exception);
+
     const message =
       exception instanceof HttpException
         ? exception.getResponse()
-        : 'Internal server error';
+        : errorMessageDetails;
 
     this.logger.error({
       correlationId,
@@ -39,7 +46,8 @@ export class AllExceptionsFilter implements ExceptionFilter {
       statusCode: status,
       timestamp: new Date().toISOString(),
       errorName: exception instanceof Error ? exception.name : 'UnknownError',
-      errorMessage: exception instanceof Error ? exception.message : String(exception),
+      errorMessage: errorMessageDetails,
+      stack: exception instanceof Error ? exception.stack : undefined,
     });
 
     response.setHeader('x-request-id', correlationId);
@@ -49,6 +57,7 @@ export class AllExceptionsFilter implements ExceptionFilter {
       timestamp: new Date().toISOString(),
       path: request.url,
       correlationId,
+      errorDetails: status === 500 ? errorMessageDetails : undefined,
       message:
         typeof message === 'object' && message !== null
           ? (message as Record<string, unknown>).message || message
