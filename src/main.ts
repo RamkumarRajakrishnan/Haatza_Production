@@ -18,8 +18,9 @@ process.on('uncaughtException', (error: Error) => {
 process.env.UV_THREADPOOL_SIZE = '64';
 
 async function bootstrap() {
+  const port = Number(process.env.PORT) || 8080;
   console.log('Starting server...');
-  console.log('PORT:', process.env.PORT);
+  console.log('PORT:', port);
   console.log('NODE_ENV:', process.env.NODE_ENV);
 
   const logger = new Logger('Bootstrap');
@@ -87,8 +88,6 @@ async function bootstrap() {
       logger.log('📄 Swagger documentation available at /api/docs');
     }
 
-    const port = Number(process.env.PORT) || 8080;
-
     await app.listen(port, '0.0.0.0');
 
     console.log('Server listening on port', port);
@@ -101,5 +100,6 @@ async function bootstrap() {
 }
 
 void bootstrap();
+
 
 
