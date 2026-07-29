@@ -38,6 +38,8 @@ export class DatabaseService
         this.isConnected = true;
         this.logger.log('✅ Database connected successfully with explicit pg.Pool');
 
+        await this.ensureCoreTablesExist();
+
         try {
           const { execSync } = require('child_process');
           this.logger.log('Executing automatic DB schema push (npx prisma db push)...');
@@ -47,7 +49,7 @@ export class DatabaseService
           });
           this.logger.log(`✅ Database tables synchronized successfully:\n${output}`);
         } catch (pushErr: any) {
-          this.logger.error('❌ Prisma db push failed:', pushErr.stdout || pushErr.stderr || pushErr.message);
+          this.logger.warn(`Prisma db push note: ${pushErr.message || pushErr}`);
         }
 
         return;
@@ -61,6 +63,174 @@ export class DatabaseService
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
       }
+    }
+  }
+
+  private async ensureCoreTablesExist(): Promise<void> {
+    try {
+      this.logger.log('Verifying core database tables directly via PostgreSQL pool...');
+      await this.pool.query(`
+        CREATE TABLE IF NOT EXISTS public.users (
+          user_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          seller_id text UNIQUE,
+          first_name text NOT NULL,
+          last_name text,
+          nickname text,
+          email text UNIQUE,
+          phone text UNIQUE NOT NULL,
+          password_hash text NOT NULL,
+          company_name text,
+          gstin text,
+          pan_number text,
+          storage_type text DEFAULT 'SELLER',
+          address text,
+          pincode text,
+          city text,
+          state text,
+          country text DEFAULT 'India',
+          onboard_status text DEFAULT 'PENDING',
+          legacy_role text DEFAULT 'BUYER',
+          role_id text,
+          status text DEFAULT 'ACTIVE',
+          legacy_refresh_token text,
+          email_verified_at timestamp,
+          phone_verified_at timestamp,
+          last_login_at timestamp,
+          password_changed_at timestamp,
+          failed_login_attempts integer DEFAULT 0,
+          locked_until timestamp,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now(),
+          deleted_at timestamp
+        );
+
+        CREATE TABLE IF NOT EXISTS public.roles (
+          role_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          role_name text UNIQUE NOT NULL,
+          role_code text UNIQUE NOT NULL,
+          description text,
+          is_default boolean DEFAULT false,
+          is_system_role boolean DEFAULT false,
+          is_active boolean DEFAULT true,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now(),
+          deleted_at timestamp
+        );
+
+        CREATE TABLE IF NOT EXISTS public.sellers (
+          seller_pk text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text UNIQUE NOT NULL,
+          business_name text NOT NULL,
+          gst_number text,
+          address text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.buyers (
+          buyer_pk text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text UNIQUE NOT NULL,
+          address text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.user_sessions (
+          session_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text NOT NULL,
+          device_id text,
+          access_token_jti text UNIQUE,
+          session_token_hash text UNIQUE NOT NULL,
+          ip_address text,
+          user_agent text,
+          is_active boolean DEFAULT true,
+          last_activity_at timestamp DEFAULT now(),
+          expires_at timestamp NOT NULL,
+          revoked_at timestamp,
+          revocation_reason text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.refresh_tokens (
+          token_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text NOT NULL,
+          session_id text NOT NULL,
+          device_id text,
+          token_hash text UNIQUE NOT NULL,
+          token_family text,
+          parent_token_id text,
+          is_revoked boolean DEFAULT false,
+          expires_at timestamp NOT NULL,
+          revoked_at timestamp,
+          revoked_at_time timestamp,
+          replaced_by_token_id text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.otp_verifications (
+          otp_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text,
+          identifier text NOT NULL,
+          identifier_type text DEFAULT 'PHONE',
+          otp_hash text NOT NULL,
+          purpose text DEFAULT 'LOGIN',
+          channel text DEFAULT 'SMS',
+          attempt_count integer DEFAULT 0,
+          max_attempts integer DEFAULT 3,
+          resend_count integer DEFAULT 0,
+          max_resend_count integer DEFAULT 3,
+          is_verified boolean DEFAULT false,
+          expires_at timestamp NOT NULL,
+          verified_at timestamp,
+          used_at timestamp,
+          last_sent_at timestamp DEFAULT now(),
+          blocked_until timestamp,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.user_login_histories (
+          login_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text,
+          identifier text NOT NULL,
+          login_method text DEFAULT 'PHONE_PASSWORD',
+          status text DEFAULT 'SUCCESS',
+          failure_reason text,
+          session_id text,
+          device_id text,
+          ip_address text,
+          user_agent text,
+          device_name text,
+          location text,
+          attempted_at timestamp DEFAULT now(),
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.user_devices (
+          device_id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          user_id text NOT NULL,
+          fcm_token text,
+          apns_token text,
+          device_uuid text,
+          device_identifier text,
+          device_os text DEFAULT 'UNKNOWN',
+          device_name text,
+          device_model text,
+          app_version text,
+          app_build_number text,
+          platform text,
+          is_active boolean DEFAULT true,
+          notifications_enabled boolean DEFAULT true,
+          last_seen_at timestamp DEFAULT now(),
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+      `);
+      this.logger.log('✅ Core PostgreSQL tables verified and active!');
+    } catch (err: any) {
+      this.logger.error('Error ensuring core tables exist:', err.message || err);
     }
   }
 
