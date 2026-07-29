@@ -39,13 +39,7 @@ async function bootstrap() {
 
     // Enable CORS for allowed clients
     app.enableCors({
-      origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
-          callback(null, true);
-        } else {
-          callback(new Error(`CORS policy does not allow access from origin ${origin}`));
-        }
-      },
+      origin: true,
       credentials: true,
     });
 
@@ -71,8 +65,10 @@ async function bootstrap() {
       }),
     );
 
-    // API Version
-    app.setGlobalPrefix('api/v1');
+    // API Versioning Prefix (excluding root '/' and '/health' for Cloud Run health checks)
+    app.setGlobalPrefix('api/v1', {
+      exclude: ['/', 'health'],
+    });
 
     // Swagger Documentation Setup
     if (process.env.NODE_ENV !== 'production' || process.env.ENABLE_SWAGGER === 'true') {
