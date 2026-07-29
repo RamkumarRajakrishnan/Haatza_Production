@@ -5,6 +5,14 @@ import { DatabaseService } from '../../database/database.service';
 export class HealthController {
   constructor(private readonly database: DatabaseService) {}
 
+  @Get()
+  getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+    };
+  }
+
   @Get('live')
   getLiveness() {
     return {
@@ -15,6 +23,13 @@ export class HealthController {
 
   @Get('ready')
   async getReadiness() {
+    if (!this.database.getIsConnected()) {
+      return {
+        status: 'starting',
+        database: 'connecting',
+        timestamp: new Date().toISOString(),
+      };
+    }
     try {
       await this.database.$queryRaw`SELECT 1`;
       return {
@@ -32,3 +47,4 @@ export class HealthController {
     }
   }
 }
+
