@@ -8,10 +8,10 @@ const rootDir = path.resolve(__dirname, '..');
 if (process.env.DATABASE_URL) {
   try {
     console.log('Synchronizing PostgreSQL schema with Database...');
-    execSync('npx prisma db push --skip-generate', { stdio: 'inherit', cwd: rootDir });
+    execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit', cwd: rootDir });
     console.log('✅ Database schema synchronized successfully!');
   } catch (err) {
-    console.warn('⚠️ Warning: Prisma db push encountered an issue:', err.message);
+    console.warn('⚠️ Warning: Prisma db push encountered an issue:', err.message || err);
   }
 }
 
