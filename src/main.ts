@@ -14,8 +14,7 @@ process.on('uncaughtException', (error: Error) => {
   process.exit(1);
 });
 
-// Expand libuv threadpool for high bcrypt concurrency
-process.env.UV_THREADPOOL_SIZE = '64';
+process.env.UV_THREADPOOL_SIZE = '4';
 
 async function bootstrap() {
   const port = Number(process.env.PORT) || 8080;
