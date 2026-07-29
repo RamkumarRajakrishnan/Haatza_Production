@@ -13,7 +13,13 @@ export class DatabaseService
   private isConnected = false;
 
   constructor() {
-    super();
+    const connectionString =
+      process.env.DATABASE_URL ||
+      'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
+    const pool = new Pool({ connectionString });
+    const adapter = new PrismaPg(pool);
+    super({ adapter });
+    this.pool = pool;
   }
 
   async onModuleInit() {
