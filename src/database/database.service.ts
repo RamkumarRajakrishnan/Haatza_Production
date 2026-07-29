@@ -17,7 +17,11 @@ export class DatabaseService
     const connectionString =
       process.env.DATABASE_URL ||
       'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
-    const pool = new Pool({ connectionString });
+    const pool = new Pool({
+      connectionString,
+      connectionTimeoutMillis: 4000,
+      idleTimeoutMillis: 30000,
+    });
     const adapter = new PrismaPg(pool);
     super({ adapter });
     this.pool = pool;
@@ -25,15 +29,13 @@ export class DatabaseService
   }
 
   async onModuleInit() {
-    // Await database connection and table creation before handling traffic
-    try {
-      await this.connectWithRetry();
-    } catch (err) {
-      this.logger.error('Initial background DB connection failed:', err);
-    }
+    // Non-blocking background database connection so Cloud Run boots instantly
+    this.connectWithRetry().catch((err) => {
+      this.logger.error('Background DB connection failed:', err);
+    });
   }
 
-  private async connectWithRetry(retries = 10, delayMs = 3000): Promise<void> {
+  private async connectWithRetry(retries = 3, delayMs = 2000): Promise<void> {
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         await this.$connect();
