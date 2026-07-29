@@ -59,9 +59,42 @@ export class DatabaseService
 
   private async ensureCoreTablesExist(): Promise<void> {
     try {
-      this.logger.log('Verifying core database tables directly via PostgreSQL pool...');
+      this.logger.log('Verifying core database tables and enum types directly via PostgreSQL pool...');
       await this.pool.query(`
         CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StorageType') THEN
+            CREATE TYPE public."StorageType" AS ENUM ('SELLER', 'HAATZA');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserOnboardStatus') THEN
+            CREATE TYPE public."UserOnboardStatus" AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE', 'REJECTED', 'SUSPENDED');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserStatus') THEN
+            CREATE TYPE public."UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'BLOCKED', 'PENDING');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
+            CREATE TYPE public."UserRole" AS ENUM ('ADMIN', 'SELLER', 'BUYER', 'NEST_WORKER', 'DELIVERY_PARTNER', 'SUPPORT', 'SELLER_OWNER', 'SELLER_STAFF', 'ACCOUNT_MANAGER');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OtpIdentifierType') THEN
+            CREATE TYPE public."OtpIdentifierType" AS ENUM ('EMAIL', 'PHONE');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OtpPurpose') THEN
+            CREATE TYPE public."OtpPurpose" AS ENUM ('REGISTRATION', 'LOGIN', 'FORGOT_PASSWORD', 'EMAIL_VERIFICATION', 'MOBILE_VERIFICATION');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OtpChannel') THEN
+            CREATE TYPE public."OtpChannel" AS ENUM ('SMS', 'EMAIL', 'WHATSAPP');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LoginMethod') THEN
+            CREATE TYPE public."LoginMethod" AS ENUM ('EMAIL_PASSWORD', 'PHONE_PASSWORD', 'OTP_EMAIL', 'OTP_PHONE', 'REFRESH_TOKEN');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'LoginStatus') THEN
+            CREATE TYPE public."LoginStatus" AS ENUM ('SUCCESS', 'FAILED', 'BLOCKED', 'LOCKED', 'TOKEN_REJECTED');
+          END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DeviceOS') THEN
+            CREATE TYPE public."DeviceOS" AS ENUM ('ANDROID', 'IOS', 'WEB', 'UNKNOWN');
+          END IF;
+        END $$;
 
         CREATE TABLE IF NOT EXISTS public.users (
           user_id text PRIMARY KEY,
@@ -75,16 +108,16 @@ export class DatabaseService
           company_name text,
           gstin text,
           pan_number text,
-          storage_type text DEFAULT 'SELLER',
+          storage_type public."StorageType" DEFAULT 'SELLER'::public."StorageType",
           address text,
           pincode text,
           city text,
           state text,
           country text DEFAULT 'India',
-          onboard_status text DEFAULT 'PENDING',
-          legacy_role text DEFAULT 'BUYER',
+          onboard_status public."UserOnboardStatus" DEFAULT 'PENDING'::public."UserOnboardStatus",
+          legacy_role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
           role_id text,
-          status text DEFAULT 'ACTIVE',
+          status public."UserStatus" DEFAULT 'ACTIVE'::public."UserStatus",
           legacy_refresh_token text,
           email_verified_at timestamp,
           phone_verified_at timestamp,
@@ -96,6 +129,19 @@ export class DatabaseService
           updated_at timestamp DEFAULT now(),
           deleted_at timestamp
         );
+
+        DO $$ BEGIN
+          ALTER TABLE public.users ALTER COLUMN storage_type TYPE public."StorageType" USING storage_type::public."StorageType";
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+        DO $$ BEGIN
+          ALTER TABLE public.users ALTER COLUMN onboard_status TYPE public."UserOnboardStatus" USING onboard_status::public."UserOnboardStatus";
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+        DO $$ BEGIN
+          ALTER TABLE public.users ALTER COLUMN legacy_role TYPE public."UserRole" USING legacy_role::public."UserRole";
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+        DO $$ BEGIN
+          ALTER TABLE public.users ALTER COLUMN status TYPE public."UserStatus" USING status::public."UserStatus";
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.roles (
           role_id text PRIMARY KEY,
@@ -186,10 +232,10 @@ export class DatabaseService
           otp_id text PRIMARY KEY,
           user_id text,
           identifier text NOT NULL,
-          identifier_type text DEFAULT 'PHONE',
+          identifier_type public."OtpIdentifierType" DEFAULT 'PHONE'::public."OtpIdentifierType",
           otp_hash text NOT NULL,
-          purpose text DEFAULT 'LOGIN',
-          channel text DEFAULT 'SMS',
+          purpose public."OtpPurpose" DEFAULT 'LOGIN'::public."OtpPurpose",
+          channel public."OtpChannel" DEFAULT 'SMS'::public."OtpChannel",
           attempt_count integer DEFAULT 0,
           max_attempts integer DEFAULT 3,
           resend_count integer DEFAULT 0,
@@ -208,8 +254,8 @@ export class DatabaseService
           login_id text PRIMARY KEY,
           user_id text,
           identifier text NOT NULL,
-          login_method text DEFAULT 'PHONE_PASSWORD',
-          status text DEFAULT 'SUCCESS',
+          login_method public."LoginMethod" DEFAULT 'PHONE_PASSWORD'::public."LoginMethod",
+          status public."LoginStatus" DEFAULT 'SUCCESS'::public."LoginStatus",
           failure_reason text,
           session_id text,
           device_id text,
@@ -228,7 +274,7 @@ export class DatabaseService
           apns_token text,
           device_uuid text,
           device_identifier text,
-          device_os text DEFAULT 'UNKNOWN',
+          device_os public."DeviceOS" DEFAULT 'UNKNOWN'::public."DeviceOS",
           device_name text,
           device_model text,
           app_version text,
@@ -241,7 +287,7 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
       `);
-      this.logger.log('✅ Core PostgreSQL tables verified and active!');
+      this.logger.log('✅ Core PostgreSQL tables & enum types verified and active!');
     } catch (err: any) {
       this.logger.error('Error rendering core tables:', err.message || err);
     }
