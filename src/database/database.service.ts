@@ -64,8 +64,8 @@ export class DatabaseService
       super({ adapter });
       this.pool = pool;
     } catch (err: any) {
-      this.logger.error('Failed to initialize PrismaPg adapter', err.stack || err.message);
       super();
+      console.error('Failed to initialize PrismaPg adapter', err.stack || err.message);
       this.pool = null as any;
     }
   }
