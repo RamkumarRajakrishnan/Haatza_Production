@@ -21,6 +21,7 @@ import { ShippingModule } from './modules/shipping/shipping.module';
 import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { HaatzUpModule } from './modules/haatzup/haatzup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
+import { SellerProductModule } from './modules/seller-product/seller-product.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -74,6 +75,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     SubscriptionModule,
     HaatzUpModule,
     WarehouseModule,
+    SellerProductModule,
   ],
 
   controllers: [AppController],

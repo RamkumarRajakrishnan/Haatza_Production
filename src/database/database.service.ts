@@ -286,8 +286,269 @@ export class DatabaseService
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
+
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ContactEnquiryStatus') THEN
+            CREATE TYPE public."ContactEnquiryStatus" AS ENUM ('NEW', 'IN_PROGRESS', 'RESOLVED', 'CLOSED');
+          END IF;
+        END $$;
+
+        CREATE TABLE IF NOT EXISTS public.contact_enquiries (
+          id text PRIMARY KEY,
+          first_name varchar(100) NOT NULL,
+          phone varchar(20) NOT NULL,
+          email varchar(255),
+          city varchar(100) NOT NULL,
+          message text,
+          status public."ContactEnquiryStatus" DEFAULT 'NEW'::public."ContactEnquiryStatus",
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.categories (
+          category_id text PRIMARY KEY,
+          name text NOT NULL,
+          slug text UNIQUE NOT NULL,
+          parent_id text,
+          fields jsonb,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.products (
+          product_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          category_id text,
+          title text NOT NULL,
+          description text,
+          price double precision NOT NULL,
+          sku text UNIQUE NOT NULL,
+          inventory integer DEFAULT 0,
+          media_urls text[],
+          video_urls text[],
+          influencer_branding boolean DEFAULT false,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.orders (
+          order_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          buyer_id text,
+          status text DEFAULT 'PENDING',
+          total_amount double precision NOT NULL,
+          shipping_amount double precision DEFAULT 0.0,
+          delivery_address jsonb,
+          awb_number text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.order_returns (
+          return_id text PRIMARY KEY,
+          order_id text NOT NULL,
+          seller_id text NOT NULL,
+          reason text NOT NULL,
+          status text DEFAULT 'REQUESTED',
+          is_exchange boolean DEFAULT false,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.claims (
+          claim_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          order_id text,
+          subject text NOT NULL,
+          description text NOT NULL,
+          status text DEFAULT 'OPEN',
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.wallets (
+          wallet_id text PRIMARY KEY,
+          seller_id text UNIQUE NOT NULL,
+          balance double precision DEFAULT 0.0,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.wallet_transactions (
+          transaction_id text PRIMARY KEY,
+          wallet_id text NOT NULL,
+          amount double precision NOT NULL,
+          type text NOT NULL,
+          description text,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.invoices (
+          invoice_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          invoice_no text UNIQUE NOT NULL,
+          amount double precision NOT NULL,
+          tax_amount double precision DEFAULT 0.0,
+          pdf_url text,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.campaigns (
+          campaign_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          name text NOT NULL,
+          budget double precision NOT NULL,
+          status text DEFAULT 'ACTIVE',
+          product_ids text[],
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.notifications (
+          notification_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          title text NOT NULL,
+          message text NOT NULL,
+          is_read boolean DEFAULT false,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.support_tickets (
+          ticket_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          subject text NOT NULL,
+          description text NOT NULL,
+          status text DEFAULT 'OPEN',
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.subscription_plans (
+          plan_id text PRIMARY KEY,
+          name text NOT NULL,
+          price double precision NOT NULL,
+          duration text NOT NULL,
+          features jsonb,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.seller_subscriptions (
+          subscription_id text PRIMARY KEY,
+          seller_id text UNIQUE NOT NULL,
+          plan_id text NOT NULL,
+          status text DEFAULT 'ACTIVE',
+          expires_at timestamp NOT NULL,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.referrals (
+          referral_id text PRIMARY KEY,
+          referrer_id text NOT NULL,
+          referred_email text NOT NULL,
+          referral_code text NOT NULL,
+          status text DEFAULT 'PENDING',
+          reward_amount double precision DEFAULT 0.0,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.haatzup_videos (
+          video_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          video_url text NOT NULL,
+          hashtags text[],
+          product_ids text[],
+          views_count integer DEFAULT 0,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.warehouses (
+          warehouse_id text PRIMARY KEY,
+          seller_id text NOT NULL,
+          name text NOT NULL,
+          address text NOT NULL,
+          pincode text NOT NULL,
+          city text NOT NULL,
+          state text NOT NULL,
+          created_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.seller_products (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          main_media text,
+          one_rs_store boolean DEFAULT false,
+          product_images jsonb,
+          name text NOT NULL,
+          search_keywords jsonb,
+          sub_category text,
+          sub_category_id uuid,
+          brand text,
+          inventory integer,
+          variant_price jsonb,
+          product_id text,
+          new_variant_price numeric(12,2),
+          mrp numeric(12,2),
+          onsale_price numeric(12,2),
+          cod boolean,
+          upi boolean,
+          price numeric(12,2),
+          discount jsonb,
+          status varchar(50),
+          delivery_charges boolean,
+          main_category text,
+          seller_id uuid,
+          shipping_weight numeric(10,2),
+          collections jsonb,
+          seller_pincode varchar(10),
+          created_date timestamptz,
+          updated_date timestamptz,
+          product_options jsonb,
+          additional_info_sections jsonb,
+          active_ad boolean,
+          average_cpc numeric(10,2),
+          priority_score varchar(100),
+          campaign_id text,
+          reach integer DEFAULT 0,
+          impression integer DEFAULT 0,
+          clicks integer DEFAULT 0,
+          sales integer DEFAULT 0,
+          revenue numeric(12,2) DEFAULT 0,
+          category_name jsonb,
+          sku text,
+          product_type varchar(50),
+          manage_variants boolean,
+          ribbon text,
+          track_inventory boolean,
+          influencer_branding boolean,
+          haatza_verified boolean,
+          promotion_photos jsonb,
+          payment_type text,
+          product_return text,
+          size_chart text,
+          description text,
+          gst_seller boolean,
+          upi_payment_discount numeric(10,2),
+          manage_listing_products text,
+          sell_and_earn_commission numeric(10,2),
+          sell_and_earn boolean,
+          imported_at timestamptz DEFAULT now(),
+          created_at timestamptz DEFAULT now(),
+          updated_at timestamptz DEFAULT now()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_seller_products_seller_id ON public.seller_products(seller_id);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_sku ON public.seller_products(sku);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_status ON public.seller_products(status);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_brand ON public.seller_products(brand);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_sub_category ON public.seller_products(sub_category);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_created_date ON public.seller_products(created_date);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_updated_date ON public.seller_products(updated_date);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_search_keywords ON public.seller_products USING gin(search_keywords);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_product_images ON public.seller_products USING gin(product_images);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_variant_price ON public.seller_products USING gin(variant_price);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_product_options ON public.seller_products USING gin(product_options);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_collections ON public.seller_products USING gin(collections);
       `);
-      this.logger.log('✅ Core PostgreSQL tables & enum types verified and active!');
+      this.logger.log('✅ All PostgreSQL tables & enum types verified and active!');
     } catch (err: any) {
       this.logger.error('Error rendering core tables:', err.message || err);
     }
