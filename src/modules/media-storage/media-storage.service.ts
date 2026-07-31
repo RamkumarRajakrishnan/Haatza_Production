@@ -225,13 +225,22 @@ export class MediaStorageService {
   }
 
   /**
-   * Get public CDN URL for a given object key
+   * Get public CDN URL for a given object key or Wix image reference
    */
   getPublicUrl(key?: string | null): string {
     if (!key) return '';
     if (key.startsWith('http://') || key.startsWith('https://')) {
       return key; // Already a full URL
     }
+
+    // Handle Wix image protocol strings (e.g. wix:image://v1/aca349_.../image.jpg#originWidth=...)
+    if (key.startsWith('wix:image://')) {
+      const parts = key.split('/');
+      const filenameWithHash = parts[parts.length - 1] || '';
+      const filename = filenameWithHash.split('#')[0] || '';
+      return `https://static.wixstatic.com/media/${filename}`;
+    }
+
     const cleanKey = key.replace(/^\/+/, '');
     return `${this.mediaBaseUrl}/${cleanKey}`;
   }
@@ -243,6 +252,9 @@ export class MediaStorageService {
     if (!urlOrKey) return '';
     if (urlOrKey.startsWith(this.mediaBaseUrl)) {
       return urlOrKey.replace(`${this.mediaBaseUrl}/`, '').replace(/^\/+/, '');
+    }
+    if (urlOrKey.startsWith('wix:image://')) {
+      return urlOrKey; // Retain exact string if legacy wix key
     }
     try {
       const parsed = new URL(urlOrKey);
