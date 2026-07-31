@@ -22,6 +22,7 @@ import { SubscriptionModule } from './modules/subscription/subscription.module';
 import { HaatzUpModule } from './modules/haatzup/haatzup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { SellerProductModule } from './modules/seller-product/seller-product.module';
+import { MediaStorageModule } from './modules/media-storage/media-storage.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -61,6 +62,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     }),
 
     DatabaseModule,
+    MediaStorageModule,
     AuthModule,
     HealthModule,
     ContactModule,

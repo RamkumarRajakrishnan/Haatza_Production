@@ -4,6 +4,8 @@ import { ValidationPipe, Logger, RequestMethod } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 
+import { DOMAIN_CONFIG } from './config/domain.config';
+
 // Process-level global unhandled error handlers
 process.on('unhandledRejection', (reason: unknown) => {
   console.error('CRITICAL: Unhandled Promise Rejection:', reason);
@@ -34,7 +36,7 @@ async function bootstrap() {
     const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
     const allowedOrigins = allowedOriginsEnv
       ? allowedOriginsEnv.split(',').map((origin) => origin.trim())
-      : ['https://seller.haatza.com', 'https://www.haatza.com'];
+      : [DOMAIN_CONFIG.BASE_DOMAIN];
 
     // Enable CORS for allowed clients
     app.enableCors({

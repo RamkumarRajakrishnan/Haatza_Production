@@ -34,14 +34,14 @@ async function bootstrap() {
 
   console.log('\n================ IMPORT REPORT ================');
   console.log(`⏱️ Duration: ${duration} seconds`);
-  console.log(`📊 Total Rows: ${result.stats.totalRows}`);
-  console.log(`✅ Success Count: ${result.stats.successCount}`);
-  console.log(`❌ Failed Count: ${result.stats.failedCount}`);
+  console.log(`📊 Total Rows: ${result.totalRows}`);
+  console.log(`✅ Success Count: ${result.imported}`);
+  console.log(`❌ Failed Count: ${result.failed}`);
 
   if (result.errors.length > 0) {
     console.log('\n❌ Failures Summary (First 10 errors):');
     result.errors.slice(0, 10).forEach((err) => {
-      console.log(`   - Row ${err.row}: ${err.error}`);
+      console.log(`   - Row ${err.row} [${err.column}]: ${err.message}`);
     });
   }
   console.log('===============================================\n');

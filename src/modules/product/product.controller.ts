@@ -1,33 +1,135 @@
-import { Controller, Get, Post, Put, Body, Param, Query } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
+import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
+import { StorageService } from '../seller-product/storage.service';
 
-@Controller()
+@Controller(['products', 'seller_products', 'sellerlisting', 'sellerProductDetails', 'productDetails', 'updateSellerProduct', 'sellerproductInventory', 'incrementInventory', 'decrementInventory', 'sellerIBProducts', 'updateInfluencerBranding', 'uploadMedia', 'uploadVideo', ''])
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(
+    private readonly productService: ProductService,
+    private readonly storageService: StorageService,
+  ) {}
 
+  /**
+   * 1. Get seller products list (GET /seller_products, GET /products)
+   */
   @Get('products')
   @Get('seller_products')
-  @Get('sellerlisting')
-  getProducts(@Query('sellerId') sellerId: string) {
-    return this.productService.getSellerProducts(sellerId);
+  getSellerProducts(
+    @Query('email') email?: string,
+    @Query('sellerId') sellerId?: string,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+    @Query('type') type?: string,
+  ) {
+    return this.productService.getSellerProducts(
+      email,
+      sellerId,
+      limit ? parseInt(limit, 10) : 30,
+      page ? parseInt(page, 10) : 1,
+      type,
+    );
   }
 
+  /**
+   * 2 & 5. Get one seller product by Table_ID / ProductID (GET /sellerProductDetails, GET /productDetails)
+   */
   @Get('products/:id')
   @Get('sellerProductDetails')
   @Get('productDetails')
-  getProductDetails(@Param('id') id: string, @Query('id') queryId: string) {
-    return this.productService.getProductDetails(id || queryId);
+  getProductDetails(
+    @Param('id') paramId?: string,
+    @Query('Table_ID') tableId?: string,
+    @Query('productId') productId?: string,
+    @Query('id') queryId?: string,
+  ) {
+    const targetId = paramId || tableId || productId || queryId;
+    return this.productService.getProductDetails(targetId!);
   }
 
+  /**
+   * 3. Submit or create seller listing (POST /sellerlisting, POST /products)
+   */
   @Post('products')
+  @Post('sellerlisting')
   createProduct(@Body() body: any) {
     return this.productService.createProduct(body);
   }
 
+  /**
+   * 4. Update seller product (POST /updateSellerProduct, PUT /products/:id)
+   */
   @Put('products/:id')
   @Post('updateSellerProduct')
-  updateProduct(@Param('id') id: string, @Body() body: any) {
-    return this.productService.updateProduct(id || body.id, body);
+  updateProduct(@Param('id') paramId: string, @Body() body: any) {
+    return this.productService.updateProduct(paramId || body.tableId || body.Id || body.id, body);
+  }
+
+  /**
+   * 6. Get seller inventory list (GET /sellerproductInventory)
+   */
+  @Get('sellerproductInventory')
+  getInventory(
+    @Query('sellerId') sellerId?: string,
+    @Query('limit') limit?: string,
+    @Query('page') page?: string,
+  ) {
+    return this.productService.getSellerProducts(
+      undefined,
+      sellerId,
+      limit ? parseInt(limit, 10) : 50,
+      page ? parseInt(page, 10) : 1,
+    );
+  }
+
+  /**
+   * 7. Increment inventory (POST /incrementInventory)
+   */
+  @Post('incrementInventory')
+  incrementInventory(@Body() body: any) {
+    if (Array.isArray(body.updateInfo)) {
+      return this.productService.updateInventoryBatch(body.updateInfo, true);
+    }
+    return this.productService.updateInventorySingle(body.productId || body.tableId, Number(body.amount || body.quantity) || 1);
+  }
+
+  /**
+   * 8. Decrement inventory (POST /decrementInventory)
+   */
+  @Post('decrementInventory')
+  decrementInventory(@Body() body: any) {
+    if (Array.isArray(body.updateInfo)) {
+      return this.productService.updateInventoryBatch(body.updateInfo, false);
+    }
+    return this.productService.updateInventorySingle(body.productId || body.tableId, -(Number(body.amount || body.quantity) || 1));
+  }
+
+  /**
+   * 9. Get influencer branding products (GET /sellerIBProducts)
+   */
+  @Get('sellerIBProducts')
+  getInfluencerBrandingProducts(@Query('sellerId') sellerId: string) {
+    return this.productService.getInfluencerBrandingProducts(sellerId);
+  }
+
+  /**
+   * 10. Update influencer branding (POST /updateInfluencerBranding)
+   */
+  @Post('updateInfluencerBranding')
+  updateInfluencerBranding(@Body() body: any) {
+    const targetIds = body.tableId || body.tableIds || body.productId;
+    const enabled = body.influencerBranding !== undefined ? Boolean(body.influencerBranding) : Boolean(body.enabled);
+    return this.productService.updateInfluencerBranding(targetIds, enabled);
+  }
+
+  /**
+   * 11 & 12. Media Upload APIs (POST /uploadMedia, POST /uploadVideo)
+   */
+  @Post('uploadMedia')
+  @Post('uploadVideo')
+  @UseInterceptors(FilesInterceptor('files'))
+  uploadMedia(@UploadedFiles() files: any[]) {
+    return this.storageService.uploadFiles(files);
   }
 
   @Get('category')
@@ -41,12 +143,6 @@ export class ProductController {
     return this.productService.getSubcategories(categoryId);
   }
 
-  @Post('uploadMedia')
-  @Post('uploadVideo')
-  uploadMedia(@Body() body: any) {
-    return this.productService.uploadMedia(body);
-  }
-
   @Get('searchcategorylist')
   searchCategories(@Query('query') query: string) {
     return this.productService.searchCategories(query);
@@ -56,29 +152,5 @@ export class ProductController {
   getCategoryFields(@Query('categoryId') categoryId: string) {
     return this.productService.getCategoryFields(categoryId);
   }
-
-  @Get('sellerproductInventory')
-  getInventory(@Query('sellerId') sellerId: string) {
-    return this.productService.getSellerProducts(sellerId);
-  }
-
-  @Post('incrementInventory')
-  incrementInventory(@Body() body: any) {
-    return this.productService.updateInventory(body.productId, Number(body.amount) || 1);
-  }
-
-  @Post('decrementInventory')
-  decrementInventory(@Body() body: any) {
-    return this.productService.updateInventory(body.productId, -(Number(body.amount) || 1));
-  }
-
-  @Get('sellerIBProducts')
-  getInfluencerBrandingProducts(@Query('sellerId') sellerId: string) {
-    return this.productService.getInfluencerBrandingProducts(sellerId);
-  }
-
-  @Post('updateInfluencerBranding')
-  updateInfluencerBranding(@Body() body: any) {
-    return this.productService.updateInfluencerBranding(body.productId, body.enabled);
-  }
 }
+

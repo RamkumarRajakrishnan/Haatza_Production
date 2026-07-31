@@ -595,6 +595,7 @@ model Warehouse {
 model SellerProduct {
   id                    String    @id @default(uuid()) @map("id")
   mainMedia             String?   @map("main_media")
+  media                 Json?     @map("media")
   oneRsStore            Boolean?  @default(false) @map("one_rs_store")
   productImages         Json?     @map("product_images")
   name                  String    @map("name")

@@ -475,6 +475,7 @@ export class DatabaseService
         CREATE TABLE IF NOT EXISTS public.seller_products (
           id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
           main_media text,
+          media jsonb,
           one_rs_store boolean DEFAULT false,
           product_images jsonb,
           name text NOT NULL,
@@ -546,7 +547,9 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_seller_products_product_images ON public.seller_products USING gin(product_images);
         CREATE INDEX IF NOT EXISTS idx_seller_products_variant_price ON public.seller_products USING gin(variant_price);
         CREATE INDEX IF NOT EXISTS idx_seller_products_product_options ON public.seller_products USING gin(product_options);
+        ALTER TABLE public.seller_products ADD COLUMN IF NOT EXISTS media jsonb;
         CREATE INDEX IF NOT EXISTS idx_seller_products_collections ON public.seller_products USING gin(collections);
+        CREATE INDEX IF NOT EXISTS idx_seller_products_media ON public.seller_products USING gin(media);
       `);
       this.logger.log('✅ All PostgreSQL tables & enum types verified and active!');
     } catch (err: any) {

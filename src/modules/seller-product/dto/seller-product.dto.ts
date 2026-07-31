@@ -6,15 +6,48 @@ import {
   IsUUID,
   IsInt,
   Min,
+  IsEnum,
+  IsUrl,
+  IsArray,
+  ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+
+export enum MediaType {
+  IMAGE = 'image',
+  VIDEO = 'video',
+}
+
+export class MediaItemDto {
+  @ApiProperty({ enum: MediaType, description: 'Media type (image or video)', example: 'image' })
+  @IsEnum(MediaType, { message: 'Media type must be either "image" or "video"' })
+  type: MediaType;
+
+  @ApiProperty({ description: 'Public HTTP/HTTPS URL of the media file', example: 'https://cdn.example.com/uploads/image1.webp' })
+  @IsUrl({ require_protocol: true }, { message: 'URL must be a valid HTTP or HTTPS URL' })
+  url: string;
+}
 
 export class CreateSellerProductDto {
   @ApiPropertyOptional({ description: 'Main media image URL' })
   @IsOptional()
   @IsString()
   mainMedia?: string;
+
+  @ApiPropertyOptional({
+    type: [MediaItemDto],
+    description: 'JSONB array of media objects with public URLs and types',
+    example: [
+      { type: 'image', url: 'https://cdn.example.com/uploads/image1.webp' },
+      { type: 'video', url: 'https://cdn.example.com/uploads/video1.mp4' },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => MediaItemDto)
+  media?: MediaItemDto[];
 
   @ApiPropertyOptional({ description: 'One RS store indicator' })
   @IsOptional()
