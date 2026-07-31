@@ -58,7 +58,7 @@ export class SellerProductController {
     return this.sellerProductService.findAll(query);
   }
 
-  @Get(':id')
+  @Get('detail/:id')
   @ApiOperation({ summary: 'Get a seller product by ID' })
   async findOne(@Param('id') id: string) {
     return this.sellerProductService.findOne(id);
