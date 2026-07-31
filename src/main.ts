@@ -74,11 +74,12 @@ async function bootstrap() {
       }),
     );
 
-    // API Versioning Prefix (excluding root '/' and '/health' for Cloud Run health checks)
+    // API Versioning Prefix (excluding root '/', '/health', and static '/uploads')
     app.setGlobalPrefix('api/v1', {
       exclude: [
         { path: '/', method: RequestMethod.GET },
         { path: 'health', method: RequestMethod.GET },
+        { path: 'uploads/(.*)', method: RequestMethod.GET },
       ],
     });
 
