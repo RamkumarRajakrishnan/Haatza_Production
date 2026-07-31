@@ -26,7 +26,7 @@ import {
 } from './dto/seller-product.dto';
 
 @ApiTags('Seller Products')
-@Controller(['seller-products', ''])
+@Controller(['seller-products', 'seller_products'])
 export class SellerProductController {
   constructor(
     private readonly sellerProductService: SellerProductService,
