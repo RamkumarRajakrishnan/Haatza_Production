@@ -3,12 +3,12 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
 import { StorageService } from '../seller-product/storage.service';
 
-@Controller(['products', 'seller_products', 'sellerlisting', 'sellerProductDetails', 'productDetails', 'updateSellerProduct', 'sellerproductInventory', 'incrementInventory', 'decrementInventory', 'sellerIBProducts', 'updateInfluencerBranding', 'uploadMedia', 'uploadVideo', ''])
+@Controller()
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
     private readonly storageService: StorageService,
-  ) {}
+  ) { }
 
   /**
    * 1. Get seller products list (GET /seller_products, GET /products)
