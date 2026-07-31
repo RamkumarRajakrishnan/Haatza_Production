@@ -18,6 +18,9 @@ process.on('uncaughtException', (error: Error) => {
 
 process.env.UV_THREADPOOL_SIZE = '4';
 
+import { NestExpressApplication } from '@nestjs/platform-express';
+import * as path from 'path';
+
 async function bootstrap() {
   const port = Number(process.env.PORT) || 8080;
   console.log('Starting server...');
@@ -27,7 +30,12 @@ async function bootstrap() {
   const logger = new Logger('Bootstrap');
 
   try {
-    const app = await NestFactory.create(AppModule);
+    const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+    // Serve uploaded files statically under /uploads
+    app.useStaticAssets(path.join(process.cwd(), 'public', 'uploads'), {
+      prefix: '/uploads/',
+    });
 
     // Enable Graceful Shutdown Hooks
     app.enableShutdownHooks();
