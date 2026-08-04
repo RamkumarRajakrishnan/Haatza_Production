@@ -35,8 +35,14 @@ const BITRATE_MAP: Record<string, string> = {
   'default': '1500k',
 };
 
-const AUDIO_BITRATE = '128k';
+// High Quality Audio Bitrate (192 kbps AAC)
+const AUDIO_BITRATE = '192k';
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB max input
+
+// Optimal CRF setting for near-lossless / visually transparent quality
+// CRF 18-20 = Near-lossless / visually transparent quality
+// CRF 22 = Good quality, higher compression
+const OPTIMAL_CRF = 20;
 
 @Injectable()
 export class VideoCompressorService {
@@ -97,7 +103,14 @@ export class VideoCompressorService {
   }
 
   /**
-   * Compress a video buffer.
+   * Compress a video buffer with near-lossless quality preservation.
+   *
+   * Strategy:
+   * 1. Preserve original resolution (1080p, 720p, etc.) to prevent blurriness.
+   *    Downscale only ultra-high 4K (2160p+) to 1080p max for web compatibility.
+   * 2. Use Constant Rate Factor (CRF 20) with H.264 High Profile instead of hard bitrate caps.
+   * 3. Preserve high-fidelity stereo audio at 192 kbps AAC.
+   * 4. Ensure output dimensions are even numbers required by H.264 macroblocks.
    */
   async compress(fileBuffer: Buffer, originalFilename: string): Promise<VideoCompressionResult> {
     const originalSize = fileBuffer.length;
@@ -149,15 +162,15 @@ export class VideoCompressorService {
         `Video input: ${width}x${height}, duration: ${this.formatDuration(durationSeconds)}, size: ${this.formatBytes(originalSize)}`,
       );
 
-      // Step 3: Determine target resolution and bitrate
-      const { targetWidth, targetHeight, bitrate, tier } = this.getTargetSettings(width, height);
+      // Step 3: Determine target resolution (preserve resolution up to 1080p)
+      const { targetWidth, targetHeight, tier } = this.getTargetSettings(width, height);
 
       this.logger.log(
-        `Target: ${targetWidth}x${targetHeight} (${tier}), bitrate: ${bitrate}`,
+        `Target resolution: ${targetWidth}x${targetHeight} (${tier}), CRF: ${OPTIMAL_CRF}`,
       );
 
-      // Step 4: Compress with FFmpeg
-      await this.runFfmpeg(inputPath, outputPath, targetWidth, targetHeight, bitrate);
+      // Step 4: Compress with FFmpeg using near-lossless CRF 20 settings
+      await this.runFfmpeg(inputPath, outputPath, targetWidth, targetHeight);
 
       // Step 5: Read compressed output
       const compressedBuffer = fs.readFileSync(outputPath);
@@ -184,7 +197,7 @@ export class VideoCompressorService {
           : '0';
 
       this.logger.log(
-        `Video compressed: ${this.formatBytes(originalSize)} → ${this.formatBytes(compressedSize)} (${savedPercent}% saved)`,
+        `Video compressed with near-lossless quality: ${this.formatBytes(originalSize)} → ${this.formatBytes(compressedSize)} (${savedPercent}% saved)`,
       );
 
       return {
@@ -244,13 +257,16 @@ export class VideoCompressorService {
   }
 
   /**
-   * Determine target resolution and bitrate based on input resolution.
-   * Ensures output width and height are always valid positive even integers.
+   * Determine target resolution preserving original quality.
+   *
+   * Strategy:
+   * - 4K (2160p+) → scale down to 1080p max for web browser playback compatibility.
+   * - 1080p / 720p / lower → preserve 100% of original resolution to prevent visual quality loss.
+   * - Ensures output width and height are valid even integers (required by H.264).
    */
   private getTargetSettings(width: number, height: number): {
     targetWidth: number;
     targetHeight: number;
-    bitrate: string;
     tier: string;
   } {
     const safeWidth = width > 0 ? width : 1920;
@@ -264,55 +280,33 @@ export class VideoCompressorService {
     };
 
     if (maxDim >= 2160) {
-      // 4K → 1080p
+      // 4K → scale down to 1080p max
       const targetHeight = safeWidth >= safeHeight ? 1080 : makeEven(1080 / aspect);
       const targetWidth = safeWidth >= safeHeight ? makeEven(1080 * aspect) : 1080;
       return {
         targetWidth,
         targetHeight,
-        bitrate: BITRATE_MAP['1080p'],
-        tier: '4K → 1080p',
-      };
-    } else if (maxDim >= 1080) {
-      // 1080p → 720p
-      const targetHeight = safeWidth >= safeHeight ? 720 : makeEven(720 / aspect);
-      const targetWidth = safeWidth >= safeHeight ? makeEven(720 * aspect) : 720;
-      return {
-        targetWidth,
-        targetHeight,
-        bitrate: BITRATE_MAP['720p'],
-        tier: '1080p → 720p',
-      };
-    } else if (maxDim >= 720) {
-      // 720p → keep, lower bitrate
-      const targetHeight = safeWidth >= safeHeight ? 720 : makeEven(720 / aspect);
-      const targetWidth = safeWidth >= safeHeight ? makeEven(720 * aspect) : 720;
-      return {
-        targetWidth,
-        targetHeight,
-        bitrate: BITRATE_MAP['720p'],
-        tier: '720p (bitrate only)',
+        tier: '4K → 1080p (web max)',
       };
     } else {
-      // Below 720p — keep original resolution (even numbers), re-encode
+      // 1080p, 720p, etc. → preserve 100% of original resolution
       return {
         targetWidth: makeEven(safeWidth),
         targetHeight: makeEven(safeHeight),
-        bitrate: BITRATE_MAP['default'],
-        tier: `${maxDim}p (re-encode)`,
+        tier: `${safeWidth}x${safeHeight} (original resolution preserved)`,
       };
     }
   }
 
   /**
-   * Execute FFmpeg compression pipeline.
+   * Execute FFmpeg high-quality near-lossless compression pipeline.
+   * Uses H.264 High Profile, CRF 20, Preset Medium, and AAC 192k audio.
    */
   private runFfmpeg(
     inputPath: string,
     outputPath: string,
     targetWidth: number,
     targetHeight: number,
-    videoBitrate: string,
   ): Promise<void> {
     const ffmpeg = this.ffmpegModule.default || this.ffmpegModule;
 
@@ -320,19 +314,21 @@ export class VideoCompressorService {
       const command = ffmpeg(inputPath)
         .videoCodec('libx264')
         .audioCodec('aac')
-        .videoBitrate(videoBitrate)
         .audioBitrate(AUDIO_BITRATE)
         .size(`${targetWidth}x${targetHeight}`)
         .outputOptions([
-          '-preset fast',           // Encoding speed vs compression tradeoff
-          '-crf 23',                // Constant Rate Factor (visual quality control)
-          '-movflags +faststart',   // Enable progressive download / streaming
-          '-pix_fmt yuv420p',       // Maximum device compatibility
+          '-preset medium',                   // Better rate-distortion balance & visual detail
+          `-crf ${OPTIMAL_CRF}`,             // Constant Rate Factor (20 = near-lossless)
+          '-profile:v high',                 // H.264 High Profile for optimal color & sharpness
+          '-level:v 4.1',                    // Level 4.1 for universal mobile & web playback
+          '-movflags +faststart',             // Web progressive download streaming
+          '-pix_fmt yuv420p',                 // Standard 8-bit YUV 4:2:0 color sampling
+          '-ar 48000',                        // High-fidelity 48kHz audio sampling
           '-max_muxing_queue_size 1024',
         ])
         .output(outputPath)
         .on('start', (cmd: string) => {
-          this.logger.log(`FFmpeg started: ${cmd.substring(0, 200)}...`);
+          this.logger.log(`FFmpeg high-quality command: ${cmd.substring(0, 200)}...`);
         })
         .on('progress', (progress: any) => {
           if (progress.percent) {
@@ -340,7 +336,7 @@ export class VideoCompressorService {
           }
         })
         .on('end', () => {
-          this.logger.log('FFmpeg compression completed successfully.');
+          this.logger.log('FFmpeg high-quality compression completed successfully.');
           resolve();
         })
         .on('error', (err: any) => {
