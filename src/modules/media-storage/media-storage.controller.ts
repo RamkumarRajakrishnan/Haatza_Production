@@ -14,7 +14,7 @@ import { MediaStorageService } from './media-storage.service';
 @ApiTags('Media')
 @Controller()
 export class MediaStorageController {
-  constructor(private readonly mediaStorageService: MediaStorageService) {}
+  constructor(private readonly mediaStorageService: MediaStorageService) { }
 
   @Post([
     'uploadMedia',
