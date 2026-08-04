@@ -8,10 +8,13 @@ import { AppService } from './app.service';
 
 import { DatabaseModule } from './database/database.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { UserModule } from './modules/user/user.module';
 import { HealthModule } from './modules/health/health.module';
 import { ContactModule } from './modules/contact/contact.module';
 import { SellerModule } from './modules/seller/seller.module';
 import { ProductModule } from './modules/product/product.module';
+import { CategoryModule } from './modules/category/category.module';
+import { CartModule } from './modules/cart/cart.module';
 import { PaymentModule } from './modules/payment/payment.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { SupportModule } from './modules/support/support.module';
@@ -23,6 +26,12 @@ import { HaatzUpModule } from './modules/haatzup/haatzup.module';
 import { WarehouseModule } from './modules/warehouse/warehouse.module';
 import { SellerProductModule } from './modules/seller-product/seller-product.module';
 import { MediaStorageModule } from './modules/media-storage/media-storage.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { AddressModule } from './modules/address/address.module';
+import { CouponModule } from './modules/coupon/coupon.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
+
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 
@@ -64,10 +73,13 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     DatabaseModule,
     MediaStorageModule,
     AuthModule,
+    UserModule,
     HealthModule,
     ContactModule,
     SellerModule,
     ProductModule,
+    CategoryModule,
+    CartModule,
     PaymentModule,
     AnalyticsModule,
     SupportModule,
@@ -78,6 +90,11 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     HaatzUpModule,
     WarehouseModule,
     SellerProductModule,
+    AdminModule,
+    NotificationModule,
+    AddressModule,
+    CouponModule,
+    InventoryModule,
   ],
 
   controllers: [AppController],
@@ -98,4 +115,4 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     },
   ],
 })
-export class AppModule { }
+export class AppModule {}

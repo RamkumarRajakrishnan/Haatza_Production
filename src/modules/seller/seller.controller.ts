@@ -1,11 +1,14 @@
 import { Controller, Get, Post, Body, Query, Param } from '@nestjs/common';
 import { SellerService } from './seller.service';
 
-@Controller()
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Seller')
+@Controller(['seller', 'api/seller'])
 export class SellerController {
   constructor(private readonly sellerService: SellerService) {}
 
-  @Get('seller/profile')
+  @Get(['', 'profile', 'seller/profile'])
   getProfile(@Query('userId') userId: string) {
     return this.sellerService.getProfile(userId);
   }

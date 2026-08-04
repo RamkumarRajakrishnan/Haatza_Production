@@ -1,7 +1,10 @@
 import { Controller, Get, Post, Body, Query } from '@nestjs/common';
 import { PaymentService } from './payment.service';
 
-@Controller()
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Payments')
+@Controller(['payments', 'api/payments'])
 export class PaymentController {
   constructor(private readonly paymentService: PaymentService) {}
 

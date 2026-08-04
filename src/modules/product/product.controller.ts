@@ -3,7 +3,10 @@ import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
 import { StorageService } from '../seller-product/storage.service';
 
-@Controller()
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Products')
+@Controller(['products', 'api/products'])
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
@@ -11,10 +14,9 @@ export class ProductController {
   ) { }
 
   /**
-   * 1. Get seller products list (GET /seller_products, GET /products)
+   * 1. Get seller products list (GET /api/products, GET /seller_products, GET /products)
    */
-  @Get('products')
-  @Get('seller_products')
+  @Get(['', 'products', 'seller_products'])
   getSellerProducts(
     @Query('email') email?: string,
     @Query('sellerId') sellerId?: string,

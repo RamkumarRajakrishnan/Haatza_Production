@@ -1,16 +1,19 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { AnalyticsService } from './analytics.service';
 
-@Controller()
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Reports')
+@Controller(['analytics', 'reports', 'api/analytics', 'api/reports'])
 export class AnalyticsController {
   constructor(private readonly analyticsService: AnalyticsService) {}
 
-  @Get('analytics')
+  @Get(['', 'analytics'])
   getAnalytics(@Query('sellerId') sellerId: string) {
     return this.analyticsService.getAnalytics(sellerId);
   }
 
-  @Get('dashboard')
+  @Get(['dashboard'])
   getDashboard(@Query('sellerId') sellerId: string) {
     return this.analyticsService.getDashboard(sellerId);
   }

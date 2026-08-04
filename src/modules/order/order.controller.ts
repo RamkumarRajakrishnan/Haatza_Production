@@ -1,18 +1,21 @@
 import { Controller, Get, Post, Patch, Param, Body, Query } from '@nestjs/common';
 import { OrderService } from './order.service';
 
-@Controller()
+import { ApiTags } from '@nestjs/swagger';
+
+@ApiTags('Orders')
+@Controller(['orders', 'api/orders'])
 export class OrderController {
   constructor(private readonly orderService: OrderService) {}
 
-  @Get('sellernewOrders')
+  @Get(['', 'sellernewOrders'])
   getNewOrders(@Query('sellerId') sellerId: string) {
     return this.orderService.getSellerOrders(sellerId);
   }
 
-  @Get('sellerOrderdetails')
-  getOrderDetails(@Query('orderId') orderId: string) {
-    return this.orderService.getOrderDetails(orderId);
+  @Get(['details', 'sellerOrderdetails', ':orderId'])
+  getOrderDetails(@Query('orderId') orderId: string, @Param('orderId') paramOrderId: string) {
+    return this.orderService.getOrderDetails(orderId || paramOrderId);
   }
 
   @Post('updateOrdersstatus')

@@ -40,15 +40,19 @@ async function bootstrap() {
     // Enable Graceful Shutdown Hooks
     app.enableShutdownHooks();
 
-    // Parse CORS allowed origins from environment
-    const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
-    const allowedOrigins = allowedOriginsEnv
-      ? allowedOriginsEnv.split(',').map((origin) => origin.trim())
-      : [DOMAIN_CONFIG.BASE_DOMAIN];
+    // Parse CORS allowed origins from environment and DOMAIN_CONFIG
+    const allowedOrigins = DOMAIN_CONFIG.getAllowedOrigins();
 
-    // Enable CORS for allowed clients
+    // Enable CORS for allowed clients and subdomains
     app.enableCors({
-      origin: true,
+      origin: (origin, callback) => {
+        // Allow requests with no origin (like mobile apps or curl requests)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin) || origin.endsWith('.haatza.com')) {
+          return callback(null, true);
+        }
+        return callback(null, true); // Permissive fallback for seamless client migration
+      },
       credentials: true,
     });
 

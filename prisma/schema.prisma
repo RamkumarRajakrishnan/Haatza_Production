@@ -664,3 +664,43 @@ model SellerProduct {
   @@index([updatedDate])
   @@map("seller_products")
 }
+
+model ListingOption {
+  id          String    @id @default(uuid()) @map("id")
+  name        String?   @map("name")
+  description String?   @map("description")
+  listings    Listing[]
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@map("listing_options")
+}
+
+model Listing {
+  id                    String         @id @default(uuid()) @map("id")
+  elementType           String         @map("element_type")
+  categoryName          String         @map("category_name")
+  title                 String         @map("title")
+  choices               String?        @map("choices")
+  sequence              Int            @default(0) @map("sequence")
+  placeholderText       String?        @map("placeholder_text")
+  required              Boolean        @default(false) @map("required")
+  categoryId            String?        @map("category_id")
+  status                String?        @map("status")
+  createdBy             String?        @map("created_by")
+  type                  String?        @map("type")
+  listingItemId         String?        @map("listing_item_id")
+  listingItem           Listing?       @relation("ListingSelfRelation", fields: [listingItemId], references: [id])
+  parentListings        Listing[]      @relation("ListingSelfRelation")
+  detailListingOptionId String?        @map("detail_listing_option_id")
+  detailListingOption   ListingOption? @relation(fields: [detailListingOptionId], references: [id])
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@index([sequence])
+  @@index([status])
+  @@index([type])
+  @@map("listings")
+}
+
