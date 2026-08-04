@@ -1,6 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { MediaStorageService } from './media-storage.service';
+import { ImageCompressorService } from './image-compressor.service';
+import { VideoCompressorService } from './video-compressor.service';
 
 describe('MediaStorageService', () => {
   let service: MediaStorageService;
@@ -9,6 +11,8 @@ describe('MediaStorageService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MediaStorageService,
+        ImageCompressorService,
+        VideoCompressorService,
         {
           provide: ConfigService,
           useValue: {

@@ -11,10 +11,18 @@ import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { MediaStorageService } from './media-storage.service';
 
+function formatBytes(bytes: number): string {
+  if (!bytes || bytes === 0) return '0 B';
+  if (bytes >= 1024 * 1024) {
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  }
+  return `${(bytes / 1024).toFixed(1)} KB`;
+}
+
 @ApiTags('Media')
 @Controller()
 export class MediaStorageController {
-  constructor(private readonly mediaStorageService: MediaStorageService) { }
+  constructor(private readonly mediaStorageService: MediaStorageService) {}
 
   @Post([
     'uploadMedia',
@@ -25,7 +33,7 @@ export class MediaStorageController {
   ])
   @UseInterceptors(AnyFilesInterceptor())
   @ApiConsumes('multipart/form-data')
-  @ApiOperation({ summary: 'Upload media files (images, videos)' })
+  @ApiOperation({ summary: 'Upload media files (images, videos) with auto-compression' })
   async uploadMediaFiles(@UploadedFiles() files: any[], @Req() req: Request) {
     if (!files || files.length === 0) {
       throw new BadRequestException('No files provided for upload.');
@@ -35,12 +43,17 @@ export class MediaStorageController {
     const rawProto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
     const protocol = Array.isArray(rawProto) ? rawProto[0] : rawProto.split(',')[0].trim();
 
-    // Construct dynamic base URL from the actual server host handling the request
     const requestBaseUrl = `${protocol}://${host}/uploads`;
 
     const mediaItems: Array<{
       type: string;
       key: string;
+      originalSize: number;
+      originalSizeFormatted: string;
+      compressedSize: number;
+      compressedSizeFormatted: string;
+      compressionPercent: string;
+      duration?: string;
       url: string;
       publicUrl: string;
     }> = [];
@@ -49,20 +62,24 @@ export class MediaStorageController {
       const uploaded = await this.mediaStorageService.upload({ file });
       const cleanKey = uploaded.key.replace(/^\/+/, '');
 
-      // Check if custom MEDIA_BASE_URL env is set (excluding default fallback)
       const customMediaBase = process.env.MEDIA_BASE_URL;
       let finalPublicUrl: string;
 
       if (customMediaBase && !customMediaBase.includes('haatza.com/uploads')) {
         finalPublicUrl = `${customMediaBase.replace(/\/+$/, '')}/${cleanKey}`;
       } else {
-        // Use actual server host (e.g. Cloud Run URL or backend domain)
         finalPublicUrl = `${requestBaseUrl}/${cleanKey}`;
       }
 
       mediaItems.push({
         type: uploaded.type,
         key: uploaded.key,
+        originalSize: uploaded.originalSize,
+        originalSizeFormatted: formatBytes(uploaded.originalSize),
+        compressedSize: uploaded.compressedSize,
+        compressedSizeFormatted: formatBytes(uploaded.compressedSize),
+        compressionPercent: uploaded.compressionPercent,
+        duration: uploaded.duration,
         url: finalPublicUrl,
         publicUrl: finalPublicUrl,
       });

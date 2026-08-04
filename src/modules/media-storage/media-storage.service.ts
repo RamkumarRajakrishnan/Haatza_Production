@@ -16,6 +16,8 @@ import {
 } from '@aws-sdk/client-s3';
 
 import { DOMAIN_CONFIG } from '../../config/domain.config';
+import { ImageCompressorService } from './image-compressor.service';
+import { VideoCompressorService } from './video-compressor.service';
 
 export interface UploadFileOptions {
   file: {
@@ -32,6 +34,10 @@ export interface MediaObjectMeta {
   key: string;
   type: 'image' | 'video';
   url?: string;
+  originalSize: number;
+  compressedSize: number;
+  compressionPercent: string;
+  duration?: string;
 }
 
 @Injectable()
@@ -41,9 +47,12 @@ export class MediaStorageService {
   private readonly s3Client?: S3Client;
   private readonly bucketName?: string;
   private readonly localStorageDir: string;
-  private sharpModule: typeof import('sharp') | null = null;
 
-  constructor(private readonly configService: ConfigService) {
+  constructor(
+    private readonly configService: ConfigService,
+    private readonly imageCompressor: ImageCompressorService,
+    private readonly videoCompressor: VideoCompressorService,
+  ) {
     this.mediaBaseUrl = (
       this.configService.get<string>('MEDIA_BASE_URL') ||
       DOMAIN_CONFIG.mediaUrl
@@ -82,22 +91,10 @@ export class MediaStorageService {
     if (!fs.existsSync(this.localStorageDir)) {
       fs.mkdirSync(this.localStorageDir, { recursive: true });
     }
-
-    this.initSharp();
-  }
-
-  private async initSharp() {
-    try {
-      // Dynamic import to support optional sharp compilation
-      this.sharpModule = await import('sharp');
-    } catch {
-      this.logger.warn('Sharp module not found or failed to load. Falling back to uncompressed buffer upload.');
-    }
   }
 
   /**
-   * Validate file, compress if image, calculate unique object key, and upload to storage.
-   * Store ONLY the key in PostgreSQL.
+   * Validate file, detect image vs video, compress automatically, generate unique key, and upload to storage.
    */
   async upload(options: UploadFileOptions): Promise<MediaObjectMeta> {
     const { file, folder = 'products', productId } = options;
@@ -106,45 +103,67 @@ export class MediaStorageService {
       throw new BadRequestException('Invalid file provided for upload.');
     }
 
-    const isVideo = this.isVideoFile(file.mimetype, file.originalname);
-    const isImage = this.isImageFile(file.mimetype, file.originalname);
+    const isImage = this.imageCompressor.isSupported(file.mimetype, file.originalname);
+    const isVideo = this.videoCompressor.isSupported(file.mimetype, file.originalname);
 
     if (!isImage && !isVideo) {
       throw new BadRequestException(
-        `Unsupported file type: ${file.mimetype}. Only image and video files are supported.`,
+        `Unsupported file type: ${file.mimetype} (${file.originalname}). Supported types: JPG, PNG, WEBP, HEIC, MP4, MOV, AVI, MKV, WEBM.`,
       );
     }
 
     const type: 'image' | 'video' = isVideo ? 'video' : 'image';
-    let targetBuffer = file.buffer;
-    let extension = isVideo ? path.extname(file.originalname).toLowerCase() || '.mp4' : '.webp';
+    let targetBuffer: Buffer = file.buffer;
+    let extension: string = isVideo ? path.extname(file.originalname).toLowerCase() || '.mp4' : '.webp';
+    let contentType: string = file.mimetype;
+    let originalSize = file.buffer.length;
+    let compressedSize = file.buffer.length;
+    let compressionPercent = '0%';
+    let duration: string | undefined;
 
-    // Compress image to WebP if sharp is available
-    if (isImage && this.sharpModule) {
-      try {
-        const sharpFn = (this.sharpModule as any).default || this.sharpModule;
-        targetBuffer = await sharpFn(file.buffer)
-          .webp({ quality: 80 })
-          .toBuffer();
-        extension = '.webp';
-      } catch (err) {
-        this.logger.error(`Image compression failed, using original buffer: ${err.message}`);
-      }
+    // Step 1: Compress based on detected media type
+    if (isImage) {
+      this.logger.log(`Compressing image file: ${file.originalname}`);
+      const result = await this.imageCompressor.compress(file.buffer);
+      targetBuffer = result.buffer;
+      extension = result.extension;
+      contentType = result.contentType;
+      originalSize = result.originalSize;
+      compressedSize = result.compressedSize;
+      compressionPercent = result.compressionPercent;
+    } else if (isVideo) {
+      this.logger.log(`Compressing video file: ${file.originalname}`);
+      const result = await this.videoCompressor.compress(file.buffer, file.originalname);
+      targetBuffer = result.buffer;
+      extension = result.extension;
+      contentType = result.contentType;
+      originalSize = result.originalSize;
+      compressedSize = result.compressedSize;
+      compressionPercent = result.compressionPercent;
+      duration = result.duration;
     }
 
-    // Generate unique UUID-based object key
+    // Step 2: Generate unique UUID-based object key
     const uuid = crypto.randomUUID();
     const productSegment = productId ? `${productId}/` : '';
     const key = `${folder}/${productSegment}${uuid}${extension}`;
 
-    // Check if key exists (deduplication check)
+    // Step 3: Deduplication check
     const exists = await this.exists(key);
     if (exists) {
       this.logger.log(`Key ${key} already exists in storage. Reusing existing key.`);
-      return { key, type, url: this.getPublicUrl(key) };
+      return {
+        key,
+        type,
+        url: this.getPublicUrl(key),
+        originalSize,
+        compressedSize,
+        compressionPercent,
+        duration,
+      };
     }
 
-    // Perform upload
+    // Step 4: Perform upload to S3 or local disk
     try {
       if (this.s3Client && this.bucketName) {
         await this.s3Client.send(
@@ -152,7 +171,7 @@ export class MediaStorageService {
             Bucket: this.bucketName,
             Key: key,
             Body: targetBuffer,
-            ContentType: isVideo ? file.mimetype : 'image/webp',
+            ContentType: contentType,
             CacheControl: 'public, max-age=31536000, immutable',
           }),
         );
@@ -164,8 +183,16 @@ export class MediaStorageService {
         }
         fs.writeFileSync(destPath, targetBuffer);
       }
-      this.logger.log(`Successfully uploaded object key: ${key}`);
-      return { key, type, url: this.getPublicUrl(key) };
+      this.logger.log(`Successfully uploaded object key: ${key} (${type})`);
+      return {
+        key,
+        type,
+        url: this.getPublicUrl(key),
+        originalSize,
+        compressedSize,
+        compressionPercent,
+        duration,
+      };
     } catch (error) {
       this.logger.error(`Upload failed for key ${key}: ${error.message}`);
       throw new InternalServerErrorException(`Failed to upload media object: ${error.message}`);
@@ -233,7 +260,6 @@ export class MediaStorageService {
       return key; // Already a full URL
     }
 
-    // Handle Wix image protocol strings (e.g. wix:image://v1/aca349_.../image.jpg#originWidth=...)
     if (key.startsWith('wix:image://')) {
       const parts = key.split('/');
       const filenameWithHash = parts[parts.length - 1] || '';
@@ -254,7 +280,7 @@ export class MediaStorageService {
       return urlOrKey.replace(`${this.mediaBaseUrl}/`, '').replace(/^\/+/, '');
     }
     if (urlOrKey.startsWith('wix:image://')) {
-      return urlOrKey; // Retain exact string if legacy wix key
+      return urlOrKey;
     }
     try {
       const parsed = new URL(urlOrKey);
@@ -308,19 +334,5 @@ export class MediaStorageService {
     }
 
     return result;
-  }
-
-  private isImageFile(mimetype: string, filename: string): boolean {
-    return (
-      mimetype.startsWith('image/') ||
-      /\.(jpg|jpeg|png|gif|webp|svg|avif)$/i.test(filename)
-    );
-  }
-
-  private isVideoFile(mimetype: string, filename: string): boolean {
-    return (
-      mimetype.startsWith('video/') ||
-      /\.(mp4|mov|avi|mkv|webm)$/i.test(filename)
-    );
   }
 }
