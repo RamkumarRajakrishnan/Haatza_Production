@@ -32,7 +32,10 @@ export class MediaStorageController {
     }
 
     const host = req.get('host');
-    const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const rawProto = req.headers['x-forwarded-proto'] || req.protocol || 'https';
+    const protocol = Array.isArray(rawProto) ? rawProto[0] : rawProto.split(',')[0].trim();
+
+    // Construct dynamic base URL from the actual server host handling the request
     const requestBaseUrl = `${protocol}://${host}/uploads`;
 
     const mediaItems: Array<{
@@ -44,19 +47,24 @@ export class MediaStorageController {
 
     for (const file of files) {
       const uploaded = await this.mediaStorageService.upload({ file });
-      let publicUrl = uploaded.url || this.mediaStorageService.getPublicUrl(uploaded.key);
+      const cleanKey = uploaded.key.replace(/^\/+/, '');
 
-      // Prepend host URL if publicUrl is relative
-      if (publicUrl && !publicUrl.startsWith('http://') && !publicUrl.startsWith('https://')) {
-        const cleanKey = uploaded.key.replace(/^\/+/, '');
-        publicUrl = `${requestBaseUrl}/${cleanKey}`;
+      // Check if custom MEDIA_BASE_URL env is set (excluding default fallback)
+      const customMediaBase = process.env.MEDIA_BASE_URL;
+      let finalPublicUrl: string;
+
+      if (customMediaBase && !customMediaBase.includes('haatza.com/uploads')) {
+        finalPublicUrl = `${customMediaBase.replace(/\/+$/, '')}/${cleanKey}`;
+      } else {
+        // Use actual server host (e.g. Cloud Run URL or backend domain)
+        finalPublicUrl = `${requestBaseUrl}/${cleanKey}`;
       }
 
       mediaItems.push({
         type: uploaded.type,
         key: uploaded.key,
-        url: publicUrl,
-        publicUrl: publicUrl,
+        url: finalPublicUrl,
+        publicUrl: finalPublicUrl,
       });
     }
 
