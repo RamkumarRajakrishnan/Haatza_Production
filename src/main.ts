@@ -32,10 +32,10 @@ async function bootstrap() {
   try {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
-    // Serve uploaded files statically under /uploads
-    app.useStaticAssets(path.join(process.cwd(), 'public', 'uploads'), {
-      prefix: '/uploads/',
-    });
+    // Serve uploaded files statically under /uploads and /api/v1/uploads
+    const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
+    app.useStaticAssets(uploadsDir, { prefix: '/uploads/' });
+    app.useStaticAssets(uploadsDir, { prefix: '/api/v1/uploads/' });
 
     // Enable Graceful Shutdown Hooks
     app.enableShutdownHooks();
@@ -83,7 +83,7 @@ async function bootstrap() {
       exclude: [
         { path: '/', method: RequestMethod.GET },
         { path: 'health', method: RequestMethod.GET },
-        { path: 'uploads/(.*)', method: RequestMethod.GET },
+        { path: 'uploads/(.*)', method: RequestMethod.ALL },
       ],
     });
 
