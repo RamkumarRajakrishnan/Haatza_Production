@@ -39,10 +39,9 @@ const BITRATE_MAP: Record<string, string> = {
 const AUDIO_BITRATE = '192k';
 const MAX_FILE_SIZE_BYTES = 100 * 1024 * 1024; // 100 MB max input
 
-// Optimal CRF setting for near-lossless / visually transparent quality
-// CRF 18-20 = Near-lossless / visually transparent quality
-// CRF 22 = Good quality, higher compression
-const OPTIMAL_CRF = 20;
+// Optimal CRF setting for visually transparent quality and effective size reduction across all video sources
+// CRF 23-24 = Visually transparent quality (industry standard for web uploads, 40-75% size reduction)
+const OPTIMAL_CRF = 24;
 
 @Injectable()
 export class VideoCompressorService {
