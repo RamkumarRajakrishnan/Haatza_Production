@@ -43,7 +43,13 @@ export class MediaStorageController {
     'seller/uploadMedia',
     'seller/uploadVideo',
   ])
-  @UseInterceptors(AnyFilesInterceptor())
+  @UseInterceptors(
+    AnyFilesInterceptor({
+      limits: {
+        fileSize: 100 * 1024 * 1024, // 100 MB max per file
+      },
+    }),
+  )
   @ApiConsumes('multipart/form-data')
   @ApiOperation({ summary: 'Upload media files (images, videos) with auto-compression' })
   async uploadMediaFiles(@UploadedFiles() files: any[], @Req() req: Request) {

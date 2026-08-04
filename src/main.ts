@@ -20,6 +20,7 @@ process.env.UV_THREADPOOL_SIZE = '4';
 
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as path from 'path';
+import * as express from 'express';
 
 async function bootstrap() {
   const port = Number(process.env.PORT) || 8080;
@@ -31,6 +32,10 @@ async function bootstrap() {
 
   try {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+    // Increase Express body parser limit to 100MB for file uploads
+    app.use(express.json({ limit: '100mb' }));
+    app.use(express.urlencoded({ limit: '100mb', extended: true }));
 
     // Serve uploaded files statically under /uploads and /api/v1/uploads
     const uploadsDir = path.join(process.cwd(), 'public', 'uploads');
