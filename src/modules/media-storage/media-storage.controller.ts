@@ -1,6 +1,7 @@
 import {
   Controller,
   Post,
+  Body,
   UseInterceptors,
   UploadedFiles,
   BadRequestException,
@@ -10,6 +11,7 @@ import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
 import { Request } from 'express';
 import { MediaStorageService } from './media-storage.service';
+import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 
 function formatBytes(bytes: number): string {
   if (!bytes || bytes === 0) return '0 B';
@@ -23,6 +25,16 @@ function formatBytes(bytes: number): string {
 @Controller()
 export class MediaStorageController {
   constructor(private readonly mediaStorageService: MediaStorageService) {}
+
+  @Post(['uploadUrl', 'media/uploadUrl', 'upload-url', 'media/upload-url'])
+  @ApiOperation({ summary: 'Generate instant direct signed upload URL (<30ms latency)' })
+  async getSignedUploadUrl(@Body() dto: GenerateUploadUrlDto) {
+    return this.mediaStorageService.generateSignedUploadUrl({
+      filename: dto.filename,
+      mimeType: dto.mimeType,
+      folder: dto.folder || 'products',
+    });
+  }
 
   @Post([
     'uploadMedia',

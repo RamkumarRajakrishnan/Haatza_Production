@@ -14,6 +14,7 @@ import {
   DeleteObjectCommand,
   HeadObjectCommand,
 } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { DOMAIN_CONFIG } from '../../config/domain.config';
 import { ImageCompressorService } from './image-compressor.service';
@@ -91,6 +92,56 @@ export class MediaStorageService {
     if (!fs.existsSync(this.localStorageDir)) {
       fs.mkdirSync(this.localStorageDir, { recursive: true });
     }
+  }
+
+  /**
+   * Generate Presigned Upload URL for direct client-to-storage uploads (<30ms response time).
+   * Bypasses NestJS server CPU/bandwidth limits for large uploads (up to 500 MB).
+   */
+  async generateSignedUploadUrl(options: {
+    filename: string;
+    mimeType: string;
+    folder?: string;
+  }): Promise<{ signedUrl: string; key: string; publicUrl: string; expiresInSeconds: number }> {
+    const { filename, mimeType, folder = 'products' } = options;
+
+    const ext = path.extname(filename).toLowerCase() || '.bin';
+    const uuid = crypto.randomUUID();
+    const key = `${folder}/${uuid}${ext}`;
+    const publicUrl = this.getPublicUrl(key);
+    const expiresInSeconds = 900; // 15 minutes
+
+    if (this.s3Client && this.bucketName) {
+      try {
+        const command = new PutObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+          ContentType: mimeType,
+          CacheControl: 'public, max-age=31536000, immutable',
+        });
+        const signedUrl = await getSignedUrl(this.s3Client, command, {
+          expiresIn: expiresInSeconds,
+        });
+
+        return {
+          signedUrl,
+          key,
+          publicUrl,
+          expiresInSeconds,
+        };
+      } catch (error) {
+        this.logger.error(`Failed to generate signed upload URL: ${error.message}`);
+        throw new InternalServerErrorException('Failed to generate upload URL.');
+      }
+    }
+
+    // Local fallback when S3 credentials are not configured
+    return {
+      signedUrl: publicUrl,
+      key,
+      publicUrl,
+      expiresInSeconds,
+    };
   }
 
   /**
