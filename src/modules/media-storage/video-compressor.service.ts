@@ -48,7 +48,11 @@ export class VideoCompressorService {
     this.loadFfmpeg();
   }
 
-  private async loadFfmpeg() {
+  private async loadFfmpeg(): Promise<boolean> {
+    if (this.ffmpegModule && this.ffmpegPath) {
+      return true;
+    }
+
     try {
       // Load bundled FFmpeg binary path
       const installer = await import('@ffmpeg-installer/ffmpeg');
@@ -61,11 +65,24 @@ export class VideoCompressorService {
       const ffmpeg = this.ffmpegModule.default || this.ffmpegModule;
       ffmpeg.setFfmpegPath(this.ffmpegPath);
 
+      // Load bundled FFprobe binary path if available
+      try {
+        const ffprobeInstaller = await import('@ffprobe-installer/ffprobe');
+        if (ffprobeInstaller && ffprobeInstaller.path) {
+          ffmpeg.setFfprobePath(ffprobeInstaller.path);
+          this.logger.log(`FFprobe loaded from: ${ffprobeInstaller.path}`);
+        }
+      } catch (ffprobeErr) {
+        this.logger.warn(`FFprobe installer not loaded: ${ffprobeErr.message}`);
+      }
+
       this.logger.log(`FFmpeg loaded from: ${this.ffmpegPath}`);
+      return true;
     } catch (error) {
       this.logger.warn(
         `FFmpeg not available: ${error.message}. Video compression disabled — videos will be uploaded as-is.`,
       );
+      return false;
     }
   }
 
@@ -81,14 +98,6 @@ export class VideoCompressorService {
 
   /**
    * Compress a video buffer.
-   *
-   * Pipeline:
-   *   1. Write buffer to temp input file
-   *   2. Probe to get resolution & duration
-   *   3. Calculate target resolution and bitrate
-   *   4. Re-encode with FFmpeg (H.264 + AAC)
-   *   5. Read output file to buffer
-   *   6. Clean up temp files
    */
   async compress(fileBuffer: Buffer, originalFilename: string): Promise<VideoCompressionResult> {
     const originalSize = fileBuffer.length;
@@ -101,8 +110,9 @@ export class VideoCompressorService {
       throw new Error(`Video file exceeds maximum allowed size of ${this.formatBytes(MAX_FILE_SIZE_BYTES)}.`);
     }
 
-    // Fallback: if FFmpeg is not loaded, return original
-    if (!this.ffmpegModule || !this.ffmpegPath) {
+    // Ensure FFmpeg is fully initialized before proceeding
+    const isLoaded = await this.loadFfmpeg();
+    if (!isLoaded || !this.ffmpegModule || !this.ffmpegPath) {
       this.logger.warn('FFmpeg not available — returning original video buffer.');
       return {
         buffer: fileBuffer,
@@ -131,7 +141,7 @@ export class VideoCompressorService {
       fs.writeFileSync(inputPath, fileBuffer);
       this.logger.log(`Temp input written: ${inputPath} (${this.formatBytes(originalSize)})`);
 
-      // Step 2: Probe video metadata
+      // Step 2: Probe video metadata safely
       const metadata = await this.probeVideo(inputPath);
       const { width, height, durationSeconds } = metadata;
 
@@ -152,6 +162,20 @@ export class VideoCompressorService {
       // Step 5: Read compressed output
       const compressedBuffer = fs.readFileSync(outputPath);
       const compressedSize = compressedBuffer.length;
+
+      // If compressed buffer is larger than original, return original file buffer
+      if (compressedSize > originalSize) {
+        this.logger.log('Compressed video larger than original — returning original video buffer.');
+        return {
+          buffer: fileBuffer,
+          extension: path.extname(originalFilename).toLowerCase() || '.mp4',
+          contentType: 'video/mp4',
+          originalSize,
+          compressedSize: originalSize,
+          compressionPercent: '0%',
+          duration: this.formatDuration(durationSeconds),
+        };
+      }
 
       // Calculate stats
       const savedPercent =
@@ -192,20 +216,22 @@ export class VideoCompressorService {
   }
 
   /**
-   * Probe video to extract resolution and duration using FFmpeg.
+   * Probe video to extract resolution and duration using FFmpeg safely.
    */
   private probeVideo(filePath: string): Promise<{ width: number; height: number; durationSeconds: number }> {
     const ffmpeg = this.ffmpegModule.default || this.ffmpegModule;
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
       ffmpeg.ffprobe(filePath, (err: any, data: any) => {
         if (err) {
-          return reject(new Error(`FFprobe failed: ${err.message}`));
+          this.logger.warn(`FFprobe warning: ${err.message}. Using default metadata fallback.`);
+          return resolve({ width: 1920, height: 1080, durationSeconds: 0 });
         }
 
         const videoStream = data.streams?.find((s: any) => s.codec_type === 'video');
         if (!videoStream) {
-          return reject(new Error('No video stream found in file.'));
+          this.logger.warn('No video stream found in file. Using default resolution fallback.');
+          return resolve({ width: 1920, height: 1080, durationSeconds: 0 });
         }
 
         resolve({
@@ -219,12 +245,7 @@ export class VideoCompressorService {
 
   /**
    * Determine target resolution and bitrate based on input resolution.
-   *
-   * Rules:
-   *   4K (2160p+) → downscale to 1080p at 2 Mbps
-   *   1080p       → downscale to 720p at 1.5 Mbps
-   *   720p        → keep 720p at 1.5 Mbps (lower bitrate only)
-   *   < 720p      → keep original resolution at 1.5 Mbps
+   * Ensures output width and height are always valid positive even integers.
    */
   private getTargetSettings(width: number, height: number): {
     targetWidth: number;
@@ -232,38 +253,51 @@ export class VideoCompressorService {
     bitrate: string;
     tier: string;
   } {
-    const maxDim = Math.max(width, height);
-    const isLandscape = width >= height;
+    const safeWidth = width > 0 ? width : 1920;
+    const safeHeight = height > 0 ? height : 1080;
+    const maxDim = Math.max(safeWidth, safeHeight);
+    const aspect = safeWidth / safeHeight;
+
+    const makeEven = (val: number): number => {
+      const rounded = Math.round(val);
+      return rounded % 2 === 0 ? rounded : rounded - 1;
+    };
 
     if (maxDim >= 2160) {
       // 4K → 1080p
+      const targetHeight = safeWidth >= safeHeight ? 1080 : makeEven(1080 / aspect);
+      const targetWidth = safeWidth >= safeHeight ? makeEven(1080 * aspect) : 1080;
       return {
-        targetWidth: isLandscape ? 1920 : -2,
-        targetHeight: isLandscape ? -2 : 1080,
+        targetWidth,
+        targetHeight,
         bitrate: BITRATE_MAP['1080p'],
         tier: '4K → 1080p',
       };
     } else if (maxDim >= 1080) {
       // 1080p → 720p
+      const targetHeight = safeWidth >= safeHeight ? 720 : makeEven(720 / aspect);
+      const targetWidth = safeWidth >= safeHeight ? makeEven(720 * aspect) : 720;
       return {
-        targetWidth: isLandscape ? 1280 : -2,
-        targetHeight: isLandscape ? -2 : 720,
+        targetWidth,
+        targetHeight,
         bitrate: BITRATE_MAP['720p'],
         tier: '1080p → 720p',
       };
     } else if (maxDim >= 720) {
       // 720p → keep, lower bitrate
+      const targetHeight = safeWidth >= safeHeight ? 720 : makeEven(720 / aspect);
+      const targetWidth = safeWidth >= safeHeight ? makeEven(720 * aspect) : 720;
       return {
-        targetWidth: isLandscape ? 1280 : -2,
-        targetHeight: isLandscape ? -2 : 720,
+        targetWidth,
+        targetHeight,
         bitrate: BITRATE_MAP['720p'],
         tier: '720p (bitrate only)',
       };
     } else {
-      // Below 720p — keep as-is, just re-encode
+      // Below 720p — keep original resolution (even numbers), re-encode
       return {
-        targetWidth: width,
-        targetHeight: height,
+        targetWidth: makeEven(safeWidth),
+        targetHeight: makeEven(safeHeight),
         bitrate: BITRATE_MAP['default'],
         tier: `${maxDim}p (re-encode)`,
       };
