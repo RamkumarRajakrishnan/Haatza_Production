@@ -4,6 +4,7 @@ import {
   IsEnum,
   IsOptional,
   IsString,
+  Matches,
   MinLength,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
@@ -14,10 +15,13 @@ export class RegisterDto {
   name: string;
 
   @IsString()
+  @Matches(/^[6-9]\d{9}$/, {
+    message: 'mobile must be a valid 10-digit phone number starting with 6-9',
+  })
   mobile: string;
 
-  @IsEmail()
   @IsOptional()
+  @IsEmail({}, { message: 'email must be a valid email address' })
   email?: string;
 
   @IsString()

@@ -1,4 +1,4 @@
-import { IsEmail, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches } from 'class-validator';
 
 export class CreateContactEnquiryDto {
   @IsString()
@@ -10,10 +10,13 @@ export class CreateContactEnquiryDto {
   name?: string;
 
   @IsString()
+  @Matches(/^[6-9]\d{9}$/, {
+    message: 'phone must be a valid 10-digit phone number starting with 6-9',
+  })
   phone: string;
 
-  @IsEmail()
   @IsOptional()
+  @IsEmail({}, { message: 'email must be a valid email address' })
   email?: string;
 
   @IsString()

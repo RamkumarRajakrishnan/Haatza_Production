@@ -355,7 +355,7 @@ enum ContactEnquiryStatus {
 model ContactEnquiry {
   id        String               @id @default(uuid())
   firstName String               @map("first_name") @db.VarChar(100)
-  phone     String               @db.VarChar(20)
+  phone     String               @db.VarChar(10)
   email     String?              @db.VarChar(255)
   city      String               @db.VarChar(100)
   message   String?              @db.Text
