@@ -24,8 +24,9 @@ export interface UploadFileOptions {
   file: {
     originalname: string;
     mimetype: string;
-    buffer: Buffer;
-    size: number;
+    buffer?: Buffer;
+    path?: string;
+    size?: number;
   };
   folder?: string;
   productId?: string;
@@ -150,7 +151,9 @@ export class MediaStorageService {
   async upload(options: UploadFileOptions): Promise<MediaObjectMeta> {
     const { file, folder = 'products', productId } = options;
 
-    if (!file || !file.buffer) {
+    const fileBuffer = file?.buffer || (file?.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
+
+    if (!file || !fileBuffer) {
       throw new BadRequestException('Invalid file provided for upload.');
     }
 
@@ -158,95 +161,106 @@ export class MediaStorageService {
     const isVideo = this.videoCompressor.isSupported(file.mimetype, file.originalname);
 
     if (!isImage && !isVideo) {
+      if (file.path && fs.existsSync(file.path)) {
+        try { fs.unlinkSync(file.path); } catch {}
+      }
       throw new BadRequestException(
         `Unsupported file type: ${file.mimetype} (${file.originalname}). Supported types: JPG, PNG, WEBP, HEIC, MP4, MOV, AVI, MKV, WEBM.`,
       );
     }
 
-    const type: 'image' | 'video' = isVideo ? 'video' : 'image';
-    let targetBuffer: Buffer = file.buffer;
-    let extension: string = isVideo ? path.extname(file.originalname).toLowerCase() || '.mp4' : '.webp';
-    let contentType: string = file.mimetype;
-    let originalSize = file.buffer.length;
-    let compressedSize = file.buffer.length;
-    let compressionPercent = '0%';
-    let duration: string | undefined;
-
-    // Step 1: Compress based on detected media type
-    if (isImage) {
-      this.logger.log(`Compressing image file: ${file.originalname}`);
-      const result = await this.imageCompressor.compress(file.buffer);
-      targetBuffer = result.buffer;
-      extension = result.extension;
-      contentType = result.contentType;
-      originalSize = result.originalSize;
-      compressedSize = result.compressedSize;
-      compressionPercent = result.compressionPercent;
-    } else if (isVideo) {
-      this.logger.log(`Compressing video file: ${file.originalname}`);
-      const result = await this.videoCompressor.compress(file.buffer, file.originalname);
-      targetBuffer = result.buffer;
-      extension = result.extension;
-      contentType = result.contentType;
-      originalSize = result.originalSize;
-      compressedSize = result.compressedSize;
-      compressionPercent = result.compressionPercent;
-      duration = result.duration;
-    }
-
-    // Step 2: Generate unique UUID-based object key
-    const uuid = crypto.randomUUID();
-    const productSegment = productId ? `${productId}/` : '';
-    const key = `${folder}/${productSegment}${uuid}${extension}`;
-
-    // Step 3: Deduplication check
-    const exists = await this.exists(key);
-    if (exists) {
-      this.logger.log(`Key ${key} already exists in storage. Reusing existing key.`);
-      return {
-        key,
-        type,
-        url: this.getPublicUrl(key),
-        originalSize,
-        compressedSize,
-        compressionPercent,
-        duration,
-      };
-    }
-
-    // Step 4: Perform upload to S3 or local disk
     try {
-      if (this.s3Client && this.bucketName) {
-        await this.s3Client.send(
-          new PutObjectCommand({
-            Bucket: this.bucketName,
-            Key: key,
-            Body: targetBuffer,
-            ContentType: contentType,
-            CacheControl: 'public, max-age=31536000, immutable',
-          }),
-        );
-      } else {
-        const destPath = path.join(this.localStorageDir, key);
-        const destDir = path.dirname(destPath);
-        if (!fs.existsSync(destDir)) {
-          fs.mkdirSync(destDir, { recursive: true });
-        }
-        fs.writeFileSync(destPath, targetBuffer);
+      const type: 'image' | 'video' = isVideo ? 'video' : 'image';
+      let targetBuffer: Buffer = fileBuffer;
+      let extension: string = isVideo ? path.extname(file.originalname).toLowerCase() || '.mp4' : '.webp';
+      let contentType: string = file.mimetype;
+      let originalSize = fileBuffer.length;
+      let compressedSize = fileBuffer.length;
+      let compressionPercent = '0%';
+      let duration: string | undefined;
+
+      // Step 1: Compress based on detected media type
+      if (isImage) {
+        this.logger.log(`Compressing image file: ${file.originalname}`);
+        const result = await this.imageCompressor.compress(fileBuffer);
+        targetBuffer = result.buffer;
+        extension = result.extension;
+        contentType = result.contentType;
+        originalSize = result.originalSize;
+        compressedSize = result.compressedSize;
+        compressionPercent = result.compressionPercent;
+      } else if (isVideo) {
+        this.logger.log(`Compressing video file: ${file.originalname}`);
+        const result = await this.videoCompressor.compress(fileBuffer, file.originalname);
+        targetBuffer = result.buffer;
+        extension = result.extension;
+        contentType = result.contentType;
+        originalSize = result.originalSize;
+        compressedSize = result.compressedSize;
+        compressionPercent = result.compressionPercent;
+        duration = result.duration;
       }
-      this.logger.log(`Successfully uploaded object key: ${key} (${type})`);
-      return {
-        key,
-        type,
-        url: this.getPublicUrl(key),
-        originalSize,
-        compressedSize,
-        compressionPercent,
-        duration,
-      };
-    } catch (error) {
-      this.logger.error(`Upload failed for key ${key}: ${error.message}`);
-      throw new InternalServerErrorException(`Failed to upload media object: ${error.message}`);
+
+      // Step 2: Generate unique UUID-based object key
+      const uuid = crypto.randomUUID();
+      const productSegment = productId ? `${productId}/` : '';
+      const key = `${folder}/${productSegment}${uuid}${extension}`;
+
+      // Step 3: Deduplication check
+      const exists = await this.exists(key);
+      if (exists) {
+        this.logger.log(`Key ${key} already exists in storage. Reusing existing key.`);
+        return {
+          key,
+          type,
+          url: this.getPublicUrl(key),
+          originalSize,
+          compressedSize,
+          compressionPercent,
+          duration,
+        };
+      }
+
+      // Step 4: Perform upload to S3 or local disk
+      try {
+        if (this.s3Client && this.bucketName) {
+          await this.s3Client.send(
+            new PutObjectCommand({
+              Bucket: this.bucketName,
+              Key: key,
+              Body: targetBuffer,
+              ContentType: contentType,
+              CacheControl: 'public, max-age=31536000, immutable',
+            }),
+          );
+        } else {
+          const destPath = path.join(this.localStorageDir, key);
+          const destDir = path.dirname(destPath);
+          if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+          }
+          fs.writeFileSync(destPath, targetBuffer);
+        }
+        this.logger.log(`Successfully uploaded object key: ${key} (${type})`);
+        return {
+          key,
+          type,
+          url: this.getPublicUrl(key),
+          originalSize,
+          compressedSize,
+          compressionPercent,
+          duration,
+        };
+      } catch (error) {
+        this.logger.error(`Upload failed for key ${key}: ${error.message}`);
+        throw new InternalServerErrorException(`Failed to upload media object: ${error.message}`);
+      }
+    } finally {
+      if (file.path && fs.existsSync(file.path)) {
+        try {
+          fs.unlinkSync(file.path);
+        } catch {}
+      }
     }
   }
 

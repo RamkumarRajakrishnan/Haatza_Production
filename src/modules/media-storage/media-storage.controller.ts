@@ -9,6 +9,10 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
+import { diskStorage } from 'multer';
+import * as os from 'os';
+import * as path from 'path';
+import * as crypto from 'crypto';
 import { Request } from 'express';
 import { MediaStorageService } from './media-storage.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
@@ -24,7 +28,7 @@ function formatBytes(bytes: number): string {
 @ApiTags('Media')
 @Controller()
 export class MediaStorageController {
-  constructor(private readonly mediaStorageService: MediaStorageService) {}
+  constructor(private readonly mediaStorageService: MediaStorageService) { }
 
   @Post(['uploadUrl', 'media/uploadUrl', 'upload-url', 'media/upload-url'])
   @ApiOperation({ summary: 'Generate instant direct signed upload URL (<30ms latency)' })
@@ -45,8 +49,15 @@ export class MediaStorageController {
   ])
   @UseInterceptors(
     AnyFilesInterceptor({
+      storage: diskStorage({
+        destination: os.tmpdir(),
+        filename: (_req, file, cb) => {
+          const uniqueId = crypto.randomUUID();
+          cb(null, `upload-${uniqueId}${path.extname(file.originalname) || '.bin'}`);
+        },
+      }),
       limits: {
-        fileSize: 100 * 1024 * 1024, // 100 MB max per file
+        fileSize: 500 * 1024 * 1024, // 500 MB max per file
       },
     }),
   )
