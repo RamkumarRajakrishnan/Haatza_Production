@@ -105,12 +105,12 @@ export class DatabaseService
           company_name text,
           gstin text,
           pan_number text,
-        
           address text,
           pincode text,
           city text,
           state text,
           country text,
+          "sellerOnboard_status" public."UserOnboardStatus" DEFAULT 'PENDING'::public."UserOnboardStatus",
           role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
           role_id text,
           status public."UserStatus" DEFAULT 'ACTIVE'::public."UserStatus",
@@ -127,6 +127,24 @@ export class DatabaseService
           is_seller boolean DEFAULT false,
           is_employee boolean DEFAULT false
         );
+
+        -- Safe column additions for existing tables
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_id text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company_name text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gstin text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pan_number text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS address text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS pincode text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS city text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS state text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS country text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "sellerOnboard_status" public."UserOnboardStatus" DEFAULT 'PENDING'::public."UserOnboardStatus";
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role public."UserRole" DEFAULT 'BUYER'::public."UserRole";
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role_id text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS status public."UserStatus" DEFAULT 'ACTIVE'::public."UserStatus";
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_buyer boolean DEFAULT true;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_seller boolean DEFAULT false;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS is_employee boolean DEFAULT false;
 
         DO $$ BEGIN
           ALTER TABLE public.users ALTER COLUMN role TYPE public."UserRole" USING role::public."UserRole";
