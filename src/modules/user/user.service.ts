@@ -1,9 +1,69 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  Logger,
+  NotFoundException,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
+import { UserRepository } from './user.repository';
+import { CheckUserQueryDto } from './dto/check-user-query.dto';
+import { CheckUserResponseDto } from './dto/check-user-response.dto';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly db: DatabaseService) { }
+  private readonly logger = new Logger(UserService.name);
+
+  constructor(
+    private readonly db: DatabaseService,
+    private readonly userRepository: UserRepository,
+  ) {}
+
+  /**
+   * Check whether a user exists by email, phoneNumber, or both.
+   */
+  async checkUserExists(
+    query: CheckUserQueryDto,
+  ): Promise<CheckUserResponseDto> {
+    const { email, phoneNumber } = query;
+
+    // Validation: At least one parameter must be provided
+    if (!email && !phoneNumber) {
+      this.logger.warn('Check user attempt failed: Neither email nor phoneNumber provided.');
+      throw new BadRequestException({
+        success: false,
+        message: 'Either email or phoneNumber is required.',
+      });
+    }
+
+    this.logger.log(
+      `Checking user existence for email: [${email || 'N/A'}], phoneNumber: [${phoneNumber || 'N/A'}]`,
+    );
+
+    const user = await this.userRepository.findByEmailOrPhone(email, phoneNumber);
+
+    if (user) {
+      this.logger.log(`User found with ID: ${user.id}`);
+      return {
+        success: true,
+        exists: true,
+        user: {
+          id: user.id,
+          email: user.email,
+          phoneNumber: user.mobile,
+          status: user.status,
+        },
+        message: 'User found.',
+      };
+    }
+
+    this.logger.log('User check completed: User does not exist.');
+    return {
+      success: true,
+      exists: false,
+      user: null,
+      message: 'User does not exist.',
+    };
+  }
 
   async getUserProfile(userId: string) {
     const user = await this.db.user.findUnique({
