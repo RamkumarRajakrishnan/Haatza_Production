@@ -15,7 +15,7 @@ export class DatabaseService
   constructor() {
     const connectionString =
       process.env.DATABASE_URL ||
-      'postgresql://postgres:postgres@127.0.0.1:5432/postgres';
+      'postgresql://postgres:Haatza%402025@127.0.0.1:5432/haatza?schema=public';
     const pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX) || 15,
@@ -27,6 +27,9 @@ export class DatabaseService
     super({ adapter });
     this.pool = pool;
     this.connectionString = connectionString;
+    this.logger.log(
+      `Initializing DatabaseService with target: ${connectionString.replace(/:[^:@]+@/, ':****@')}`,
+    );
   }
 
   async onModuleInit() {
@@ -42,8 +45,6 @@ export class DatabaseService
         await this.$connect();
         this.isConnected = true;
         this.logger.log('✅ Database connected successfully with explicit pg.Pool');
-
-        await this.ensureCoreTablesExist();
         return;
       } catch (err: any) {
         this.logger.warn(
@@ -65,9 +66,6 @@ export class DatabaseService
         CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
         DO $$ BEGIN
-          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'StorageType') THEN
-            CREATE TYPE public."StorageType" AS ENUM ('SELLER', 'HAATZA');
-          END IF;
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserOnboardStatus') THEN
             CREATE TYPE public."UserOnboardStatus" AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE', 'REJECTED', 'SUSPENDED');
           END IF;
@@ -101,15 +99,13 @@ export class DatabaseService
           user_id text PRIMARY KEY,
           seller_id text UNIQUE,
           first_name text NOT NULL,
-          last_name text,
-          nickname text,
           email text UNIQUE,
           phone text UNIQUE NOT NULL,
           password_hash text NOT NULL,
           company_name text,
           gstin text,
           pan_number text,
-          storage_type public."StorageType" DEFAULT 'SELLER'::public."StorageType",
+        
           address text,
           pincode text,
           city text,
@@ -131,10 +127,7 @@ export class DatabaseService
           deleted_at timestamp
         );
 
-        DO $$ BEGIN
-          ALTER TABLE public.users ALTER COLUMN storage_type TYPE public."StorageType" USING storage_type::public."StorageType";
-        EXCEPTION WHEN OTHERS THEN NULL; END $$;
-        DO $$ BEGIN
+            DO $$ BEGIN
           ALTER TABLE public.users ALTER COLUMN onboard_status TYPE public."UserOnboardStatus" USING onboard_status::public."UserOnboardStatus";
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
         DO $$ BEGIN

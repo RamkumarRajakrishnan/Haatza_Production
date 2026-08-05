@@ -68,11 +68,6 @@ export class CreateSellerOrderDto {
   @IsString()
   productId?: string;
 
-  @ApiPropertyOptional({ description: 'Storage Type' })
-  @IsOptional()
-  @IsString()
-  storageType?: string;
-
   @ApiPropertyOptional({ description: 'Seller Payment Status' })
   @IsOptional()
   @IsString()

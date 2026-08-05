@@ -13,7 +13,6 @@ export class SellerOrderResponseDto {
   @ApiProperty() createdDate: Date;
   @ApiPropertyOptional() paymentStatus?: string;
   @ApiPropertyOptional() productId?: string;
-  @ApiPropertyOptional() storageType?: string;
   @ApiPropertyOptional() sellerPaymentStatus?: string;
   @ApiPropertyOptional() itemPrice?: number;
   @ApiPropertyOptional() buyerEmail?: string;

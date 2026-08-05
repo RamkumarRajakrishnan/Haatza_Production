@@ -10,8 +10,6 @@ model User {
   id                  String             @id @default(uuid()) @map("user_id")
   sellerId            String?            @unique @map("seller_id")
   name                String             @map("first_name")
-  lastName            String?            @map("last_name")
-  nickname            String?            @map("nickname")
   email               String?            @unique @map("email")
   mobile              String             @unique @map("phone")
   password            String             @map("password_hash")
@@ -283,11 +281,6 @@ enum UserStatus {
   INACTIVE
   BLOCKED
   PENDING
-}
-
-enum StorageType {
-  SELLER
-  HAATZA
 }
 
 enum UserOnboardStatus {

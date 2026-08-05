@@ -3,7 +3,7 @@ import { DatabaseService } from '../../database/database.service';
 
 @Injectable()
 export class UserService {
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   async getUserProfile(userId: string) {
     const user = await this.db.user.findUnique({
@@ -11,8 +11,6 @@ export class UserService {
       select: {
         id: true,
         name: true,
-        lastName: true,
-        nickname: true,
         email: true,
         mobile: true,
         companyName: true,
@@ -40,8 +38,6 @@ export class UserService {
       where: { id: userId },
       data: {
         ...(data.name && { name: data.name }),
-        ...(data.lastName && { lastName: data.lastName }),
-        ...(data.nickname && { nickname: data.nickname }),
         ...(data.email && { email: data.email }),
         ...(data.address && { address: data.address }),
         ...(data.pincode && { pincode: data.pincode }),
@@ -51,8 +47,6 @@ export class UserService {
       select: {
         id: true,
         name: true,
-        lastName: true,
-        nickname: true,
         email: true,
         mobile: true,
         role: true,
@@ -76,7 +70,6 @@ export class UserService {
         select: {
           id: true,
           name: true,
-          lastName: true,
           email: true,
           mobile: true,
           role: true,
