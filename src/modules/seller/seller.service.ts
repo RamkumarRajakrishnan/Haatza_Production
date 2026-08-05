@@ -24,7 +24,7 @@ export class SellerService {
 
   async getOnboardStatus(userId: string) {
     const user = await this.db.user.findUnique({ where: { id: userId } });
-    return { onboardStatus: user?.onboardStatus || 'PENDING' };
+    return { onboardStatus: user?.sellerOnboardStatus || 'PENDING' };
   }
 
   getBankList() {

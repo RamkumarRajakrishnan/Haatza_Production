@@ -21,7 +21,6 @@ export class UserService {
         city: true,
         state: true,
         country: true,
-        onboardStatus: true,
         createdAt: true,
         updatedAt: true,
       },

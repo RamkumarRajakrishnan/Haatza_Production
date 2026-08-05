@@ -27,7 +27,7 @@ export class AdminService {
     return this.db.user.findMany({
       where: {
         role: 'SELLER',
-        onboardStatus: 'PENDING',
+        sellerOnboardStatus: 'PENDING',
       },
       select: {
         id: true,
@@ -37,7 +37,7 @@ export class AdminService {
         companyName: true,
         gstin: true,
         panNumber: true,
-        onboardStatus: true,
+        sellerOnboardStatus: true,
         createdAt: true,
       },
     });
@@ -52,7 +52,7 @@ export class AdminService {
     return this.db.user.update({
       where: { id: userId },
       data: {
-        onboardStatus: 'ACTIVE',
+        sellerOnboardStatus: 'ACTIVE',
         status: 'ACTIVE',
       },
     });
@@ -67,7 +67,7 @@ export class AdminService {
     return this.db.user.update({
       where: { id: userId },
       data: {
-        onboardStatus: 'REJECTED',
+        sellerOnboardStatus: 'REJECTED',
       },
     });
   }

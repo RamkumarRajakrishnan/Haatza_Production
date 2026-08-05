@@ -21,7 +21,6 @@ model User {
   city                String?            @map("city")
   state               String?            @map("state")
   country             String?            @map("country")
-  onboardStatus       UserOnboardStatus  @default(PENDING) @map("onboard_status")
   sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
   role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
@@ -48,7 +47,6 @@ model User {
   userRole            Role?              @relation(fields: [roleId], references: [id])
 
   @@index([roleId])
-  @@index([onboardStatus])
   @@index([sellerOnboardStatus])
   @@map("users")
 }
