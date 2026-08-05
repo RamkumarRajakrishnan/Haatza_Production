@@ -34,6 +34,7 @@ model User {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
   deletedAt           DateTime?          @map("deleted_at")
+  refreshToken        String?            @map("refresh_token")
   isBuyer             Boolean            @default(true) @map("is_buyer")
   isSeller            Boolean            @default(false) @map("is_seller")
   isEmployee          Boolean            @default(false) @map("is_employee")

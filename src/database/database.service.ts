@@ -123,12 +123,14 @@ export class DatabaseService
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now(),
           deleted_at timestamp,
+          refresh_token text,
           is_buyer boolean DEFAULT true,
           is_seller boolean DEFAULT false,
           is_employee boolean DEFAULT false
         );
 
         -- Safe column additions for existing tables
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS refresh_token text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_id text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company_name text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS gstin text;
