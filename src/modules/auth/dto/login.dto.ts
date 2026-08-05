@@ -1,12 +1,31 @@
-import { IsString, Matches } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class LoginDto {
-  @IsString()
-  @Matches(/^[6-9]\d{9}$/, {
-    message: 'mobile must be a valid 10-digit phone number starting with 6-9',
+  @ApiPropertyOptional({
+    description: 'Email address or mobile phone number',
+    example: 'user@example.com',
   })
-  mobile: string;
-
+  @IsOptional()
   @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  identifier?: string;
+
+  @ApiPropertyOptional({
+    description: 'Mobile phone number (alias for identifier)',
+    example: '9876543210',
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  mobile?: string;
+
+  @ApiProperty({
+    description: 'User password',
+    example: 'UserPassword123!',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
   password: string;
 }

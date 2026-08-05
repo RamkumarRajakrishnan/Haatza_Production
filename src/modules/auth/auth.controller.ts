@@ -5,6 +5,10 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import {
+  LoginErrorResponseDto,
+  LoginSuccessResponseDto,
+} from './dto/login-response.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { LogoutDto } from './dto/logout.dto';
 import { GenerateOtpDto } from './dto/generate-otp.dto';
@@ -23,8 +27,17 @@ export class AuthController {
     return this.authService.register(data);
   }
 
-  @ApiOperation({ summary: 'Login with mobile and password' })
-  @ApiResponse({ status: 200, description: 'Authentication successful, returns tokens' })
+  @ApiOperation({ summary: 'Authenticate user with email or phone number and password' })
+  @ApiResponse({
+    status: 200,
+    description: 'Authentication successful',
+    type: LoginSuccessResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid credentials or account status',
+    type: LoginErrorResponseDto,
+  })
   @Post(['login', 'api/login'])
   login(@Body() data: LoginDto, @Req() req: Request) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;

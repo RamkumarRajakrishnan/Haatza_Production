@@ -18,6 +18,8 @@ import { GenerateOtpDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
+import { AuthRepository } from './auth.repository';
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -26,6 +28,7 @@ export class AuthService {
     private readonly database: DatabaseService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly authRepository: AuthRepository,
   ) {}
 
   private hashToken(token: string): string {
@@ -81,55 +84,88 @@ export class AuthService {
     data: LoginDto,
     reqMeta?: { ipAddress?: string; userAgent?: string },
   ) {
-    const user = await this.database.user.findUnique({
-      where: {
-        mobile: data.mobile,
-      },
-      select: {
-        id: true,
-        name: true,
-        mobile: true,
-        password: true,
-        role: true,
-        status: true,
-      },
-    });
+    const rawIdentifier = data.identifier || data.mobile;
+
+    if (!rawIdentifier) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email/phone number or password.',
+      });
+    }
+
+    const user = await this.authRepository.findUserByIdentifier(rawIdentifier);
 
     if (!user) {
       this.recordLoginHistory({
-        identifier: data.mobile,
+        identifier: rawIdentifier,
         status: LoginStatus.FAILED,
         failureReason: 'User not found',
         ipAddress: reqMeta?.ipAddress,
         userAgent: reqMeta?.userAgent,
       });
 
-      throw new UnauthorizedException('Invalid mobile or password');
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email/phone number or password.',
+      });
     }
 
+    // Security Check 1: Account Lockout Check
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      this.logger.warn(`Login attempt blocked for locked account ID: ${user.id}`);
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is locked due to multiple failed login attempts. Please try again later.',
+      });
+    }
+
+    // Security Check 2: Account Status Check
     if (user.status !== 'ACTIVE') {
-      throw new UnauthorizedException('Account is not active');
+      this.logger.warn(`Login attempt for inactive user ID: ${user.id}, Status: ${user.status}`);
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email/phone number or password.',
+      });
     }
 
-    const passwordMatch = await bcrypt.compare(data.password, user.password);
+    // Password Verification via bcrypt
+    const isPasswordValid = await bcrypt.compare(data.password, user.password);
 
-    if (!passwordMatch) {
+    if (!isPasswordValid) {
+      const lockResult = await this.authRepository.incrementFailedLoginAttempts(
+        user.id,
+        user.failedLoginAttempts,
+      );
+
       this.recordLoginHistory({
         userId: user.id,
-        identifier: data.mobile,
+        identifier: rawIdentifier,
         status: LoginStatus.FAILED,
-        failureReason: 'Invalid password',
+        failureReason: lockResult.isLocked
+          ? 'Invalid password - Account Locked'
+          : 'Invalid password',
         ipAddress: reqMeta?.ipAddress,
         userAgent: reqMeta?.userAgent,
       });
 
-      throw new UnauthorizedException('Invalid mobile or password');
+      if (lockResult.isLocked) {
+        this.logger.warn(`Account ID: ${user.id} has been locked after 5 failed attempts.`);
+      }
+
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email/phone number or password.',
+      });
     }
+
+    // Successful Authentication
+    await this.authRepository.resetLoginAttemptsAndRecordLogin(user.id);
 
     const payload = {
       sub: user.id,
       role: user.role,
       mobile: user.mobile,
+      email: user.email,
       jti: crypto.randomUUID(),
     };
 
@@ -138,17 +174,19 @@ export class AuthService {
       process.env.JWT_REFRESH_SECRET ||
       'fallback_haatza_refresh_secret_2026';
 
+    const expiresInSeconds = 3600; // 1 hour
+
     const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, { expiresIn: '15m' }),
+      this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` }),
       this.jwtService.signAsync(payload, {
         secret: refreshSecret,
-        expiresIn: '30d',
+        expiresIn: '7d',
       }),
     ]);
 
     const tokenHash = this.hashToken(refreshToken);
     const sessionTokenHash = this.hashToken(accessToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const session = await this.database.userSession.create({
       data: {
@@ -171,21 +209,27 @@ export class AuthService {
 
     this.recordSuccessSideEffects({
       userId: user.id,
-      mobile: data.mobile,
+      mobile: user.mobile,
       sessionId: session.id,
       refreshToken,
       reqMeta,
     });
 
+    this.logger.log(`User ${user.id} logged in successfully.`);
+
     return {
-      message: 'Login successful',
+      success: true,
+      message: 'Login successful.',
       accessToken,
       refreshToken,
+      expiresIn: expiresInSeconds,
       user: {
         id: user.id,
         name: user.name,
-        mobile: user.mobile,
+        email: user.email,
+        phoneNumber: user.mobile,
         role: user.role,
+        status: user.status,
       },
     };
   }

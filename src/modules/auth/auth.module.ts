@@ -5,6 +5,7 @@ import { PassportModule } from '@nestjs/passport';
 
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { AuthRepository } from './auth.repository';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
@@ -28,7 +29,7 @@ import { PermissionsGuard } from './guards/permissions.guard';
           'fallback_haatza_jwt_secret_2026',
 
         signOptions: {
-          expiresIn: 60 * 60 * 24,
+          expiresIn: '1h',
         },
       }),
     }),
@@ -36,10 +37,17 @@ import { PermissionsGuard } from './guards/permissions.guard';
 
   controllers: [AuthController],
 
-  providers: [AuthService, JwtStrategy, RolesGuard, PermissionsGuard],
+  providers: [
+    AuthService,
+    AuthRepository,
+    JwtStrategy,
+    RolesGuard,
+    PermissionsGuard,
+  ],
 
   exports: [
     AuthService,
+    AuthRepository,
     JwtModule,
     PassportModule,
     RolesGuard,
