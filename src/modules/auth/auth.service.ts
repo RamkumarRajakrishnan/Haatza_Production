@@ -10,7 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus } from '@prisma/client';
+import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus, UserRole } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -45,9 +45,14 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
+    const isBuyerBool =
+      data.buyer === true || data.role === UserRole.BUYER;
+
+    const userRole = data.role || (isBuyerBool ? UserRole.BUYER : UserRole.SELLER);
+
     const roleRecord = await this.database.role.findFirst({
       where: {
-        OR: [{ name: data.role }, { code: data.role.toLowerCase() }],
+        OR: [{ name: userRole }, { code: userRole.toLowerCase() }],
       },
     });
 
@@ -57,7 +62,8 @@ export class AuthService {
         mobile: data.mobile,
         email: data.email,
         password: hashedPassword,
-        role: data.role,
+        role: userRole,
+        isBuyer: isBuyerBool,
         roleId: roleRecord ? roleRecord.id : null,
       },
     });

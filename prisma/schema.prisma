@@ -10,7 +10,9 @@ model User {
   id                  String             @id @default(uuid()) @map("user_id")
   sellerId            String?            @unique @map("seller_id")
   name                String             @map("first_name")
-    email               String?            @unique @map("email")
+  lastName            String?            @map("last_name")
+  nickname            String?            @map("nickname")
+  email               String?            @unique @map("email")
   mobile              String             @unique @map("phone")
   password            String             @map("password_hash")
   companyName         String?            @map("company_name")
@@ -21,7 +23,8 @@ model User {
   city                String?            @map("city")
   state               String?            @map("state")
   country             String?            @default("India") @map("country")
-  sellerOnboardStatus       UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
+  onboardStatus       UserOnboardStatus  @default(PENDING) @map("onboard_status")
+  sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
   role                UserRole           @default(BUYER) @map("legacy_role")
   roleId              String?            @map("role_id")
   status              UserStatus         @default(ACTIVE) @map("status")
@@ -35,7 +38,8 @@ model User {
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
   deletedAt           DateTime?          @map("deleted_at")
-  buyer               Buyer?             @boolean -> buyer Buyer?
+  isBuyer             Boolean            @default(true) @map("is_buyer")
+  buyer               Buyer?
   otps                OtpVerification[]
   refreshTokens       RefreshToken[]
   seller              Seller?
@@ -46,6 +50,7 @@ model User {
 
   @@index([roleId])
   @@index([onboardStatus])
+  @@index([sellerOnboardStatus])
   @@map("users")
 }
 
