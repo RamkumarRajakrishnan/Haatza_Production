@@ -112,7 +112,7 @@ export class DatabaseService
           state text,
           country text DEFAULT 'India',
           onboard_status public."UserOnboardStatus" DEFAULT 'PENDING'::public."UserOnboardStatus",
-          legacy_role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
+          role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
           role_id text,
           status public."UserStatus" DEFAULT 'ACTIVE'::public."UserStatus",
           legacy_refresh_token text,
@@ -127,11 +127,11 @@ export class DatabaseService
           deleted_at timestamp
         );
 
-            DO $$ BEGIN
+        DO $$ BEGIN
           ALTER TABLE public.users ALTER COLUMN onboard_status TYPE public."UserOnboardStatus" USING onboard_status::public."UserOnboardStatus";
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
         DO $$ BEGIN
-          ALTER TABLE public.users ALTER COLUMN legacy_role TYPE public."UserRole" USING legacy_role::public."UserRole";
+          ALTER TABLE public.users ALTER COLUMN role TYPE public."UserRole" USING role::public."UserRole";
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
         DO $$ BEGIN
           ALTER TABLE public.users ALTER COLUMN status TYPE public."UserStatus" USING status::public."UserStatus";

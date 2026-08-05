@@ -23,7 +23,7 @@ model User {
   country             String?            @default("India") @map("country")
   onboardStatus       UserOnboardStatus  @default(PENDING) @map("onboard_status")
   sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
-  role                UserRole           @default(BUYER) @map("legacy_role")
+  role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
   status              UserStatus         @default(ACTIVE) @map("status")
   refreshToken        String?            @map("legacy_refresh_token")
