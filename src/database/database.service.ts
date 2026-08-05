@@ -110,7 +110,7 @@ export class DatabaseService
           pincode text,
           city text,
           state text,
-          country text DEFAULT 'India',
+          country text,
           onboard_status public."UserOnboardStatus" DEFAULT 'PENDING'::public."UserOnboardStatus",
           role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
           role_id text,
@@ -123,7 +123,10 @@ export class DatabaseService
           locked_until timestamp,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now(),
-          deleted_at timestamp
+          deleted_at timestamp,
+          is_buyer boolean DEFAULT true,
+          is_seller boolean DEFAULT false,
+          is_employee boolean DEFAULT false
         );
 
         DO $$ BEGIN

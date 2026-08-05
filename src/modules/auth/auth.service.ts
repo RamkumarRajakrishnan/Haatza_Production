@@ -56,6 +56,8 @@ export class AuthService {
       },
     });
 
+    const isSellerBool = userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF;
+
     const user = await this.database.user.create({
       data: {
         name: data.name,
@@ -64,6 +66,7 @@ export class AuthService {
         password: hashedPassword,
         role: userRole,
         isBuyer: isBuyerBool,
+        isSeller: isSellerBool,
         roleId: roleRecord ? roleRecord.id : null,
       },
     });
@@ -256,7 +259,7 @@ export class AuthService {
         await Promise.allSettled([
           this.database.user.update({
             where: { id: data.userId },
-            data: { refreshToken: data.refreshToken, lastLoginAt: new Date() },
+            data: { lastLoginAt: new Date() },
           }),
           this.database.userLoginHistory.create({
             data: {
@@ -284,11 +287,7 @@ export class AuthService {
       include: { user: true, session: true },
     });
 
-    const user = storedToken
-      ? storedToken.user
-      : await this.database.user.findFirst({
-          where: { refreshToken: token },
-        });
+    const user = storedToken ? storedToken.user : null;
 
     if (!user) {
       throw new UnauthorizedException('Invalid refresh token');
@@ -304,58 +303,35 @@ export class AuthService {
         );
       }
 
-      if (new Date() > storedToken.expiresAt) {
-        throw new UnauthorizedException('Refresh token expired');
+      if (storedToken.expiresAt < new Date()) {
+        throw new UnauthorizedException('Refresh token has expired');
       }
     }
 
-    const payload = {
+    const newPayload = {
       sub: user.id,
-      role: user.role,
       mobile: user.mobile,
+      role: user.role,
     };
 
-    const newAccessToken = await this.jwtService.signAsync(payload, {
-      expiresIn: '15m',
+    const newAccessToken = this.jwtService.sign(newPayload);
+    const newRefreshToken = this.jwtService.sign(newPayload, {
+      expiresIn: '7d',
     });
 
-    const refreshSecret =
-      this.configService.get<string>('JWT_REFRESH_SECRET') ||
-      process.env.JWT_REFRESH_SECRET ||
-      'fallback_haatza_refresh_secret_2026';
-
-    const newRefreshToken = await this.jwtService.signAsync(payload, {
-      secret: refreshSecret,
-      expiresIn: '30d',
-    });
-
-    const newTokenHash = this.hashToken(newRefreshToken);
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const newHash = this.hashToken(newRefreshToken);
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     if (storedToken) {
-      const newTokenRecord = await this.database.refreshToken.create({
-        data: {
-          userId: user.id,
-          sessionId: storedToken.sessionId,
-          deviceId: storedToken.deviceId,
-          tokenHash: newTokenHash,
-          expiresAt,
-        },
-      });
-
       await this.database.refreshToken.update({
         where: { id: storedToken.id },
         data: {
-          revokedAt: new Date(),
-          replacedByTokenId: newTokenRecord.id,
+          tokenHash: newHash,
+          expiresAt,
+          updatedAt: new Date(),
         },
       });
     }
-
-    await this.database.user.update({
-      where: { id: user.id },
-      data: { refreshToken: newRefreshToken },
-    });
 
     return {
       accessToken: newAccessToken,
@@ -380,22 +356,6 @@ export class AuthService {
         where: { id: storedToken.sessionId },
         data: { revokedAt: new Date() },
       });
-
-      await this.database.user.update({
-        where: { id: storedToken.userId },
-        data: { refreshToken: null },
-      });
-    } else {
-      const user = await this.database.user.findFirst({
-        where: { refreshToken: token },
-      });
-
-      if (user) {
-        await this.database.user.update({
-          where: { id: user.id },
-          data: { refreshToken: null },
-        });
-      }
     }
 
     return {

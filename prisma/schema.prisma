@@ -20,7 +20,7 @@ model User {
   pincode             String?            @map("pincode")
   city                String?            @map("city")
   state               String?            @map("state")
-  country             String?            @default("India") @map("country")
+  country             String?            @map("country")
   onboardStatus       UserOnboardStatus  @default(PENDING) @map("onboard_status")
   sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
   role                UserRole           @default(BUYER) @map("role")
@@ -36,6 +36,8 @@ model User {
   updatedAt           DateTime           @updatedAt @map("updated_at")
   deletedAt           DateTime?          @map("deleted_at")
   isBuyer             Boolean            @default(true) @map("is_buyer")
+  isSeller            Boolean            @default(false) @map("is_seller")
+  isEmployee          Boolean            @default(false) @map("is_employee")
   buyer               Buyer?
   otps                OtpVerification[]
   refreshTokens       RefreshToken[]
