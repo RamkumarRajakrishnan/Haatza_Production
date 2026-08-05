@@ -26,7 +26,6 @@ model User {
   role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
   status              UserStatus         @default(ACTIVE) @map("status")
-  refreshToken        String?            @map("legacy_refresh_token")
   emailVerifiedAt     DateTime?          @map("email_verified_at")
   phoneVerifiedAt     DateTime?          @map("phone_verified_at")
   lastLoginAt         DateTime?          @map("last_login_at")

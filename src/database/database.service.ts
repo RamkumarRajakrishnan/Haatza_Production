@@ -115,7 +115,6 @@ export class DatabaseService
           role public."UserRole" DEFAULT 'BUYER'::public."UserRole",
           role_id text,
           status public."UserStatus" DEFAULT 'ACTIVE'::public."UserStatus",
-          legacy_refresh_token text,
           email_verified_at timestamp,
           phone_verified_at timestamp,
           last_login_at timestamp,
