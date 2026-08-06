@@ -500,7 +500,7 @@ export class AuthService {
     const isEmail = dto.identifier.includes('@');
     const identifierType = isEmail ? OtpIdentifierType.EMAIL : OtpIdentifierType.PHONE;
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = crypto.createHash('sha256').update(rawOtp).digest('hex');
+    const otpHash = rawOtp; // Store plain-text 6-digit OTP code directly so it is visible unencrypted in DB
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const existingUser = await this.database.user.findFirst({
@@ -542,8 +542,6 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
-    const otpHash = crypto.createHash('sha256').update(dto.otp).digest('hex');
-
     const otpRecord = await this.database.otpVerification.findFirst({
       where: {
         identifier: dto.identifier,
@@ -561,16 +559,16 @@ export class AuthService {
       throw new BadRequestException('OTP has expired');
     }
 
-    if (otpRecord.attemptCount >= otpRecord.maxAttempts) {
-      throw new BadRequestException('Maximum OTP verification attempts exceeded');
-    }
-
-    if (otpRecord.otpHash !== otpHash) {
+    if (otpRecord.otpHash !== dto.otp) {
       await this.database.otpVerification.update({
         where: { id: otpRecord.id },
         data: { attemptCount: otpRecord.attemptCount + 1 },
       });
       throw new BadRequestException('Invalid OTP code');
+    }
+
+    if (otpRecord.attemptCount >= otpRecord.maxAttempts) {
+      throw new BadRequestException('Maximum OTP verification attempts exceeded');
     }
 
     await this.database.otpVerification.update({
@@ -595,7 +593,6 @@ export class AuthService {
   async verifyOtpSession(dto: VerifyOtpSessionDto, reqMeta: { ipAddress?: string; userAgent?: string }) {
     const cleanedPhone = dto.phoneNumber.replace(/[\s\-\(\)\+]/g, '');
 
-    const otpHash = crypto.createHash('sha256').update(dto.otpCode).digest('hex');
     const otpRecord = await this.database.otpVerification.findFirst({
       where: {
         identifier: cleanedPhone,
@@ -605,7 +602,7 @@ export class AuthService {
       orderBy: { createdAt: 'desc' },
     });
 
-    if (!otpRecord || new Date() > otpRecord.expiresAt || otpRecord.otpHash !== otpHash) {
+    if (!otpRecord || new Date() > otpRecord.expiresAt || otpRecord.otpHash !== dto.otpCode) {
       const remaining = Math.max(0, (otpRecord?.maxAttempts || 3) - ((otpRecord?.attemptCount || 0) + 1));
       if (otpRecord) {
         await this.database.otpVerification.update({
