@@ -7,6 +7,7 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { DatabaseService } from '../../database/database.service';
 import { Platform } from './dto/check-user.dto';
+import { SmsService } from '../sms/sms.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -62,6 +63,7 @@ describe('AuthService', () => {
         { provide: DatabaseService, useValue: mockDatabaseService },
         { provide: JwtService, useValue: mockJwtService },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: SmsService, useValue: { sendOtp: jest.fn().mockResolvedValue(true) } },
       ],
     }).compile();
 

@@ -31,6 +31,7 @@ import { NotificationModule } from './modules/notification/notification.module';
 import { AddressModule } from './modules/address/address.module';
 import { CouponModule } from './modules/coupon/coupon.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
+import { SmsModule } from './modules/sms/sms.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -95,6 +96,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AddressModule,
     CouponModule,
     InventoryModule,
+    SmsModule,
   ],
 
   controllers: [AppController],

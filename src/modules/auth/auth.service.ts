@@ -22,6 +22,7 @@ import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
 import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
 import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
+import { SmsService } from '../sms/sms.service';
 import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 
 @Injectable()
@@ -33,6 +34,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly authRepository: AuthRepository,
+    private readonly smsService: SmsService,
   ) {}
 
   /**
@@ -519,6 +521,10 @@ export class AuthService {
     });
 
     this.logger.log(`Generated OTP for ${dto.identifier}: ${rawOtp}`);
+
+    if (!isEmail) {
+      await this.smsService.sendOtp(dto.identifier, rawOtp);
+    }
 
     return {
       success: true,

@@ -10,9 +10,12 @@ import { JwtStrategy } from './strategies/jwt.strategy';
 import { RolesGuard } from './guards/roles.guard';
 import { PermissionsGuard } from './guards/permissions.guard';
 
+import { SmsModule } from '../sms/sms.module';
+
 @Module({
   imports: [
     ConfigModule,
+    SmsModule,
 
     PassportModule.register({
       defaultStrategy: 'jwt',
