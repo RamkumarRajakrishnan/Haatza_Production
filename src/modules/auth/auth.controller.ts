@@ -16,11 +16,13 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { CheckUserDto } from './dto/check-user.dto';
 import { CheckUserResponseDto } from './dto/check-user-response.dto';
+import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
+import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) { }
+  constructor(private readonly authService: AuthService) {}
 
   @ApiOperation({ summary: 'Check if user exists by email or phone before login/registration' })
   @ApiResponse({
@@ -33,7 +35,6 @@ export class AuthController {
   checkUser(@Body() data: CheckUserDto) {
     return this.authService.checkUser(data);
   }
-
 
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({ status: 201, description: 'User successfully registered' })
@@ -61,11 +62,14 @@ export class AuthController {
     return this.authService.login(data, { ipAddress, userAgent });
   }
 
-  @ApiOperation({ summary: 'Refresh access token using refresh token' })
+  @ApiOperation({ summary: 'Refresh access token using refresh token or session token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
   @Post('refresh')
-  refresh(@Body() data: RefreshTokenDto) {
-    return this.authService.refreshToken(data.refreshToken);
+  refreshSession(@Body() data: RefreshTokenSessionDto | RefreshTokenDto) {
+    if ('deviceId' in data) {
+      return this.authService.refreshTokenSession(data as RefreshTokenSessionDto);
+    }
+    return this.authService.refreshToken((data as RefreshTokenDto).refreshToken);
   }
 
   @ApiOperation({ summary: 'Logout user and revoke refresh token session' })
@@ -77,28 +81,33 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Request password reset OTP' })
   @ApiResponse({ status: 200, description: 'Password reset OTP generated and sent' })
-  @Post('forgotPassword')
+  @Post(['forgot-password', 'forgotpassword', 'forgotPassword'])
   forgotPassword(@Body() data: ForgotPasswordDto) {
     return this.authService.forgotPassword(data);
   }
 
   @ApiOperation({ summary: 'Generate OTP for authentication/verification' })
   @ApiResponse({ status: 200, description: 'OTP generated successfully' })
-  @Post('generateotp')
+  @Post(['generate-otp', 'generateotp', 'generateOtp'])
   generateOtp(@Body() data: GenerateOtpDto) {
     return this.authService.generateOtp(data);
   }
 
-  @ApiOperation({ summary: 'Verify OTP code' })
+  @ApiOperation({ summary: 'Verify OTP code and create session / login' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
-  @Post('verifyotp')
-  verifyOtp(@Body() data: VerifyOtpDto) {
-    return this.authService.verifyOtp(data);
+  @Post(['verify-otp', 'verifyotp', 'verifyOtp'])
+  verifyOtp(@Body() data: VerifyOtpSessionDto | VerifyOtpDto, @Req() req: Request) {
+    if ('phoneNumber' in data) {
+      const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+      const userAgent = req.headers['user-agent'];
+      return this.authService.verifyOtpSession(data as VerifyOtpSessionDto, { ipAddress, userAgent });
+    }
+    return this.authService.verifyOtp(data as VerifyOtpDto);
   }
 
   @ApiOperation({ summary: 'Resend OTP code' })
   @ApiResponse({ status: 200, description: 'OTP resent successfully' })
-  @Post('resendotp')
+  @Post(['resend-otp', 'resendotp', 'resendOtp'])
   resendOtp(@Body() data: GenerateOtpDto) {
     return this.authService.resendOtp(data);
   }
