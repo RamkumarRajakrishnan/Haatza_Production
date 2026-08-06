@@ -6,7 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { DatabaseService } from '../../database/database.service';
-import { TargetPlatform } from './dto/check-user.dto';
+import { Platform } from './dto/check-user.dto';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -135,8 +135,10 @@ describe('AuthService', () => {
     it('should return exists: false and nextStep: REGISTER when user does not exist', async () => {
       authRepository.findMinimalUserByIdentifier.mockResolvedValue(null);
 
-      const searchIdentifier = 'non_existent@domain.test';
-      const result = await service.checkUser({ identifier: searchIdentifier });
+      const result = await service.checkUser({
+        identifier: 'non_existent@domain.test',
+        platform: Platform.BUYER,
+      });
 
       expect(result).toEqual({
         success: true,
@@ -144,70 +146,30 @@ describe('AuthService', () => {
         data: {
           exists: false,
           identifierType: 'EMAIL',
-          platform: undefined,
-          existsOnRequestedPlatform: false,
-          isBuyer: false,
-          isSeller: false,
           nextStep: 'REGISTER',
         },
       });
     });
 
-    it('should return nextStep: ONBOARD_SELLER when user exists as Buyer but checks on SELLER platform', async () => {
+    it('Case 1: should return LOGIN when user is buyer and request platform is BUYER', async () => {
       const mockUser = {
-        id: 'buyer_only_user_id',
+        id: 'usr_buyer_1',
         email: 'buyer@domain.test',
-        mobile: '1000000009',
+        mobile: '1000000001',
         role: 'BUYER',
+        status: 'ACTIVE',
         isBuyer: true,
         isSeller: false,
-        status: 'ACTIVE',
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
       };
 
       authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
 
-      const result = await service.checkUser({ identifier: mockUser.email, platform: TargetPlatform.SELLER });
-
-      expect(result).toEqual({
-        success: true,
-        message: 'User found.',
-        data: {
-          exists: true,
-          userId: mockUser.id,
-          identifierType: 'EMAIL',
-          platform: 'SELLER',
-          existsOnRequestedPlatform: false,
-          userType: 'BUYER',
-          isBuyer: true,
-          isSeller: false,
-          sellerOnboardStatus: undefined,
-          isActive: true,
-          emailVerified: true,
-          phoneVerified: true,
-          nextStep: 'ONBOARD_SELLER',
-        },
+      const result = await service.checkUser({
+        identifier: mockUser.email,
+        platform: Platform.BUYER,
       });
-    });
-
-    it('should return exists: true and nextStep: LOGIN when user exists on requested platform', async () => {
-      const mockUser = {
-        id: 'user_existing_id',
-        email: 'existing@domain.test',
-        mobile: '1000000001',
-        role: 'SELLER',
-        isBuyer: true,
-        isSeller: true,
-        sellerOnboardStatus: 'ACTIVE',
-        status: 'ACTIVE',
-        emailVerifiedAt: new Date(),
-        phoneVerifiedAt: new Date(),
-      };
-
-      authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
-
-      const result = await service.checkUser({ identifier: mockUser.email, platform: TargetPlatform.SELLER });
 
       expect(result).toEqual({
         success: true,
@@ -216,18 +178,72 @@ describe('AuthService', () => {
           exists: true,
           userId: mockUser.id,
           identifierType: 'EMAIL',
-          platform: 'SELLER',
-          existsOnRequestedPlatform: true,
           userType: mockUser.role,
-          isBuyer: true,
-          isSeller: true,
-          sellerOnboardStatus: 'ACTIVE',
           isActive: true,
           emailVerified: true,
           phoneVerified: true,
           nextStep: 'LOGIN',
         },
       });
+    });
+
+    it('Case 2: should return REGISTER when user is buyer-only but request platform is SELLER', async () => {
+      const mockUser = {
+        id: 'usr_buyer_1',
+        email: 'buyer@domain.test',
+        mobile: '1000000001',
+        role: 'BUYER',
+        status: 'ACTIVE',
+        isBuyer: true,
+        isSeller: false,
+      };
+
+      authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
+
+      const result = await service.checkUser({
+        identifier: mockUser.email,
+        platform: Platform.SELLER,
+      });
+
+      expect(result).toEqual({
+        success: true,
+        message: 'User is not registered as a seller.',
+        data: {
+          exists: false,
+          identifierType: 'EMAIL',
+          nextStep: 'REGISTER',
+        },
+      });
+    });
+
+    it('Case 3: should return LOGIN for both BUYER and SELLER platforms when isBuyer=true and isSeller=true', async () => {
+      const mockUser = {
+        id: 'usr_both_1',
+        email: 'both@domain.test',
+        mobile: '1000000002',
+        role: 'SELLER',
+        status: 'ACTIVE',
+        isBuyer: true,
+        isSeller: true,
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+      };
+
+      authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
+
+      const buyerResult = await service.checkUser({
+        identifier: mockUser.email,
+        platform: Platform.BUYER,
+      });
+      expect(buyerResult.data.nextStep).toBe('LOGIN');
+      expect(buyerResult.data.exists).toBe(true);
+
+      const sellerResult = await service.checkUser({
+        identifier: mockUser.email,
+        platform: Platform.SELLER,
+      });
+      expect(sellerResult.data.nextStep).toBe('LOGIN');
+      expect(sellerResult.data.exists).toBe(true);
     });
   });
 });

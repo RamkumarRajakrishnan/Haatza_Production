@@ -19,8 +19,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 import { AuthRepository } from './auth.repository';
-import { CheckUserDto, TargetPlatform } from './dto/check-user.dto';
-import { CheckUserResponseDto, IdentifierType, NextStep } from './dto/check-user-response.dto';
+import { CheckUserDto, Platform } from './dto/check-user.dto';
+import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -34,8 +34,7 @@ export class AuthService {
   ) {}
 
   /**
-   * Check if a user exists by email or phone number identifier before login or registration,
-   * including app platform presence detection (SELLER vs BUYER app).
+   * Check if a user exists by email or phone number identifier and platform flag.
    */
   async checkUser(data: CheckUserDto): Promise<CheckUserResponseDto> {
     const rawIdentifier = data.identifier?.trim();
@@ -43,18 +42,23 @@ export class AuthService {
       throw new BadRequestException('Identifier is required.');
     }
 
+    if (!data.platform) {
+      throw new BadRequestException('Platform is required.');
+    }
+
     const isEmail = rawIdentifier.includes('@');
     const identifierType: IdentifierType = isEmail ? 'EMAIL' : 'PHONE';
-    const requestedPlatform = data.platform;
 
     this.logger.log(
-      `Checking user existence for ${identifierType} identifier: ${
+      `Checking user existence for platform [${data.platform}], identifier [${
         isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
-      }${requestedPlatform ? `, Platform: ${requestedPlatform}` : ''}`,
+      }]`,
     );
 
+    // Step 3: Find user by ONLY email or mobile (without filtering isBuyer/isSeller in DB query)
     const user = await this.authRepository.findMinimalUserByIdentifier(rawIdentifier);
 
+    // Step 4: If user is not found
     if (!user) {
       return {
         success: true,
@@ -62,37 +66,26 @@ export class AuthService {
         data: {
           exists: false,
           identifierType,
-          platform: requestedPlatform,
-          existsOnRequestedPlatform: false,
-          isBuyer: false,
-          isSeller: false,
           nextStep: 'REGISTER',
         },
       };
     }
 
-    // Determine platform flags based on role, relation models, or boolean flags
-    const userIsBuyer = user.isBuyer || !!user.buyer || user.role === UserRole.BUYER;
-    const userIsSeller =
-      user.isSeller ||
-      !!user.seller ||
-      user.role === UserRole.SELLER ||
-      user.role === UserRole.SELLER_OWNER ||
-      user.role === UserRole.SELLER_STAFF;
+    // Step 5: If user exists, verify platform authorization flag
+    const isBuyerApp = data.platform === Platform.BUYER;
+    const isRegisteredForPlatform = isBuyerApp ? user.isBuyer : user.isSeller;
 
-    let existsOnRequestedPlatform = true;
-    let nextStep: NextStep = 'LOGIN';
-
-    if (requestedPlatform === TargetPlatform.SELLER) {
-      existsOnRequestedPlatform = userIsSeller;
-      if (!userIsSeller) {
-        nextStep = 'ONBOARD_SELLER';
-      }
-    } else if (requestedPlatform === TargetPlatform.BUYER) {
-      existsOnRequestedPlatform = userIsBuyer;
-      if (!userIsBuyer) {
-        nextStep = 'ONBOARD_BUYER';
-      }
+    if (!isRegisteredForPlatform) {
+      const platformRoleName = isBuyerApp ? 'buyer' : 'seller';
+      return {
+        success: true,
+        message: `User is not registered as a ${platformRoleName}.`,
+        data: {
+          exists: false,
+          identifierType,
+          nextStep: 'REGISTER',
+        },
+      };
     }
 
     const isActive = user.status === 'ACTIVE';
@@ -106,19 +99,15 @@ export class AuthService {
         exists: true,
         userId: user.id,
         identifierType,
-        platform: requestedPlatform,
-        existsOnRequestedPlatform,
         userType: user.role,
-        isBuyer: userIsBuyer,
-        isSeller: userIsSeller,
-        sellerOnboardStatus: user.sellerOnboardStatus,
         isActive,
         emailVerified,
         phoneVerified,
-        nextStep,
+        nextStep: 'LOGIN',
       },
     };
   }
+
 
 
   private hashToken(token: string): string {

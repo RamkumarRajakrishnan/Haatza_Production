@@ -66,11 +66,8 @@ export class AuthRepository {
       status: true,
       isBuyer: true,
       isSeller: true,
-      sellerOnboardStatus: true,
       emailVerifiedAt: true,
       phoneVerifiedAt: true,
-      seller: { select: { id: true } },
-      buyer: { select: { id: true } },
     };
 
     if (isEmail) {
