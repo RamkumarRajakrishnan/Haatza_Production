@@ -606,8 +606,8 @@ export class AuthService {
         userId: user.id,
         refreshTokenHash,
         deviceId: dto.deviceInfo.deviceId,
-        deviceName: dto.deviceInfo.deviceName || 'Mobile Device',
-        platform: dto.deviceInfo.platform || 'UNKNOWN',
+        deviceName: dto.deviceInfo.deviceName || null,
+        platform: dto.deviceInfo.platform || null,
         osVersion: dto.deviceInfo.osVersion,
         appVersion: dto.deviceInfo.appVersion,
         pushToken: dto.deviceInfo.pushToken || null, // Stored safely in DB for FCM push dispatches
@@ -732,9 +732,9 @@ export class AuthService {
 
     const sessions = activeSessions.map((sess) => ({
       sessionId: sess.id,
-      deviceName: sess.deviceName || 'Unknown Device',
-      platform: sess.platform || 'UNKNOWN',
-      ipAddress: sess.ipAddress || 'N/A',
+      deviceName: sess.deviceName || '',
+      platform: sess.platform || '',
+      ipAddress: sess.ipAddress || '',
       isCurrentDevice: sess.id === currentSessionId,
       lastActiveAt: sess.lastActivityAt.toISOString(),
       createdAt: sess.createdAt.toISOString(),
