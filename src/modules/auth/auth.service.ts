@@ -508,8 +508,12 @@ export class AuthService {
       select: { id: true },
     });
 
+    const now = new Date();
+    const otpId = crypto.randomUUID();
+
     const otpRecord = await this.database.otpVerification.create({
       data: {
+        id: otpId,
         userId: existingUser?.id ?? null,
         identifier: dto.identifier,
         identifierType,
@@ -517,6 +521,9 @@ export class AuthService {
         purpose: dto.purpose ?? OtpPurpose.LOGIN,
         channel: dto.channel ?? OtpChannel.SMS,
         expiresAt,
+        createdAt: now,
+        updatedAt: now,
+        lastSentAt: now,
       },
     });
 
