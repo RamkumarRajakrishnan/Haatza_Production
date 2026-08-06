@@ -129,14 +129,26 @@ export class AuthService {
   }
 
   async register(data: RegisterDto) {
-    const existingUser = await this.database.user.findUnique({
+    const trimmedEmail = data.email?.trim().toLowerCase();
+    const whereConditions: any[] = [{ mobile: data.mobile }];
+    if (trimmedEmail) {
+      whereConditions.push({ email: trimmedEmail });
+    }
+
+    const existingUser = await this.database.user.findFirst({
       where: {
-        mobile: data.mobile,
+        OR: whereConditions,
+        deletedAt: null,
       },
     });
 
     if (existingUser) {
-      throw new ConflictException('Mobile number already registered');
+      if (existingUser.mobile === data.mobile) {
+        throw new ConflictException('Mobile number already registered');
+      }
+      if (trimmedEmail && existingUser.email?.toLowerCase() === trimmedEmail) {
+        throw new ConflictException('Email address already registered');
+      }
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
