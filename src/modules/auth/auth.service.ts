@@ -279,22 +279,30 @@ export class AuthService {
     });
 
     const tokenHash = this.hashToken(refreshToken);
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     const sessionUuid = crypto.randomUUID();
 
-    const session = await this.database.userSession.create({
-      data: {
-        id: sessionUuid,
-        userId: user.id,
-        refreshTokenHash: tokenHash,
-        ipAddress: reqMeta?.ipAddress,
-        userAgent: reqMeta?.userAgent,
-        deviceName: reqMeta?.userAgent ? reqMeta.userAgent.substring(0, 100) : null,
-        deviceType: reqMeta?.userAgent ? 'WEB' : 'MOBILE',
-        isActive: true,
-        expiresAt,
-      },
-    });
+    try {
+      await this.database.userSession.create({
+        data: {
+          id: sessionUuid,
+          userId: user.id,
+          refreshTokenHash: tokenHash,
+          ipAddress: reqMeta?.ipAddress || null,
+          userAgent: reqMeta?.userAgent || null,
+          deviceName: reqMeta?.userAgent ? reqMeta.userAgent.substring(0, 100) : null,
+          deviceType: reqMeta?.userAgent ? 'WEB' : 'MOBILE',
+          isActive: true,
+          lastActivityAt: now,
+          expiresAt,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (dbErr: any) {
+      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`);
+    }
 
     this.recordSuccessSideEffects({
       userId: user.id,
