@@ -18,7 +18,7 @@ import { CheckUserDto } from './dto/check-user.dto';
 import { CheckUserResponseDto } from './dto/check-user-response.dto';
 
 @ApiTags('Auth')
-@Controller(['auth', 'api/auth', 'api/v1/auth', 'v1/auth'])
+@Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
