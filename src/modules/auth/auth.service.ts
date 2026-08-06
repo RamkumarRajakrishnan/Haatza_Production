@@ -19,8 +19,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 import { AuthRepository } from './auth.repository';
-import { CheckUserDto } from './dto/check-user.dto';
-import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
+import { CheckUserDto, TargetPlatform } from './dto/check-user.dto';
+import { CheckUserResponseDto, IdentifierType, NextStep } from './dto/check-user-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -34,7 +34,8 @@ export class AuthService {
   ) {}
 
   /**
-   * Check if a user exists by email or phone number identifier before login or registration.
+   * Check if a user exists by email or phone number identifier before login or registration,
+   * including app platform presence detection (SELLER vs BUYER app).
    */
   async checkUser(data: CheckUserDto): Promise<CheckUserResponseDto> {
     const rawIdentifier = data.identifier?.trim();
@@ -44,11 +45,12 @@ export class AuthService {
 
     const isEmail = rawIdentifier.includes('@');
     const identifierType: IdentifierType = isEmail ? 'EMAIL' : 'PHONE';
+    const requestedPlatform = data.platform;
 
     this.logger.log(
       `Checking user existence for ${identifierType} identifier: ${
         isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
-      }`,
+      }${requestedPlatform ? `, Platform: ${requestedPlatform}` : ''}`,
     );
 
     const user = await this.authRepository.findMinimalUserByIdentifier(rawIdentifier);
@@ -60,9 +62,37 @@ export class AuthService {
         data: {
           exists: false,
           identifierType,
+          platform: requestedPlatform,
+          existsOnRequestedPlatform: false,
+          isBuyer: false,
+          isSeller: false,
           nextStep: 'REGISTER',
         },
       };
+    }
+
+    // Determine platform flags based on role, relation models, or boolean flags
+    const userIsBuyer = user.isBuyer || !!user.buyer || user.role === UserRole.BUYER;
+    const userIsSeller =
+      user.isSeller ||
+      !!user.seller ||
+      user.role === UserRole.SELLER ||
+      user.role === UserRole.SELLER_OWNER ||
+      user.role === UserRole.SELLER_STAFF;
+
+    let existsOnRequestedPlatform = true;
+    let nextStep: NextStep = 'LOGIN';
+
+    if (requestedPlatform === TargetPlatform.SELLER) {
+      existsOnRequestedPlatform = userIsSeller;
+      if (!userIsSeller) {
+        nextStep = 'ONBOARD_SELLER';
+      }
+    } else if (requestedPlatform === TargetPlatform.BUYER) {
+      existsOnRequestedPlatform = userIsBuyer;
+      if (!userIsBuyer) {
+        nextStep = 'ONBOARD_BUYER';
+      }
     }
 
     const isActive = user.status === 'ACTIVE';
@@ -76,11 +106,16 @@ export class AuthService {
         exists: true,
         userId: user.id,
         identifierType,
+        platform: requestedPlatform,
+        existsOnRequestedPlatform,
         userType: user.role,
+        isBuyer: userIsBuyer,
+        isSeller: userIsSeller,
+        sellerOnboardStatus: user.sellerOnboardStatus,
         isActive,
         emailVerified,
         phoneVerified,
-        nextStep: 'LOGIN',
+        nextStep,
       },
     };
   }

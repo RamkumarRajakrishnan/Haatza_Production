@@ -1,13 +1,21 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
+  IsEnum,
   IsNotEmpty,
+  IsOptional,
   IsString,
   Validate,
   ValidatorConstraint,
   ValidatorConstraintInterface,
   ValidationArguments,
 } from 'class-validator';
+
+export enum TargetPlatform {
+  SELLER = 'SELLER',
+  BUYER = 'BUYER',
+  ADMIN = 'ADMIN',
+}
 
 @ValidatorConstraint({ name: 'isEmailOrPhone', async: false })
 export class IsEmailOrPhoneConstraint implements ValidatorConstraintInterface {
@@ -42,4 +50,13 @@ export class CheckUserDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @Validate(IsEmailOrPhoneConstraint)
   identifier: string;
+
+  @ApiPropertyOptional({
+    description: 'Target platform app checking the user (SELLER or BUYER)',
+    enum: TargetPlatform,
+    example: TargetPlatform.SELLER,
+  })
+  @IsOptional()
+  @IsEnum(TargetPlatform, { message: 'Platform must be SELLER, BUYER, or ADMIN.' })
+  platform?: TargetPlatform;
 }

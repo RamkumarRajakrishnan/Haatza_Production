@@ -6,6 +6,7 @@ import * as bcrypt from 'bcrypt';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { DatabaseService } from '../../database/database.service';
+import { TargetPlatform } from './dto/check-user.dto';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -143,17 +144,23 @@ describe('AuthService', () => {
         data: {
           exists: false,
           identifierType: 'EMAIL',
+          platform: undefined,
+          existsOnRequestedPlatform: false,
+          isBuyer: false,
+          isSeller: false,
           nextStep: 'REGISTER',
         },
       });
     });
 
-    it('should return exists: true and nextStep: LOGIN when user exists', async () => {
+    it('should return nextStep: ONBOARD_SELLER when user exists as Buyer but checks on SELLER platform', async () => {
       const mockUser = {
-        id: 'user_existing_id',
-        email: 'existing@domain.test',
-        mobile: '1000000001',
-        role: 'SELLER',
+        id: 'buyer_only_user_id',
+        email: 'buyer@domain.test',
+        mobile: '1000000009',
+        role: 'BUYER',
+        isBuyer: true,
+        isSeller: false,
         status: 'ACTIVE',
         emailVerifiedAt: new Date(),
         phoneVerifiedAt: new Date(),
@@ -161,7 +168,7 @@ describe('AuthService', () => {
 
       authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
 
-      const result = await service.checkUser({ identifier: mockUser.email });
+      const result = await service.checkUser({ identifier: mockUser.email, platform: TargetPlatform.SELLER });
 
       expect(result).toEqual({
         success: true,
@@ -170,7 +177,51 @@ describe('AuthService', () => {
           exists: true,
           userId: mockUser.id,
           identifierType: 'EMAIL',
+          platform: 'SELLER',
+          existsOnRequestedPlatform: false,
+          userType: 'BUYER',
+          isBuyer: true,
+          isSeller: false,
+          sellerOnboardStatus: undefined,
+          isActive: true,
+          emailVerified: true,
+          phoneVerified: true,
+          nextStep: 'ONBOARD_SELLER',
+        },
+      });
+    });
+
+    it('should return exists: true and nextStep: LOGIN when user exists on requested platform', async () => {
+      const mockUser = {
+        id: 'user_existing_id',
+        email: 'existing@domain.test',
+        mobile: '1000000001',
+        role: 'SELLER',
+        isBuyer: true,
+        isSeller: true,
+        sellerOnboardStatus: 'ACTIVE',
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+      };
+
+      authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
+
+      const result = await service.checkUser({ identifier: mockUser.email, platform: TargetPlatform.SELLER });
+
+      expect(result).toEqual({
+        success: true,
+        message: 'User found.',
+        data: {
+          exists: true,
+          userId: mockUser.id,
+          identifierType: 'EMAIL',
+          platform: 'SELLER',
+          existsOnRequestedPlatform: true,
           userType: mockUser.role,
+          isBuyer: true,
+          isSeller: true,
+          sellerOnboardStatus: 'ACTIVE',
           isActive: true,
           emailVerified: true,
           phoneVerified: true,
@@ -180,3 +231,4 @@ describe('AuthService', () => {
     });
   });
 });
+
