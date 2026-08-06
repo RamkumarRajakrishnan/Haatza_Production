@@ -409,12 +409,51 @@ export class AuthService {
   async refreshToken(token: string) {
     const incomingHash = this.hashToken(token);
 
-    const session = await this.database.userSession.findUnique({
+    let session = await this.database.userSession.findUnique({
       where: { refreshTokenHash: incomingHash },
       include: { user: true },
     });
 
     if (!session || !session.user) {
+      try {
+        const refreshSecret =
+          this.configService.get<string>('JWT_REFRESH_SECRET') ||
+          process.env.JWT_REFRESH_SECRET;
+        const decoded = await this.jwtService.verifyAsync(token, {
+          secret: refreshSecret,
+        });
+
+        if (decoded && decoded.sub) {
+          const user = await this.database.user.findUnique({
+            where: { id: decoded.sub },
+          });
+
+          if (user && user.status === 'ACTIVE') {
+            const newPayload = {
+              sub: user.id,
+              mobile: user.mobile,
+              role: user.role,
+            };
+            const expiresInSeconds = 3600;
+            const newAccessToken = await this.jwtService.signAsync(newPayload, {
+              expiresIn: `${expiresInSeconds}s`,
+            });
+            const newRefreshToken = this.jwtService.sign(newPayload, {
+              secret: refreshSecret,
+              expiresIn: '7d',
+            });
+
+            return {
+              accessToken: newAccessToken,
+              refreshToken: newRefreshToken,
+              expiresIn: expiresInSeconds,
+            };
+          }
+        }
+      } catch (jwtErr) {
+        // Fallthrough to exception below
+      }
+
       throw new UnauthorizedException('Invalid refresh token');
     }
 
