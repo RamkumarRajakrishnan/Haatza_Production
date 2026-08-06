@@ -22,16 +22,20 @@ import { PermissionsGuard } from './guards/permissions.guard';
       imports: [ConfigModule],
       inject: [ConfigService],
 
-      useFactory: (configService: ConfigService) => ({
-        secret:
+      useFactory: (configService: ConfigService) => {
+        const secret =
           configService.get<string>('JWT_SECRET') ||
-          process.env.JWT_SECRET ||
-          'fallback_haatza_jwt_secret_2026',
-
-        signOptions: {
-          expiresIn: '1h',
-        },
-      }),
+          process.env.JWT_SECRET;
+        if (!secret) {
+          throw new Error('JWT_SECRET environment variable is missing.');
+        }
+        return {
+          secret,
+          signOptions: {
+            expiresIn: '1h',
+          },
+        };
+      },
     }),
   ],
 

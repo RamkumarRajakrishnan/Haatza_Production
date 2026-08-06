@@ -14,8 +14,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private readonly configService: ConfigService) {
     const jwtSecret =
       configService.get<string>('JWT_SECRET') ||
-      process.env.JWT_SECRET ||
-      'fallback_haatza_jwt_secret_2026';
+      process.env.JWT_SECRET;
+
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is missing.');
+    }
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),

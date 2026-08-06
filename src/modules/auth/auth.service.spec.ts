@@ -15,6 +15,7 @@ describe('AuthService', () => {
   beforeEach(async () => {
     const mockAuthRepository = {
       findUserByIdentifier: jest.fn(),
+      findMinimalUserByIdentifier: jest.fn(),
       incrementFailedLoginAttempts: jest.fn(),
       resetLoginAttemptsAndRecordLogin: jest.fn(),
     };
@@ -30,10 +31,10 @@ describe('AuthService', () => {
         findFirst: jest.fn(),
       },
       userSession: {
-        create: jest.fn().mockResolvedValue({ id: 'sess-1' }),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `sess_${Date.now()}`, ...data })),
       },
       refreshToken: {
-        create: jest.fn().mockResolvedValue({ id: 'rt-1' }),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `rt_${Date.now()}`, ...data })),
       },
       userLoginHistory: {
         create: jest.fn(),
@@ -41,13 +42,14 @@ describe('AuthService', () => {
     };
 
     const mockJwtService = {
-      signAsync: jest.fn().mockResolvedValue('mocked_token'),
+      signAsync: jest.fn().mockResolvedValue('jwt_token_stub'),
+      sign: jest.fn().mockReturnValue('jwt_token_stub'),
     };
 
     const mockConfigService = {
       get: jest.fn((key: string) => {
-        if (key === 'JWT_REFRESH_SECRET') return 'test_refresh_secret';
-        if (key === 'JWT_SECRET') return 'test_jwt_secret';
+        if (key === 'JWT_REFRESH_SECRET') return 'env_jwt_refresh_secret';
+        if (key === 'JWT_SECRET') return 'env_jwt_secret';
         return null;
       }),
     };
@@ -76,52 +78,105 @@ describe('AuthService', () => {
       authRepository.findUserByIdentifier.mockResolvedValue(null);
 
       await expect(
-        service.login({ identifier: 'unknown@example.com', password: 'pass' }),
+        service.login({ identifier: 'test_unregistered@domain.test', password: 'test_password' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should throw UnauthorizedException if account is locked', async () => {
       authRepository.findUserByIdentifier.mockResolvedValue({
-        id: 'usr-locked',
-        lockedUntil: new Date(Date.now() + 100000),
+        id: 'user_locked_id',
+        lockedUntil: new Date(Date.now() + 600000),
       } as any);
 
       await expect(
-        service.login({ identifier: 'locked@example.com', password: 'pass' }),
+        service.login({ identifier: 'test_locked@domain.test', password: 'test_password' }),
       ).rejects.toThrow(UnauthorizedException);
     });
 
     it('should return tokens and user details on successful login', async () => {
-      const hashedPassword = await bcrypt.hash('Secret123!', 10);
-      authRepository.findUserByIdentifier.mockResolvedValue({
-        id: 'usr-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        mobile: '9876543210',
+      const rawPassword = 'SecurePassword123!';
+      const hashedPassword = await bcrypt.hash(rawPassword, 10);
+      const mockUser = {
+        id: 'user_active_id',
+        name: 'Test Account',
+        email: 'user@domain.test',
+        mobile: '1000000000',
         password: hashedPassword,
         role: 'BUYER',
         status: 'ACTIVE',
         failedLoginAttempts: 0,
         lockedUntil: null,
-      } as any);
+      };
+
+      authRepository.findUserByIdentifier.mockResolvedValue(mockUser as any);
 
       const result = await service.login({
-        identifier: 'john@example.com',
-        password: 'Secret123!',
+        identifier: mockUser.email,
+        password: rawPassword,
       });
 
       expect(result.success).toBe(true);
-      expect(result.accessToken).toBe('mocked_token');
-      expect(result.refreshToken).toBe('mocked_token');
+      expect(result.accessToken).toBe('jwt_token_stub');
+      expect(result.refreshToken).toBe('jwt_token_stub');
       expect(result.user).toEqual({
-        id: 'usr-1',
-        name: 'John Doe',
-        email: 'john@example.com',
-        phoneNumber: '9876543210',
-        role: 'BUYER',
-        status: 'ACTIVE',
+        id: mockUser.id,
+        name: mockUser.name,
+        email: mockUser.email,
+        phoneNumber: mockUser.mobile,
+        role: mockUser.role,
+        status: mockUser.status,
       });
-      expect(authRepository.resetLoginAttemptsAndRecordLogin).toHaveBeenCalledWith('usr-1');
+      expect(authRepository.resetLoginAttemptsAndRecordLogin).toHaveBeenCalledWith(mockUser.id);
+    });
+  });
+
+  describe('checkUser', () => {
+    it('should return exists: false and nextStep: REGISTER when user does not exist', async () => {
+      authRepository.findMinimalUserByIdentifier.mockResolvedValue(null);
+
+      const searchIdentifier = 'non_existent@domain.test';
+      const result = await service.checkUser({ identifier: searchIdentifier });
+
+      expect(result).toEqual({
+        success: true,
+        message: 'User not found.',
+        data: {
+          exists: false,
+          identifierType: 'EMAIL',
+          nextStep: 'REGISTER',
+        },
+      });
+    });
+
+    it('should return exists: true and nextStep: LOGIN when user exists', async () => {
+      const mockUser = {
+        id: 'user_existing_id',
+        email: 'existing@domain.test',
+        mobile: '1000000001',
+        role: 'SELLER',
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+        phoneVerifiedAt: new Date(),
+      };
+
+      authRepository.findMinimalUserByIdentifier.mockResolvedValue(mockUser as any);
+
+      const result = await service.checkUser({ identifier: mockUser.email });
+
+      expect(result).toEqual({
+        success: true,
+        message: 'User found.',
+        data: {
+          exists: true,
+          userId: mockUser.id,
+          identifierType: 'EMAIL',
+          userType: mockUser.role,
+          isActive: true,
+          emailVerified: true,
+          phoneVerified: true,
+          nextStep: 'LOGIN',
+        },
+      });
     });
   });
 });

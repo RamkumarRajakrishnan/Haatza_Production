@@ -46,49 +46,57 @@ describe('UserService', () => {
     });
 
     it('should return user exists response when user is found by email', async () => {
+      const email = 'user@domain.test';
+      const phone = '1000000003';
+      const id = 'user_id_123';
+
       repository.findByEmailOrPhone.mockResolvedValue({
-        id: 'usr-123',
-        email: 'test@example.com',
-        mobile: '9876543210',
+        id,
+        email,
+        mobile: phone,
         status: 'ACTIVE',
       });
 
-      const result = await service.checkUserExists({ email: 'test@example.com' });
+      const result = await service.checkUserExists({ email });
 
       expect(result).toEqual({
         success: true,
         exists: true,
         user: {
-          id: 'usr-123',
-          email: 'test@example.com',
-          phoneNumber: '9876543210',
+          id,
+          email,
+          phoneNumber: phone,
           status: 'ACTIVE',
         },
         message: 'User found.',
       });
       expect(repository.findByEmailOrPhone).toHaveBeenCalledWith(
-        'test@example.com',
+        email,
         undefined,
       );
     });
 
     it('should return user exists response when user is found by phoneNumber', async () => {
+      const email = 'user2@domain.test';
+      const phone = '1000000004';
+      const id = 'user_id_456';
+
       repository.findByEmailOrPhone.mockResolvedValue({
-        id: 'usr-456',
-        email: 'john@example.com',
-        mobile: '9876543210',
+        id,
+        email,
+        mobile: phone,
         status: 'ACTIVE',
       });
 
-      const result = await service.checkUserExists({ phoneNumber: '9876543210' });
+      const result = await service.checkUserExists({ phoneNumber: phone });
 
       expect(result).toEqual({
         success: true,
         exists: true,
         user: {
-          id: 'usr-456',
-          email: 'john@example.com',
-          phoneNumber: '9876543210',
+          id,
+          email,
+          phoneNumber: phone,
           status: 'ACTIVE',
         },
         message: 'User found.',
@@ -99,8 +107,8 @@ describe('UserService', () => {
       repository.findByEmailOrPhone.mockResolvedValue(null);
 
       const result = await service.checkUserExists({
-        email: 'unknown@example.com',
-        phoneNumber: '9000000000',
+        email: 'unregistered@domain.test',
+        phoneNumber: '0000000000',
       });
 
       expect(result).toEqual({

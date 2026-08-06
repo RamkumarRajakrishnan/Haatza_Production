@@ -14,11 +14,26 @@ import { LogoutDto } from './dto/logout.dto';
 import { GenerateOtpDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { CheckUserDto } from './dto/check-user.dto';
+import { CheckUserResponseDto } from './dto/check-user-response.dto';
 
 @ApiTags('Auth')
-@Controller(['auth', 'api/auth'])
+@Controller(['auth', 'api/auth', 'api/v1/auth', 'v1/auth'])
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @ApiOperation({ summary: 'Check if user exists by email or phone before login/registration' })
+  @ApiResponse({
+    status: 200,
+    description: 'User existence verification completed',
+    type: CheckUserResponseDto,
+  })
+  @ApiResponse({ status: 400, description: 'Validation error for identifier format' })
+  @Post(['check-user', 'checkUser'])
+  checkUser(@Body() data: CheckUserDto) {
+    return this.authService.checkUser(data);
+  }
+
 
   @ApiOperation({ summary: 'Register a new user' })
   @ApiResponse({ status: 201, description: 'User successfully registered' })

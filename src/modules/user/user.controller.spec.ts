@@ -29,24 +29,26 @@ describe('UserController', () => {
 
   describe('checkUser', () => {
     it('should call userService.checkUserExists with query dto', async () => {
-      const queryDto = { email: 'test@example.com', phoneNumber: '9876543210' };
-      const mockResult = {
+      const email = 'user@domain.test';
+      const phoneNumber = '1000000005';
+      const queryDto = { email, phoneNumber };
+      const expectedResult = {
         success: true,
         exists: true,
         user: {
-          id: 'usr-1',
-          email: 'test@example.com',
-          phoneNumber: '9876543210',
+          id: 'user_id_stub',
+          email,
+          phoneNumber,
           status: 'ACTIVE',
         },
         message: 'User found.',
       };
 
-      service.checkUserExists.mockResolvedValue(mockResult);
+      service.checkUserExists.mockResolvedValue(expectedResult);
 
       const response = await controller.checkUser(queryDto);
 
-      expect(response).toEqual(mockResult);
+      expect(response).toEqual(expectedResult);
       expect(service.checkUserExists).toHaveBeenCalledWith(queryDto);
     });
   });

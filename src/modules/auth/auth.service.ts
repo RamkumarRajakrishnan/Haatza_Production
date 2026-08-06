@@ -19,6 +19,8 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 
 import { AuthRepository } from './auth.repository';
+import { CheckUserDto } from './dto/check-user.dto';
+import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -30,6 +32,59 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly authRepository: AuthRepository,
   ) {}
+
+  /**
+   * Check if a user exists by email or phone number identifier before login or registration.
+   */
+  async checkUser(data: CheckUserDto): Promise<CheckUserResponseDto> {
+    const rawIdentifier = data.identifier?.trim();
+    if (!rawIdentifier) {
+      throw new BadRequestException('Identifier is required.');
+    }
+
+    const isEmail = rawIdentifier.includes('@');
+    const identifierType: IdentifierType = isEmail ? 'EMAIL' : 'PHONE';
+
+    this.logger.log(
+      `Checking user existence for ${identifierType} identifier: ${
+        isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
+      }`,
+    );
+
+    const user = await this.authRepository.findMinimalUserByIdentifier(rawIdentifier);
+
+    if (!user) {
+      return {
+        success: true,
+        message: 'User not found.',
+        data: {
+          exists: false,
+          identifierType,
+          nextStep: 'REGISTER',
+        },
+      };
+    }
+
+    const isActive = user.status === 'ACTIVE';
+    const emailVerified = !!user.emailVerifiedAt;
+    const phoneVerified = !!user.phoneVerifiedAt;
+
+    return {
+      success: true,
+      message: 'User found.',
+      data: {
+        exists: true,
+        userId: user.id,
+        identifierType,
+        userType: user.role,
+        isActive,
+        emailVerified,
+        phoneVerified,
+        nextStep: 'LOGIN',
+      },
+    };
+  }
+
 
   private hashToken(token: string): string {
     return crypto.createHash('sha256').update(token).digest('hex');
@@ -171,48 +226,38 @@ export class AuthService {
 
     const refreshSecret =
       this.configService.get<string>('JWT_REFRESH_SECRET') ||
-      process.env.JWT_REFRESH_SECRET ||
-      'fallback_haatza_refresh_secret_2026';
+      process.env.JWT_REFRESH_SECRET;
+
+    if (!refreshSecret) {
+      throw new Error('JWT_REFRESH_SECRET environment variable is missing.');
+    }
 
     const expiresInSeconds = 3600; // 1 hour
 
-    const [accessToken, refreshToken] = await Promise.all([
-      this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` }),
-      this.jwtService.signAsync(payload, {
-        secret: refreshSecret,
-        expiresIn: '7d',
-      }),
-    ]);
+    const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: '7d',
+    });
 
     const tokenHash = this.hashToken(refreshToken);
-    const sessionTokenHash = this.hashToken(accessToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
     const session = await this.database.userSession.create({
       data: {
         userId: user.id,
-        sessionTokenHash,
+        refreshTokenHash: tokenHash,
         ipAddress: reqMeta?.ipAddress,
         userAgent: reqMeta?.userAgent,
-        expiresAt,
-      },
-    });
-
-    await this.database.refreshToken.create({
-      data: {
-        userId: user.id,
-        sessionId: session.id,
-        tokenHash,
+        deviceName: reqMeta?.userAgent ? reqMeta.userAgent.substring(0, 100) : 'Unknown Device',
+        deviceType: reqMeta?.userAgent ? 'WEB' : 'MOBILE',
+        isActive: true,
         expiresAt,
       },
     });
 
     this.recordSuccessSideEffects({
       userId: user.id,
-      mobile: user.mobile,
-      sessionId: session.id,
-      refreshToken,
-      reqMeta,
     });
 
     this.logger.log(`User ${user.id} logged in successfully.`);
@@ -262,61 +307,13 @@ export class AuthService {
     });
   }
 
-  private recordSuccessSideEffects(data: {
-    userId: string;
-    mobile: string;
-    sessionId: string;
-    refreshToken: string;
-    reqMeta?: { ipAddress?: string; userAgent?: string };
-  }) {
+  private recordSuccessSideEffects(data: { userId: string }) {
     setImmediate(async () => {
       try {
-        const deviceUuid = data.reqMeta?.userAgent
-          ? crypto.createHash('md5').update(data.reqMeta.userAgent).digest('hex')
-          : 'default_device';
-
-        const existingDevice = await this.database.userDevice.findFirst({
-          where: { userId: data.userId, deviceUuid },
-          select: { id: true },
+        await this.database.user.update({
+          where: { id: data.userId },
+          data: { lastLoginAt: new Date() },
         });
-
-        let deviceName = 'Unknown Device';
-        if (existingDevice) {
-          await this.database.userDevice.update({
-            where: { id: existingDevice.id },
-            data: { lastSeenAt: new Date() },
-          });
-        } else {
-          deviceName = data.reqMeta?.userAgent
-            ? data.reqMeta.userAgent.substring(0, 100)
-            : 'Unknown Device';
-          await this.database.userDevice.create({
-            data: {
-              userId: data.userId,
-              deviceUuid,
-              deviceName,
-              platform: data.reqMeta?.userAgent ? 'WEB' : 'MOBILE',
-            },
-          });
-        }
-
-        await Promise.allSettled([
-          this.database.user.update({
-            where: { id: data.userId },
-            data: { lastLoginAt: new Date() },
-          }),
-          this.database.userLoginHistory.create({
-            data: {
-              userId: data.userId,
-              identifier: data.mobile,
-              status: LoginStatus.SUCCESS,
-              ipAddress: data.reqMeta?.ipAddress,
-              userAgent: data.reqMeta?.userAgent,
-              deviceName,
-              sessionId: data.sessionId,
-            },
-          }),
-        ]);
       } catch (err) {
         this.logger.warn('Async success login side-effects failed', err);
       }
@@ -326,36 +323,27 @@ export class AuthService {
   async refreshToken(token: string) {
     const incomingHash = this.hashToken(token);
 
-    const storedToken = await this.database.refreshToken.findUnique({
-      where: { tokenHash: incomingHash },
-      include: { user: true, session: true },
+    const session = await this.database.userSession.findUnique({
+      where: { refreshTokenHash: incomingHash },
+      include: { user: true },
     });
 
-    const user = storedToken ? storedToken.user : null;
-
-    if (!user) {
+    if (!session || !session.user) {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (storedToken) {
-      if (
-        storedToken.revokedAt ||
-        (storedToken.session && storedToken.session.revokedAt)
-      ) {
-        throw new UnauthorizedException(
-          'Refresh token or session has been revoked',
-        );
-      }
+    if (!session.isActive || session.revokedAt) {
+      throw new UnauthorizedException('Session has been revoked');
+    }
 
-      if (storedToken.expiresAt < new Date()) {
-        throw new UnauthorizedException('Refresh token has expired');
-      }
+    if (session.expiresAt < new Date()) {
+      throw new UnauthorizedException('Refresh token has expired');
     }
 
     const newPayload = {
-      sub: user.id,
-      mobile: user.mobile,
-      role: user.role,
+      sub: session.user.id,
+      mobile: session.user.mobile,
+      role: session.user.role,
     };
 
     const newAccessToken = this.jwtService.sign(newPayload);
@@ -366,16 +354,15 @@ export class AuthService {
     const newHash = this.hashToken(newRefreshToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
 
-    if (storedToken) {
-      await this.database.refreshToken.update({
-        where: { id: storedToken.id },
-        data: {
-          tokenHash: newHash,
-          expiresAt,
-          updatedAt: new Date(),
-        },
-      });
-    }
+    await this.database.userSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: newHash,
+        expiresAt,
+        lastActivityAt: new Date(),
+        updatedAt: new Date(),
+      },
+    });
 
     return {
       accessToken: newAccessToken,
@@ -386,19 +373,17 @@ export class AuthService {
   async logout(token: string) {
     const tokenHash = this.hashToken(token);
 
-    const storedToken = await this.database.refreshToken.findUnique({
-      where: { tokenHash },
+    const session = await this.database.userSession.findUnique({
+      where: { refreshTokenHash: tokenHash },
     });
 
-    if (storedToken) {
-      await this.database.refreshToken.update({
-        where: { id: storedToken.id },
-        data: { revokedAt: new Date() },
-      });
-
+    if (session) {
       await this.database.userSession.update({
-        where: { id: storedToken.sessionId },
-        data: { revokedAt: new Date() },
+        where: { id: session.id },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+        },
       });
     }
 

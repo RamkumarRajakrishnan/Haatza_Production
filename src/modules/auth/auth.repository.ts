@@ -49,6 +49,51 @@ export class AuthRepository {
     });
   }
 
+  /**
+   * Optimized user lookup selecting ONLY required fields for check-user endpoint.
+   */
+  async findMinimalUserByIdentifier(rawIdentifier: string) {
+    if (!rawIdentifier) return null;
+
+    const trimmed = rawIdentifier.trim();
+    const isEmail = trimmed.includes('@');
+
+    const select = {
+      id: true,
+      email: true,
+      mobile: true,
+      role: true,
+      status: true,
+      emailVerifiedAt: true,
+      phoneVerifiedAt: true,
+    };
+
+    if (isEmail) {
+      const normalizedEmail = trimmed.toLowerCase();
+      return this.db.user.findFirst({
+        where: {
+          email: { equals: normalizedEmail, mode: 'insensitive' },
+          deletedAt: null,
+        },
+        select,
+      });
+    }
+
+    let cleanedPhone = trimmed.replace(/[\s\-\(\)\+]/g, '');
+    if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
+      cleanedPhone = cleanedPhone.substring(2);
+    }
+
+    return this.db.user.findFirst({
+      where: {
+        mobile: cleanedPhone,
+        deletedAt: null,
+      },
+      select,
+    });
+  }
+
+
   async incrementFailedLoginAttempts(
     userId: string,
     currentAttempts: number,

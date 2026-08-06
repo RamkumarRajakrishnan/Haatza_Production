@@ -31,28 +31,30 @@ describe('AuthRepository', () => {
 
   describe('findUserByIdentifier', () => {
     it('should search by email in lowercase when identifier contains @', async () => {
-      db.user.findFirst.mockResolvedValue({ id: 'usr-1', email: 'user@example.com' });
+      const email = 'user@domain.test';
+      db.user.findFirst.mockResolvedValue({ id: 'user_id_1', email });
 
-      const result = await repository.findUserByIdentifier(' User@Example.com ');
+      const result = await repository.findUserByIdentifier(` ${email.toUpperCase()} `);
 
-      expect(result).toEqual({ id: 'usr-1', email: 'user@example.com' });
+      expect(result).toEqual({ id: 'user_id_1', email });
       expect(db.user.findFirst).toHaveBeenCalledWith({
         where: {
-          email: { equals: 'user@example.com', mode: 'insensitive' },
+          email: { equals: email, mode: 'insensitive' },
           deletedAt: null,
         },
       });
     });
 
     it('should search by mobile number when identifier is phone', async () => {
-      db.user.findFirst.mockResolvedValue({ id: 'usr-2', mobile: '9876543210' });
+      const phone = '1000000002';
+      db.user.findFirst.mockResolvedValue({ id: 'user_id_2', mobile: phone });
 
-      const result = await repository.findUserByIdentifier(' +91 9876543210 ');
+      const result = await repository.findUserByIdentifier(` +91 ${phone} `);
 
-      expect(result).toEqual({ id: 'usr-2', mobile: '9876543210' });
+      expect(result).toEqual({ id: 'user_id_2', mobile: phone });
       expect(db.user.findFirst).toHaveBeenCalledWith({
         where: {
-          mobile: '9876543210',
+          mobile: phone,
           deletedAt: null,
         },
       });

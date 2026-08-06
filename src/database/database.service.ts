@@ -13,9 +13,10 @@ export class DatabaseService
   private isConnected = false;
 
   constructor() {
-    const connectionString =
-      process.env.DATABASE_URL ||
-      'postgresql://postgres:Haatza%402025@127.0.0.1:5432/haatza?schema=public';
+    const connectionString = process.env.DATABASE_URL;
+    if (!connectionString) {
+      throw new Error('DATABASE_URL environment variable is missing.');
+    }
     const pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX) || 15,
@@ -210,32 +211,15 @@ export class DatabaseService
         CREATE TABLE IF NOT EXISTS public.user_sessions (
           session_id text PRIMARY KEY,
           user_id text NOT NULL,
-          device_id text,
-          access_token_jti text UNIQUE,
-          session_token_hash text UNIQUE NOT NULL,
+          refresh_token_hash text UNIQUE NOT NULL,
           ip_address text,
           user_agent text,
+          device_name text,
+          device_type text,
           is_active boolean DEFAULT true,
           last_activity_at timestamp DEFAULT now(),
           expires_at timestamp NOT NULL,
           revoked_at timestamp,
-          revocation_reason text,
-          created_at timestamp DEFAULT now(),
-          updated_at timestamp DEFAULT now()
-        );
-
-        CREATE TABLE IF NOT EXISTS public.refresh_tokens (
-          token_id text PRIMARY KEY,
-          user_id text NOT NULL,
-          session_id text NOT NULL,
-          device_id text,
-          token_hash text UNIQUE NOT NULL,
-          token_family text,
-          parent_token_id text,
-          is_revoked boolean DEFAULT false,
-          expires_at timestamp NOT NULL,
-          revoked_at timestamp,
-          replaced_by_token_id text,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
