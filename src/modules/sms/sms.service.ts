@@ -12,12 +12,30 @@ export interface Fast2SmsResponse {
 export class SmsService {
   private readonly logger = new Logger(SmsService.name);
   private readonly apiKey: string;
+  private readonly route: string;
+  private readonly senderId: string;
+  private readonly messageId: string;
   private readonly fast2SmsUrl = 'https://www.fast2sms.com/dev/bulkV2';
 
   constructor(private readonly configService: ConfigService) {
     this.apiKey =
       this.configService.get<string>('FAST2SMS_API_KEY') ||
       process.env.FAST2SMS_API_KEY ||
+      '';
+
+    this.route =
+      this.configService.get<string>('FAST2SMS_ROUTE') ||
+      process.env.FAST2SMS_ROUTE ||
+      'otp';
+
+    this.senderId =
+      this.configService.get<string>('FAST2SMS_SENDER_ID') ||
+      process.env.FAST2SMS_SENDER_ID ||
+      '';
+
+    this.messageId =
+      this.configService.get<string>('FAST2SMS_MESSAGE_ID') ||
+      process.env.FAST2SMS_MESSAGE_ID ||
       '';
   }
 
@@ -36,8 +54,8 @@ export class SmsService {
   }
 
   /**
-   * Sends an OTP via Fast2SMS Quick OTP API route.
-   * Fast2SMS handles the DLT OTP template automatically when route is 'otp'.
+   * Sends an OTP via Fast2SMS API.
+   * Supports both 'otp' route (Fast2SMS Default Template) and 'dlt' route (Custom Approved DLT Template).
    */
   async sendOtp(phone: string, otpCode: string): Promise<boolean> {
     const cleanedPhone = this.normalizePhoneNumber(phone);
@@ -51,20 +69,28 @@ export class SmsService {
 
     try {
       this.logger.log(
-        `Dispatching Fast2SMS OTP to ${cleanedPhone}...`,
+        `Dispatching Fast2SMS OTP (Route: ${this.route}) to ${cleanedPhone}...`,
       );
 
-      const response = await fetch(this.fast2SmsUrl, {
-        method: 'POST',
+      // Build query params for GET request matching Fast2SMS Dev API specification
+      const urlParams = new URLSearchParams();
+      urlParams.append('authorization', this.apiKey);
+      urlParams.append('route', this.route);
+      urlParams.append('variables_values', otpCode);
+      urlParams.append('numbers', cleanedPhone);
+
+      if (this.route === 'dlt') {
+        if (this.senderId) urlParams.append('sender_id', this.senderId);
+        if (this.messageId) urlParams.append('message', this.messageId);
+      }
+
+      const fullUrl = `${this.fast2SmsUrl}?${urlParams.toString()}`;
+
+      const response = await fetch(fullUrl, {
+        method: 'GET',
         headers: {
           authorization: this.apiKey,
-          'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          route: 'otp',
-          variables_values: otpCode,
-          numbers: cleanedPhone,
-        }),
       });
 
       const data = (await response.json()) as Fast2SmsResponse;
