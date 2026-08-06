@@ -17,16 +17,20 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
 
     return next.handle().pipe(
       map((data) => {
-        // If response is already formatted with unified schema (success, statusCode, data, error) or check-user format, pass through
+        const url = (request.url || request.originalUrl || '').toLowerCase();
+
+        // Pass through unmodified if response already has success & data envelope, or is check-user / register
         if (
           data &&
           typeof data === 'object' &&
-          ('statusCode' in data ||
+          (('success' in data && 'data' in data) ||
+            'statusCode' in data ||
             'error' in data ||
             'exists' in data ||
-            request.url?.includes('check-user') ||
-            request.url?.includes('checkUser') ||
-            request.url?.includes('register'))
+            'buyer' in data ||
+            url.includes('check-user') ||
+            url.includes('checkuser') ||
+            url.includes('register'))
         ) {
           return data;
         }
@@ -34,10 +38,7 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
         let message = 'Operation successful';
         let responseData = data;
 
-        if (data && typeof data === 'object' && 'message' in data && 'data' in data) {
-          message = data.message;
-          responseData = data.data;
-        } else if (data && typeof data === 'object' && 'message' in data && Object.keys(data).length === 1) {
+        if (data && typeof data === 'object' && 'message' in data && Object.keys(data).length === 1) {
           message = data.message;
           responseData = null;
         }
