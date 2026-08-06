@@ -16,14 +16,14 @@ export class CheckUserDataDto {
   @ApiProperty({ description: 'Role or type of user or empty string', example: 'BUYER' })
   userType: string;
 
-  @ApiProperty({ description: 'Whether user account status is ACTIVE or empty string', example: true })
-  isActive: boolean | string;
+  @ApiProperty({ description: 'Whether user account status is ACTIVE', example: true })
+  isActive: boolean;
 
-  @ApiProperty({ description: 'Whether user email has been verified or empty string', example: false })
-  emailVerified: boolean | string;
+  @ApiProperty({ description: 'Whether user email has been verified', example: false })
+  emailVerified: boolean;
 
-  @ApiProperty({ description: 'Whether user phone has been verified or empty string', example: false })
-  phoneVerified: boolean | string;
+  @ApiProperty({ description: 'Whether user phone has been verified', example: false })
+  phoneVerified: boolean;
 
   @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER'], example: 'LOGIN' })
   nextStep: NextStep | string;
