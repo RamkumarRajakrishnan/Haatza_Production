@@ -7,6 +7,7 @@ interface JwtPayload {
   sub: string;
   role: string;
   mobile: string;
+  sessionId?: string;
 }
 
 @Injectable()
@@ -32,6 +33,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       id: payload.sub,
       role: payload.role,
       mobile: payload.mobile,
+      sessionId: payload.sessionId,
     };
   }
 }

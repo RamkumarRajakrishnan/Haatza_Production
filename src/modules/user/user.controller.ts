@@ -1,16 +1,24 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  Param,
+  Post,
   Put,
   Query,
+  Req,
+  UseGuards,
 } from '@nestjs/common';
 import {
   ApiOperation,
   ApiResponse,
   ApiTags,
+  ApiBearerAuth,
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
+import { AuthService } from '../auth/auth.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CheckUserQueryDto } from './dto/check-user-query.dto';
 import {
   CheckUserErrorResponseDto,
@@ -20,7 +28,39 @@ import {
 @ApiTags('Users')
 @Controller(['users', 'api/users', 'api/customer'])
 export class UserController {
-  constructor(private readonly userService: UserService) {}
+  constructor(
+    private readonly userService: UserService,
+    private readonly authService: AuthService,
+  ) {}
+
+  @ApiOperation({ summary: 'Get all active device sessions for current user' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Get('me/sessions')
+  getSessions(@Req() req: any) {
+    const userId = req.user?.id || req.user?.userId;
+    const currentSessionId = req.user?.sessionId;
+    return this.authService.getUserActiveSessions(userId, currentSessionId);
+  }
+
+  @ApiOperation({ summary: 'Terminate a specific device session' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Delete('me/sessions/:sessionId')
+  revokeSession(@Param('sessionId') sessionId: string, @Req() req: any) {
+    const userId = req.user?.id || req.user?.userId;
+    return this.authService.revokeSession(userId, sessionId);
+  }
+
+  @ApiOperation({ summary: 'Terminate all other active device sessions except current' })
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @Post('me/sessions/revoke-others')
+  revokeOthers(@Req() req: any) {
+    const userId = req.user?.id || req.user?.userId;
+    const currentSessionId = req.user?.sessionId;
+    return this.authService.revokeAllOtherSessions(userId, currentSessionId);
+  }
 
   @ApiOperation({
     summary: 'Check whether a user already exists by email or phoneNumber',

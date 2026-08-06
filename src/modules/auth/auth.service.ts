@@ -21,6 +21,8 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
 import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
+import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
+import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 
 @Injectable()
 export class AuthService {
@@ -527,4 +529,279 @@ export class AuthService {
   async resendOtp(dto: GenerateOtpDto) {
     return this.generateOtp(dto);
   }
+
+  /**
+   * 1. Verify OTP & Create Multi-Device Session (Stores deviceId and FCM pushToken in DB, NOT in response)
+   */
+  async verifyOtpSession(dto: VerifyOtpSessionDto, reqMeta: { ipAddress?: string; userAgent?: string }) {
+    const cleanedPhone = dto.phoneNumber.replace(/[\s\-\(\)\+]/g, '');
+
+    const otpHash = crypto.createHash('sha256').update(dto.otpCode).digest('hex');
+    const otpRecord = await this.database.otpVerification.findFirst({
+      where: {
+        identifier: cleanedPhone,
+        purpose: OtpPurpose.LOGIN,
+        isVerified: false,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!otpRecord || new Date() > otpRecord.expiresAt || otpRecord.otpHash !== otpHash) {
+      const remaining = Math.max(0, (otpRecord?.maxAttempts || 3) - ((otpRecord?.attemptCount || 0) + 1));
+      if (otpRecord) {
+        await this.database.otpVerification.update({
+          where: { id: otpRecord.id },
+          data: { attemptCount: otpRecord.attemptCount + 1 },
+        });
+      }
+
+      throw new BadRequestException({
+        success: false,
+        statusCode: 400,
+        data: null,
+        error: {
+          code: 'INVALID_OTP',
+          message: 'The OTP entered is incorrect or has expired.',
+          details: { attemptsRemaining: remaining },
+        },
+      });
+    }
+
+    await this.database.otpVerification.update({
+      where: { id: otpRecord.id },
+      data: { isVerified: true, verifiedAt: new Date() },
+    });
+
+    const user = await this.authRepository.findUserByIdentifier(cleanedPhone);
+    if (!user) {
+      throw new BadRequestException({
+        success: false,
+        statusCode: 400,
+        data: null,
+        error: { code: 'USER_NOT_FOUND', message: 'User with provided phone number does not exist.' },
+      });
+    }
+
+    const refreshToken = crypto.randomBytes(32).toString('hex');
+    const refreshTokenHash = this.hashToken(refreshToken);
+
+    const expiresInSeconds = 900; // 15 minutes
+    const sessionUuid = crypto.randomUUID();
+
+    const accessToken = await this.jwtService.signAsync(
+      {
+        sub: user.id,
+        sessionId: sessionUuid,
+        role: user.role,
+        mobile: user.mobile,
+      },
+      { expiresIn: `${expiresInSeconds}s` },
+    );
+
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000); // 30 days
+
+    const session = await this.database.userSession.create({
+      data: {
+        id: sessionUuid,
+        userId: user.id,
+        refreshTokenHash,
+        deviceId: dto.deviceInfo.deviceId,
+        deviceName: dto.deviceInfo.deviceName || 'Mobile Device',
+        platform: dto.deviceInfo.platform || 'UNKNOWN',
+        osVersion: dto.deviceInfo.osVersion,
+        appVersion: dto.deviceInfo.appVersion,
+        pushToken: dto.deviceInfo.pushToken || null, // Stored safely in DB for FCM push dispatches
+        ipAddress: reqMeta.ipAddress,
+        userAgent: reqMeta.userAgent,
+        isActive: true,
+        expiresAt,
+      },
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        accessToken,
+        expiresIn: expiresInSeconds,
+        tokenType: 'Bearer',
+        refreshToken,
+        user: {
+          id: user.id,
+          phoneNumber: user.mobile,
+          role: user.role.toLowerCase(),
+        },
+        session: {
+          sessionId: session.id,
+          deviceId: session.deviceId,
+          createdAt: session.createdAt.toISOString(),
+        },
+      },
+      error: null,
+    };
+  }
+
+  /**
+   * 2. Refresh Access Token with Token Rotation & Theft Detection
+   */
+  async refreshTokenSession(dto: RefreshTokenSessionDto) {
+    const incomingHash = this.hashToken(dto.refreshToken);
+
+    const session = await this.database.userSession.findFirst({
+      where: { refreshTokenHash: incomingHash },
+      include: { user: true },
+    });
+
+    if (!session || !session.isActive || session.revokedAt) {
+      if (session?.userId) {
+        this.logger.error(`Security alert: Token reuse detected for User ${session.userId}. Invalidating ALL active sessions.`);
+        await this.database.userSession.updateMany({
+          where: { userId: session.userId },
+          data: { isActive: false, revokedAt: new Date() },
+        });
+      }
+
+      throw new UnauthorizedException({
+        success: false,
+        statusCode: 401,
+        data: null,
+        error: {
+          code: 'SECURITY_ALERT_TOKEN_REUSE',
+          message: 'Session invalidated due to security breach attempt. Please log in again.',
+        },
+      });
+    }
+
+    if (session.expiresAt < new Date()) {
+      throw new UnauthorizedException({
+        success: false,
+        statusCode: 401,
+        data: null,
+        error: { code: 'TOKEN_EXPIRED', message: 'Refresh token has expired. Please log in again.' },
+      });
+    }
+
+    const newRefreshToken = crypto.randomBytes(32).toString('hex');
+    const newHash = this.hashToken(newRefreshToken);
+    const expiresInSeconds = 900; // 15 mins
+
+    const newAccessToken = await this.jwtService.signAsync(
+      {
+        sub: session.userId,
+        sessionId: session.id,
+        role: session.user.role,
+        mobile: session.user.mobile,
+      },
+      { expiresIn: `${expiresInSeconds}s` },
+    );
+
+    await this.database.userSession.update({
+      where: { id: session.id },
+      data: {
+        refreshTokenHash: newHash,
+        lastActivityAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        accessToken: newAccessToken,
+        expiresIn: expiresInSeconds,
+        tokenType: 'Bearer',
+        refreshToken: newRefreshToken,
+      },
+      error: null,
+    };
+  }
+
+  /**
+   * 3. Get All Active Devices / Sessions for Authenticated User
+   */
+  async getUserActiveSessions(userId: string, currentSessionId: string) {
+    const activeSessions = await this.database.userSession.findMany({
+      where: {
+        userId,
+        isActive: true,
+        revokedAt: null,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { lastActivityAt: 'desc' },
+    });
+
+    const sessions = activeSessions.map((sess) => ({
+      sessionId: sess.id,
+      deviceName: sess.deviceName || 'Unknown Device',
+      platform: sess.platform || 'UNKNOWN',
+      ipAddress: sess.ipAddress || 'N/A',
+      isCurrentDevice: sess.id === currentSessionId,
+      lastActiveAt: sess.lastActivityAt.toISOString(),
+      createdAt: sess.createdAt.toISOString(),
+    }));
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        currentSessionId,
+        sessions,
+      },
+      error: null,
+    };
+  }
+
+  /**
+   * 4. Logout / Revoke Specific Device Session
+   */
+  async revokeSession(userId: string, sessionIdToRevoke: string) {
+    const session = await this.database.userSession.findFirst({
+      where: { id: sessionIdToRevoke, userId },
+    });
+
+    if (session) {
+      await this.database.userSession.update({
+        where: { id: session.id },
+        data: { isActive: false, revokedAt: new Date() },
+      });
+    }
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        revokedSessionId: sessionIdToRevoke,
+        message: 'Device session successfully terminated.',
+      },
+      error: null,
+    };
+  }
+
+  /**
+   * 5. Logout All Other Devices Except Current Device
+   */
+  async revokeAllOtherSessions(userId: string, currentSessionId: string) {
+    const result = await this.database.userSession.updateMany({
+      where: {
+        userId,
+        id: { not: currentSessionId },
+        isActive: true,
+      },
+      data: {
+        isActive: false,
+        revokedAt: new Date(),
+      },
+    });
+
+    return {
+      success: true,
+      statusCode: 200,
+      data: {
+        revokedCount: result.count,
+        message: 'Logged out of all other active devices.',
+      },
+      error: null,
+    };
+  }
 }
+

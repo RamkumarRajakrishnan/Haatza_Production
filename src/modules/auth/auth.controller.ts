@@ -16,11 +16,33 @@ import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { CheckUserDto } from './dto/check-user.dto';
 import { CheckUserResponseDto } from './dto/check-user-response.dto';
+import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
+import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 
 @ApiTags('Auth')
 @Controller('auth')
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
+
+  @ApiOperation({ summary: 'Verify OTP and initialize multi-device session' })
+  @ApiResponse({ status: 200, description: 'OTP verified and multi-device session created successfully' })
+  @Post('verify-otp')
+  verifyOtpSession(@Body() data: VerifyOtpSessionDto, @Req() req: Request) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent = req.headers['user-agent'];
+
+    return this.authService.verifyOtpSession(data, { ipAddress, userAgent });
+  }
+
+  @ApiOperation({ summary: 'Refresh access token with single-use token rotation & theft detection' })
+  @ApiResponse({ status: 200, description: 'Token refreshed successfully with single-use rotation' })
+  @Post('refresh')
+  refreshSession(@Body() data: RefreshTokenSessionDto | RefreshTokenDto) {
+    if ('deviceId' in data) {
+      return this.authService.refreshTokenSession(data as RefreshTokenSessionDto);
+    }
+    return this.authService.refreshToken(data.refreshToken);
+  }
 
   @ApiOperation({ summary: 'Check if user exists by email or phone before login/registration' })
   @ApiResponse({
