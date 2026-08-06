@@ -145,7 +145,12 @@ describe('AuthService', () => {
         message: 'User not found.',
         data: {
           exists: false,
+          userId: '',
           identifierType: 'EMAIL',
+          userType: '',
+          isActive: '',
+          emailVerified: '',
+          phoneVerified: '',
           nextStep: 'REGISTER',
         },
       });
@@ -210,7 +215,12 @@ describe('AuthService', () => {
         message: 'User is not registered as a seller.',
         data: {
           exists: false,
+          userId: '',
           identifierType: 'EMAIL',
+          userType: '',
+          isActive: '',
+          emailVerified: '',
+          phoneVerified: '',
           nextStep: 'REGISTER',
         },
       });

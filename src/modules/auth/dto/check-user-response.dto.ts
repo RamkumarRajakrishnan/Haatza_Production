@@ -1,32 +1,32 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export type IdentifierType = 'EMAIL' | 'PHONE';
 export type NextStep = 'LOGIN' | 'REGISTER';
 
 export class CheckUserDataDto {
-  @ApiProperty({ description: 'Indicates whether the user exists in the database', example: true })
+  @ApiProperty({ description: 'Indicates whether the user exists in database for platform', example: true })
   exists: boolean;
 
-  @ApiPropertyOptional({ description: 'User unique ID (only present if user exists)', example: 'usr_12345' })
-  userId?: string;
+  @ApiProperty({ description: 'User unique ID or empty string if not applicable', example: 'bbf960c1-3089-4e92-8393-fa8728aae9c5' })
+  userId: string;
 
-  @ApiProperty({ description: 'Detected type of identifier', enum: ['EMAIL', 'PHONE'], example: 'EMAIL' })
-  identifierType: IdentifierType;
+  @ApiProperty({ description: 'Detected type of identifier', enum: ['EMAIL', 'PHONE'], example: 'PHONE' })
+  identifierType: IdentifierType | string;
 
-  @ApiPropertyOptional({ description: 'Role or type of user', example: 'SELLER' })
-  userType?: string;
+  @ApiProperty({ description: 'Role or type of user or empty string', example: 'BUYER' })
+  userType: string;
 
-  @ApiPropertyOptional({ description: 'Whether user account status is ACTIVE', example: true })
-  isActive?: boolean;
+  @ApiProperty({ description: 'Whether user account status is ACTIVE or empty string', example: true })
+  isActive: boolean | string;
 
-  @ApiPropertyOptional({ description: 'Whether user email has been verified', example: true })
-  emailVerified?: boolean;
+  @ApiProperty({ description: 'Whether user email has been verified or empty string', example: false })
+  emailVerified: boolean | string;
 
-  @ApiPropertyOptional({ description: 'Whether user phone has been verified', example: true })
-  phoneVerified?: boolean;
+  @ApiProperty({ description: 'Whether user phone has been verified or empty string', example: false })
+  phoneVerified: boolean | string;
 
-  @ApiProperty({ description: 'Recommended next action for the client', enum: ['LOGIN', 'REGISTER'], example: 'LOGIN' })
-  nextStep: NextStep;
+  @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER'], example: 'LOGIN' })
+  nextStep: NextStep | string;
 }
 
 export class CheckUserResponseDto {

@@ -58,14 +58,19 @@ export class AuthService {
     // Step 3: Find user by ONLY email or mobile (without filtering isBuyer/isSeller in DB query)
     const user = await this.authRepository.findMinimalUserByIdentifier(rawIdentifier);
 
-    // Step 4: If user is not found
+    // Step 4: If user is not found (Scenario 3)
     if (!user) {
       return {
         success: true,
         message: 'User not found.',
         data: {
           exists: false,
+          userId: '',
           identifierType,
+          userType: '',
+          isActive: '',
+          emailVerified: '',
+          phoneVerified: '',
           nextStep: 'REGISTER',
         },
       };
@@ -75,6 +80,7 @@ export class AuthService {
     const isBuyerApp = data.platform === Platform.BUYER;
     const isRegisteredForPlatform = isBuyerApp ? user.isBuyer : user.isSeller;
 
+    // Scenario 2: User exists but not registered for requested platform
     if (!isRegisteredForPlatform) {
       const platformRoleName = isBuyerApp ? 'buyer' : 'seller';
       return {
@@ -82,12 +88,18 @@ export class AuthService {
         message: `User is not registered as a ${platformRoleName}.`,
         data: {
           exists: false,
+          userId: '',
           identifierType,
+          userType: '',
+          isActive: '',
+          emailVerified: '',
+          phoneVerified: '',
           nextStep: 'REGISTER',
         },
       };
     }
 
+    // Scenario 1: User Found & Registered for Platform
     const isActive = user.status === 'ACTIVE';
     const emailVerified = !!user.emailVerifiedAt;
     const phoneVerified = !!user.phoneVerifiedAt;
