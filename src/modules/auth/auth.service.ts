@@ -168,8 +168,15 @@ export class AuthService {
     });
 
     return {
-      message: 'Registration successful',
-      userId: user.id,
+      success: true,
+      message: 'Registration successful.',
+      data: {
+        userId: user.id,
+        name: user.name,
+        mobile: user.mobile,
+        email: user.email || '',
+        buyer: isBuyerBool,
+      },
     };
   }
 
