@@ -10,15 +10,15 @@ export class UserSummaryDto {
   @ApiProperty({ description: 'User phone number' })
   phoneNumber: string;
 
-  @ApiProperty({ description: 'User status', example: 'ACTIVE' })
+  @ApiProperty({ description: 'User status' })
   status: string;
 }
 
 export class CheckUserResponseDto {
-  @ApiProperty({ description: 'Operation status', example: true })
+  @ApiProperty({ description: 'Operation status' })
   success: boolean;
 
-  @ApiProperty({ description: 'Indicates if user exists', example: true })
+  @ApiProperty({ description: 'Indicates if user exists' })
   exists: boolean;
 
   @ApiPropertyOptional({
@@ -28,17 +28,16 @@ export class CheckUserResponseDto {
   })
   user: UserSummaryDto | null;
 
-  @ApiProperty({ description: 'Status message', example: 'User found.' })
+  @ApiProperty({ description: 'Status message' })
   message: string;
 }
 
 export class CheckUserErrorResponseDto {
-  @ApiProperty({ description: 'Operation status', example: false })
+  @ApiProperty({ description: 'Operation status' })
   success: boolean;
 
   @ApiProperty({
     description: 'Error message',
-    example: 'Either email or phoneNumber is required.',
   })
   message: string;
 }

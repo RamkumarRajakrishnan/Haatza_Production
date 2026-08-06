@@ -3,7 +3,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OtpPurpose, OtpChannel } from '@prisma/client';
 
 export class GenerateOtpDto {
-  @ApiProperty({ description: 'Mobile number or email identifier', example: '9876543210' })
+  @ApiProperty({ description: 'Mobile number or email identifier' })
   @IsString()
   @IsNotEmpty()
   identifier: string;

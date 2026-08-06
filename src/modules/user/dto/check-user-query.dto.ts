@@ -5,7 +5,6 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 export class CheckUserQueryDto {
   @ApiPropertyOptional({
     description: 'User email address',
-    example: 'john.doe@example.com',
   })
   @IsOptional()
   @IsEmail({}, { message: 'Invalid email format.' })
@@ -16,7 +15,6 @@ export class CheckUserQueryDto {
 
   @ApiPropertyOptional({
     description: 'User phone number',
-    example: '9876543210',
   })
   @IsOptional()
   @IsString()

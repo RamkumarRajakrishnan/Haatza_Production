@@ -20,11 +20,11 @@ export enum MediaType {
 }
 
 export class MediaItemDto {
-  @ApiProperty({ enum: MediaType, description: 'Media type (image or video)', example: 'image' })
+  @ApiProperty({ enum: MediaType, description: 'Media type (image or video)' })
   @IsEnum(MediaType, { message: 'Media type must be either "image" or "video"' })
   type: MediaType;
 
-  @ApiProperty({ description: 'Public HTTP/HTTPS URL of the media file', example: 'https://cdn.example.com/uploads/image1.webp' })
+  @ApiProperty({ description: 'Public HTTP/HTTPS URL of the media file' })
   @IsUrl({ require_protocol: true }, { message: 'URL must be a valid HTTP or HTTPS URL' })
   url: string;
 }
@@ -38,10 +38,6 @@ export class CreateSellerProductDto {
   @ApiPropertyOptional({
     type: [MediaItemDto],
     description: 'JSONB array of media objects with public URLs and types',
-    example: [
-      { type: 'image', url: 'https://cdn.example.com/uploads/image1.webp' },
-      { type: 'video', url: 'https://cdn.example.com/uploads/video1.mp4' },
-    ],
   })
   @IsOptional()
   @IsArray()

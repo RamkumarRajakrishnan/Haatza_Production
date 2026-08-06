@@ -95,7 +95,6 @@ export class SellerProductController {
         csvData: {
           type: 'string',
           description: 'Raw CSV text content',
-          example: 'Name,Price,MRP,Brand,Inventory\n"Sample Product",100,150,"BrandName",50',
         },
       },
     },

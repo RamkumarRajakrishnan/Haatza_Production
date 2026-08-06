@@ -41,7 +41,6 @@ export class IsEmailOrPhoneConstraint implements ValidatorConstraintInterface {
 export class CheckUserDto {
   @ApiProperty({
     description: 'User email address or phone number',
-    example: 'user@example.com',
   })
   @IsNotEmpty({ message: 'Identifier is required.' })
   @IsString({ message: 'Identifier must be a string.' })
@@ -52,7 +51,6 @@ export class CheckUserDto {
   @ApiProperty({
     description: 'Target platform for user registration or login verification',
     enum: Platform,
-    example: Platform.SELLER,
   })
   @IsNotEmpty({ message: 'Platform is required.' })
   @IsEnum(Platform, { message: 'Platform must be either BUYER or SELLER.' })

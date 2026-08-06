@@ -4,12 +4,12 @@ import { IsNotEmpty, IsString, ValidateNested } from 'class-validator';
 import { DeviceInfoDto } from './device-info.dto';
 
 export class VerifyOtpSessionDto {
-  @ApiProperty({ example: '+1234567890', description: 'User mobile phone number' })
+  @ApiProperty({ description: 'User mobile phone number' })
   @IsNotEmpty({ message: 'phoneNumber is required.' })
   @IsString({ message: 'phoneNumber must be a string.' })
   phoneNumber: string;
 
-  @ApiProperty({ example: '554433', description: '6-digit OTP code' })
+  @ApiProperty({ description: '6-digit OTP code' })
   @IsNotEmpty({ message: 'otpCode is required.' })
   @IsString({ message: 'otpCode must be a string.' })
   otpCode: string;

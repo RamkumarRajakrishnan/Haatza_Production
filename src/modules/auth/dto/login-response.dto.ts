@@ -13,18 +13,18 @@ export class UserLoginSummaryDto {
   @ApiProperty({ description: 'User phone number' })
   phoneNumber: string;
 
-  @ApiProperty({ description: 'User role', example: 'BUYER' })
+  @ApiProperty({ description: 'User role' })
   role: string;
 
-  @ApiProperty({ description: 'User status', example: 'ACTIVE' })
+  @ApiProperty({ description: 'User status' })
   status: string;
 }
 
 export class LoginSuccessResponseDto {
-  @ApiProperty({ description: 'Operation status', example: true })
+  @ApiProperty({ description: 'Operation status' })
   success: boolean;
 
-  @ApiProperty({ description: 'Status message', example: 'Login successful.' })
+  @ApiProperty({ description: 'Status message' })
   message: string;
 
   @ApiProperty({ description: 'JWT Access Token' })
@@ -33,7 +33,7 @@ export class LoginSuccessResponseDto {
   @ApiProperty({ description: 'JWT Refresh Token' })
   refreshToken: string;
 
-  @ApiProperty({ description: 'Access token expiration in seconds', example: 3600 })
+  @ApiProperty({ description: 'Access token expiration in seconds' })
   expiresIn: number;
 
   @ApiProperty({ description: 'User details', type: UserLoginSummaryDto })
@@ -41,12 +41,11 @@ export class LoginSuccessResponseDto {
 }
 
 export class LoginErrorResponseDto {
-  @ApiProperty({ description: 'Operation status', example: false })
+  @ApiProperty({ description: 'Operation status' })
   success: boolean;
 
   @ApiProperty({
     description: 'Error message',
-    example: 'Invalid email/phone number or password.',
   })
   message: string;
 }

@@ -4,36 +4,36 @@ export type IdentifierType = 'EMAIL' | 'PHONE';
 export type NextStep = 'LOGIN' | 'REGISTER';
 
 export class CheckUserDataDto {
-  @ApiProperty({ description: 'Indicates whether the user exists in database for platform', example: true })
+  @ApiProperty({ description: 'Indicates whether the user exists in database for platform' })
   exists: boolean;
 
-  @ApiProperty({ description: 'User unique ID or empty string if not applicable', example: 'bbf960c1-3089-4e92-8393-fa8728aae9c5' })
+  @ApiProperty({ description: 'User unique ID or empty string if not applicable' })
   userId: string;
 
-  @ApiProperty({ description: 'Detected type of identifier', enum: ['EMAIL', 'PHONE'], example: 'PHONE' })
+  @ApiProperty({ description: 'Detected type of identifier', enum: ['EMAIL', 'PHONE'] })
   identifierType: IdentifierType | string;
 
-  @ApiProperty({ description: 'Role or type of user or empty string', example: 'BUYER' })
+  @ApiProperty({ description: 'Role or type of user or empty string' })
   userType: string;
 
-  @ApiProperty({ description: 'Whether user account status is ACTIVE', example: true })
+  @ApiProperty({ description: 'Whether user account status is ACTIVE' })
   isActive: boolean;
 
-  @ApiProperty({ description: 'Whether user email has been verified', example: false })
+  @ApiProperty({ description: 'Whether user email has been verified' })
   emailVerified: boolean;
 
-  @ApiProperty({ description: 'Whether user phone has been verified', example: false })
+  @ApiProperty({ description: 'Whether user phone has been verified' })
   phoneVerified: boolean;
 
-  @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER'], example: 'LOGIN' })
+  @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER'] })
   nextStep: NextStep | string;
 }
 
 export class CheckUserResponseDto {
-  @ApiProperty({ example: true })
+  @ApiProperty()
   success: boolean;
 
-  @ApiProperty({ example: 'User found.' })
+  @ApiProperty()
   message: string;
 
   @ApiProperty({ type: CheckUserDataDto })

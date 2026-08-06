@@ -5,7 +5,6 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class LoginDto {
   @ApiPropertyOptional({
     description: 'Email address or mobile phone number',
-    example: 'user@example.com',
   })
   @IsOptional()
   @IsString()
@@ -14,7 +13,6 @@ export class LoginDto {
 
   @ApiPropertyOptional({
     description: 'Mobile phone number (alias for identifier)',
-    example: '9876543210',
   })
   @IsOptional()
   @IsString()
@@ -23,7 +21,6 @@ export class LoginDto {
 
   @ApiProperty({
     description: 'User password',
-    example: 'UserPassword123!',
   })
   @IsString()
   @IsNotEmpty({ message: 'Password is required' })
