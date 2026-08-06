@@ -132,13 +132,12 @@ export class AuthService {
     const trimmedEmail = data.email?.trim().toLowerCase();
     const whereConditions: any[] = [{ mobile: data.mobile }];
     if (trimmedEmail) {
-      whereConditions.push({ email: trimmedEmail });
+      whereConditions.push({ email: { equals: trimmedEmail, mode: 'insensitive' } });
     }
 
     const existingUser = await this.database.user.findFirst({
       where: {
         OR: whereConditions,
-        deletedAt: null,
       },
     });
 
@@ -149,12 +148,13 @@ export class AuthService {
       if (trimmedEmail && existingUser.email?.toLowerCase() === trimmedEmail) {
         throw new ConflictException('Email address already registered');
       }
+      throw new ConflictException('User with these credentials already exists');
     }
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
     const isBuyerBool =
-      data.buyer === true || data.role === UserRole.BUYER;
+      data.buyer === true || data.buyer === 'true' as any || data.role === UserRole.BUYER;
 
     const userRole = data.role || (isBuyerBool ? UserRole.BUYER : UserRole.SELLER);
 
@@ -166,18 +166,35 @@ export class AuthService {
 
     const isSellerBool = userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF;
 
-    const user = await this.database.user.create({
-      data: {
-        name: data.name,
-        mobile: data.mobile,
-        email: data.email,
-        password: hashedPassword,
-        role: userRole,
-        isBuyer: isBuyerBool,
-        isSeller: isSellerBool,
-        roleId: roleRecord ? roleRecord.id : null,
-      },
-    });
+    let user;
+    try {
+      user = await this.database.user.create({
+        data: {
+          name: data.name,
+          mobile: data.mobile,
+          email: data.email,
+          password: hashedPassword,
+          role: userRole,
+          isBuyer: isBuyerBool,
+          isSeller: isSellerBool,
+          roleId: roleRecord ? roleRecord.id : null,
+        },
+      });
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        const target = Array.isArray(err?.meta?.target)
+          ? err.meta.target.join(' ')
+          : String(err?.meta?.target || '');
+        if (target.includes('email')) {
+          throw new ConflictException('Email address already registered');
+        }
+        if (target.includes('mobile') || target.includes('phone')) {
+          throw new ConflictException('Mobile number already registered');
+        }
+        throw new ConflictException('User with these credentials already exists');
+      }
+      throw err;
+    }
 
     return {
       success: true,
