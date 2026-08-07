@@ -867,8 +867,6 @@ export class AuthService {
       ? await this.database.userSession.findMany({
         where: {
           userId: targetUserId,
-          isActive: true,
-          revokedAt: null,
         },
         orderBy: { lastActivityAt: 'desc' },
       })
