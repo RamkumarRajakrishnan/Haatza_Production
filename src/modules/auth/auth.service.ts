@@ -35,7 +35,7 @@ export class AuthService {
     private readonly configService: ConfigService,
     private readonly authRepository: AuthRepository,
     private readonly smsService: SmsService,
-  ) {}
+  ) { }
 
   /**
    * Check if a user exists by email or phone number identifier and platform flag.
@@ -54,8 +54,7 @@ export class AuthService {
     const identifierType: IdentifierType = isEmail ? 'EMAIL' : 'PHONE';
 
     this.logger.log(
-      `Checking user existence for platform [${data.platform}], identifier [${
-        isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
+      `Checking user existence for platform [${data.platform}], identifier [${isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
       }]`,
     );
 
@@ -631,8 +630,8 @@ export class AuthService {
     }
 
     await this.database.otpVerification.update({
-        where: { id: otpRecord.id },
-        data: { isVerified: true, verifiedAt: new Date() },
+      where: { id: otpRecord.id },
+      data: { isVerified: true, verifiedAt: new Date() },
     });
 
     return {
@@ -721,7 +720,7 @@ export class AuthService {
         userId: user.id,
         identifier: cleanedPhone,
         refreshTokenHash,
-        deviceId: dto.deviceInfo?.deviceId || crypto.randomUUID(),
+        deviceId: dto.deviceInfo?.deviceId || `dev_${sessionUuid.substring(0, 8)}`,
         deviceName: dto.deviceInfo?.deviceName || this.parseDeviceName(reqMeta?.userAgent),
         platform: dto.deviceInfo?.platform || this.parsePlatform(reqMeta?.userAgent),
         deviceType: dto.deviceInfo?.platform || (reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB'),
@@ -853,13 +852,13 @@ export class AuthService {
 
     const activeSessions = targetUserId
       ? await this.database.userSession.findMany({
-          where: {
-            userId: targetUserId,
-            isActive: true,
-            revokedAt: null,
-          },
-          orderBy: { lastActivityAt: 'desc' },
-        })
+        where: {
+          userId: targetUserId,
+          isActive: true,
+          revokedAt: null,
+        },
+        orderBy: { lastActivityAt: 'desc' },
+      })
       : [];
 
     const sessions = activeSessions.map((sess) => ({
