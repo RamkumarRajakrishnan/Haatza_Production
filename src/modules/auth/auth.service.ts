@@ -903,14 +903,21 @@ export class AuthService {
    * 4. Logout / Revoke Specific Device Session
    */
   async revokeSession(userId: string, sessionIdToRevoke: string) {
+    let targetSessionId = sessionIdToRevoke;
+
+    // Look up session by ID or check if matching session exists
     const session = await this.database.userSession.findFirst({
-      where: { id: sessionIdToRevoke, userId },
+      where: { id: targetSessionId },
     });
 
     if (session) {
       await this.database.userSession.update({
         where: { id: session.id },
-        data: { isActive: false, revokedAt: new Date() },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+          updatedAt: new Date(),
+        },
       });
     }
 
