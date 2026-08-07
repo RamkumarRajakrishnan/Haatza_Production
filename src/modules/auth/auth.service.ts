@@ -734,6 +734,8 @@ export class AuthService {
       },
     });
 
+    const mappedRole = user.role === 'BUYER' ? 'customer' : user.role.toLowerCase();
+
     return {
       success: true,
       statusCode: 200,
@@ -745,7 +747,7 @@ export class AuthService {
         user: {
           id: user.id,
           phoneNumber: user.mobile,
-          role: user.role.toLowerCase(),
+          role: mappedRole,
         },
         session: {
           sessionId: session.id,
