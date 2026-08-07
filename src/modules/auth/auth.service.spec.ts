@@ -119,9 +119,10 @@ describe('AuthService', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.accessToken).toBe('jwt_token_stub');
-      expect(result.refreshToken).toBe('jwt_token_stub');
-      expect(result.user).toEqual({
+      expect(result.statusCode).toBe(200);
+      expect(result.data.accessToken).toBe('jwt_token_stub');
+      expect(result.data.refreshToken).toBe('jwt_token_stub');
+      expect(result.data.user).toEqual({
         id: mockUser.id,
         name: mockUser.name,
         email: mockUser.email,
@@ -144,6 +145,7 @@ describe('AuthService', () => {
 
       expect(result).toEqual({
         success: true,
+        statusCode: 200,
         message: 'User not found.',
         data: {
           exists: false,
@@ -155,6 +157,7 @@ describe('AuthService', () => {
           phoneVerified: false,
           nextStep: 'REGISTER',
         },
+        error: null,
       });
     });
 
@@ -180,6 +183,7 @@ describe('AuthService', () => {
 
       expect(result).toEqual({
         success: true,
+        statusCode: 200,
         message: 'User found.',
         data: {
           exists: true,
@@ -191,6 +195,7 @@ describe('AuthService', () => {
           phoneVerified: true,
           nextStep: 'LOGIN',
         },
+        error: null,
       });
     });
 
@@ -214,6 +219,7 @@ describe('AuthService', () => {
 
       expect(result).toEqual({
         success: true,
+        statusCode: 200,
         message: 'User is not registered as a seller.',
         data: {
           exists: false,
@@ -225,6 +231,7 @@ describe('AuthService', () => {
           phoneVerified: false,
           nextStep: 'REGISTER',
         },
+        error: null,
       });
     });
 
@@ -256,6 +263,14 @@ describe('AuthService', () => {
       });
       expect(sellerResult.data.nextStep).toBe('LOGIN');
       expect(sellerResult.data.exists).toBe(true);
+    });
+  });
+
+  describe('generateOtp', () => {
+    it('should throw BadRequestException if mobile number is not 10 digits starting with 6-9', async () => {
+      await expect(
+        service.generateOtp({ identifier: '12345' }),
+      ).rejects.toThrow('Mobile number must be a valid 10-digit phone number starting with 6-9.');
     });
   });
 });

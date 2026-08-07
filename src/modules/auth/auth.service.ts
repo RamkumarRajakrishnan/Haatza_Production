@@ -65,6 +65,7 @@ export class AuthService {
     if (!user) {
       return {
         success: true,
+        statusCode: 200,
         message: 'User not found.',
         data: {
           exists: false,
@@ -76,6 +77,7 @@ export class AuthService {
           phoneVerified: false,
           nextStep: 'REGISTER',
         },
+        error: null,
       };
     }
 
@@ -88,6 +90,7 @@ export class AuthService {
       const platformRoleName = isBuyerApp ? 'buyer' : 'seller';
       return {
         success: true,
+        statusCode: 200,
         message: `User is not registered as a ${platformRoleName}.`,
         data: {
           exists: false,
@@ -99,6 +102,7 @@ export class AuthService {
           phoneVerified: !!user.phoneVerifiedAt,
           nextStep: 'REGISTER',
         },
+        error: null,
       };
     }
 
@@ -109,6 +113,7 @@ export class AuthService {
 
     return {
       success: true,
+      statusCode: 200,
       message: 'User found.',
       data: {
         exists: true,
@@ -120,6 +125,7 @@ export class AuthService {
         phoneVerified,
         nextStep: 'LOGIN',
       },
+      error: null,
     };
   }
 
@@ -199,6 +205,7 @@ export class AuthService {
 
     return {
       success: true,
+      statusCode: 201,
       message: 'Registration successful.',
       data: {
         userId: user.id,
@@ -207,6 +214,7 @@ export class AuthService {
         email: user.email || '',
         buyer: isBuyerBool,
       },
+      error: null,
     };
   }
 
@@ -354,18 +362,22 @@ export class AuthService {
 
     return {
       success: true,
+      statusCode: 200,
       message: 'Login successful.',
-      accessToken,
-      refreshToken,
-      expiresIn: expiresInSeconds,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phoneNumber: user.mobile,
-        role: user.role,
-        status: user.status,
+      data: {
+        accessToken,
+        refreshToken,
+        expiresIn: expiresInSeconds,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          phoneNumber: user.mobile,
+          role: user.role,
+          status: user.status,
+        },
       },
+      error: null,
     };
   }
 
@@ -464,9 +476,16 @@ export class AuthService {
             });
 
             return {
-              accessToken: newAccessToken,
-              refreshToken: newRefreshToken,
-              expiresIn: expiresInSeconds,
+              success: true,
+              statusCode: 200,
+              message: 'Token refreshed successfully.',
+              data: {
+                accessToken: newAccessToken,
+                refreshToken: newRefreshToken,
+                expiresIn: expiresInSeconds,
+                tokenType: 'Bearer',
+              },
+              error: null,
             };
           }
         }
@@ -510,8 +529,16 @@ export class AuthService {
     });
 
     return {
-      accessToken: newAccessToken,
-      refreshToken: newRefreshToken,
+      success: true,
+      statusCode: 200,
+      message: 'Token refreshed successfully.',
+      data: {
+        accessToken: newAccessToken,
+        refreshToken: newRefreshToken,
+        expiresIn: 604800,
+        tokenType: 'Bearer',
+      },
+      error: null,
     };
   }
 
@@ -533,7 +560,11 @@ export class AuthService {
     }
 
     return {
+      success: true,
+      statusCode: 200,
       message: 'Logged out successfully',
+      data: null,
+      error: null,
     };
   }
 
@@ -556,14 +587,29 @@ export class AuthService {
   }
 
   async generateOtp(dto: GenerateOtpDto) {
-    const isEmail = dto.identifier.includes('@');
+    const rawIdentifier = dto.identifier.trim();
+    const isEmail = rawIdentifier.includes('@');
+
+    if (!isEmail) {
+      let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
+      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+        cleanedPhone = cleanedPhone.substring(2);
+      }
+
+      if (!/^[6-9]\d{9}$/.test(cleanedPhone)) {
+        throw new BadRequestException(
+          'Mobile number must be a valid 10-digit phone number starting with 6-9.',
+        );
+      }
+    }
+
     const identifierType = isEmail ? OtpIdentifierType.EMAIL : OtpIdentifierType.PHONE;
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = rawOtp; // Store plain-text 6-digit OTP code directly so it is visible unencrypted in DB
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const existingUser = await this.database.user.findFirst({
-      where: isEmail ? { email: dto.identifier } : { mobile: dto.identifier },
+      where: isEmail ? { email: rawIdentifier } : { mobile: rawIdentifier },
       select: { id: true },
     });
 
@@ -594,9 +640,13 @@ export class AuthService {
 
     return {
       success: true,
-      otpId: otpRecord.id,
-      expiresAt: otpRecord.expiresAt,
+      statusCode: 200,
       message: 'OTP generated and sent successfully',
+      data: {
+        otpId: otpRecord.id,
+        expiresAt: otpRecord.expiresAt,
+      },
+      error: null,
     };
   }
 
@@ -637,8 +687,12 @@ export class AuthService {
 
     return {
       success: true,
-      verified: true,
+      statusCode: 200,
       message: 'OTP verified successfully',
+      data: {
+        verified: true,
+      },
+      error: null,
     };
   }
 

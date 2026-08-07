@@ -33,9 +33,15 @@ export class CheckUserResponseDto {
   @ApiProperty()
   success: boolean;
 
+  @ApiProperty({ required: false })
+  statusCode?: number;
+
   @ApiProperty()
   message: string;
 
   @ApiProperty({ type: CheckUserDataDto })
   data: CheckUserDataDto;
+
+  @ApiProperty({ required: false, nullable: true })
+  error?: any;
 }

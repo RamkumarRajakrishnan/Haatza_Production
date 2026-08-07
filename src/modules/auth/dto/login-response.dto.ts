@@ -20,13 +20,7 @@ export class UserLoginSummaryDto {
   status: string;
 }
 
-export class LoginSuccessResponseDto {
-  @ApiProperty({ description: 'Operation status' })
-  success: boolean;
-
-  @ApiProperty({ description: 'Status message' })
-  message: string;
-
+export class LoginSuccessDataDto {
   @ApiProperty({ description: 'JWT Access Token' })
   accessToken: string;
 
@@ -40,12 +34,37 @@ export class LoginSuccessResponseDto {
   user: UserLoginSummaryDto;
 }
 
+export class LoginSuccessResponseDto {
+  @ApiProperty({ description: 'Operation status' })
+  success: boolean;
+
+  @ApiProperty({ description: 'HTTP status code' })
+  statusCode: number;
+
+  @ApiProperty({ description: 'Status message' })
+  message: string;
+
+  @ApiProperty({ description: 'Response payload data', type: LoginSuccessDataDto })
+  data: LoginSuccessDataDto;
+
+  @ApiPropertyOptional({ description: 'Error details, null on success', nullable: true })
+  error?: any;
+}
+
 export class LoginErrorResponseDto {
   @ApiProperty({ description: 'Operation status' })
   success: boolean;
 
-  @ApiProperty({
-    description: 'Error message',
-  })
+  @ApiProperty({ description: 'HTTP status code' })
+  statusCode: number;
+
+  @ApiProperty({ description: 'Error message' })
   message: string;
+
+  @ApiPropertyOptional({ description: 'Payload data, null on error', nullable: true })
+  data?: any;
+
+  @ApiPropertyOptional({ description: 'Error details' })
+  error?: any;
 }
+
