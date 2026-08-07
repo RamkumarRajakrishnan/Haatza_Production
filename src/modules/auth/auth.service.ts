@@ -863,9 +863,15 @@ export class AuthService {
 
     const sessions = activeSessions.map((sess) => ({
       sessionId: sess.id,
+      deviceId: sess.deviceId || '',
       deviceName: sess.deviceName || '',
       platform: sess.platform || '',
+      deviceType: sess.deviceType || '',
+      osVersion: sess.osVersion || '',
+      appVersion: sess.appVersion || '',
+      pushToken: sess.pushToken || '',
       ipAddress: sess.ipAddress || '',
+      identifier: sess.identifier || '',
       isCurrentDevice: sess.id === currentSessionId,
       lastActiveAt: sess.lastActivityAt.toISOString(),
       createdAt: sess.createdAt.toISOString(),
