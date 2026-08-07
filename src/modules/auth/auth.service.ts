@@ -331,9 +331,9 @@ export class AuthService {
           refreshTokenHash: tokenHash,
           ipAddress: reqMeta?.ipAddress || null,
           userAgent: reqMeta?.userAgent || null,
-          deviceName: reqMeta?.userAgent ? reqMeta.userAgent.substring(0, 100) : 'Postman Client',
-          platform: reqMeta?.userAgent?.includes('Postman') ? 'WEB' : (reqMeta?.userAgent ? 'WEB' : 'MOBILE'),
-          deviceType: reqMeta?.userAgent ? 'WEB' : 'MOBILE',
+          deviceName: this.parseDeviceName(reqMeta?.userAgent),
+          platform: this.parsePlatform(reqMeta?.userAgent),
+          deviceType: reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB',
           isActive: true,
           lastActivityAt: now,
           expiresAt,
@@ -929,6 +929,26 @@ export class AuthService {
       },
       error: null,
     };
+  }
+
+  private parseDeviceName(userAgent?: string): string {
+    if (!userAgent) return 'Unknown Device';
+    if (userAgent.includes('iPhone')) return 'iPhone';
+    if (userAgent.includes('iPad')) return 'iPad';
+    if (userAgent.includes('Android')) return 'Android Device';
+    if (userAgent.includes('Macintosh') || userAgent.includes('Mac OS')) return 'Mac';
+    if (userAgent.includes('Windows')) return 'Windows PC';
+    if (userAgent.includes('Linux')) return 'Linux PC';
+    if (userAgent.includes('PostmanRuntime')) return 'Postman App';
+    return userAgent.substring(0, 50);
+  }
+
+  private parsePlatform(userAgent?: string): string {
+    if (!userAgent) return 'WEB';
+    const ua = userAgent.toLowerCase();
+    if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios')) return 'IOS';
+    if (ua.includes('android')) return 'ANDROID';
+    return 'WEB';
   }
 }
 
