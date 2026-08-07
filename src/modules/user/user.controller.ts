@@ -48,7 +48,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @Delete('me/sessions/:sessionId')
   revokeSession(@Param('sessionId') sessionId: string, @Req() req: any) {
-    const userId = req.user?.id || req.user?.userId;
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
     return this.authService.revokeSession(userId, sessionId);
   }
 
@@ -57,7 +57,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @Post('me/sessions/revoke-others')
   revokeOthers(@Req() req: any) {
-    const userId = req.user?.id || req.user?.userId;
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
     const currentSessionId = req.user?.sessionId;
     return this.authService.revokeAllOtherSessions(userId, currentSessionId);
   }
