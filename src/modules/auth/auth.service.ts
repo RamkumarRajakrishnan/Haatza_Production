@@ -764,8 +764,8 @@ export class AuthService {
           deviceId: session.deviceId,
           deviceType: session.deviceType,
           platform: session.platform,
-          createdAt: session.createdAt.toISOString(),
-          expiresAt: session.expiresAt.toISOString(),
+          createdAt: new Date(session.createdAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
+          expiresAt: new Date(session.expiresAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
         },
       },
       error: null,
@@ -885,8 +885,8 @@ export class AuthService {
       identifier: sess.identifier || '',
       isCurrentDevice: sess.id === currentSessionId,
       isActive: sess.isActive && (!sess.revokedAt) && (sess.expiresAt > new Date()),
-      lastActiveAt: sess.lastActivityAt.toISOString(),
-      createdAt: sess.createdAt.toISOString(),
+      lastActiveAt: new Date(sess.lastActivityAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
+      createdAt: new Date(sess.createdAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
     }));
 
     return {
