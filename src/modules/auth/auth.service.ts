@@ -832,15 +832,29 @@ export class AuthService {
   /**
    * 3. Get All Active Devices / Sessions for Authenticated User
    */
-  async getUserActiveSessions(userId: string, currentSessionId: string) {
-    const activeSessions = await this.database.userSession.findMany({
-      where: {
-        userId,
-        isActive: true,
-        revokedAt: null,
-      },
-      orderBy: { lastActivityAt: 'desc' },
-    });
+  async getUserActiveSessions(userId: string, currentSessionId?: string) {
+    let targetUserId = userId;
+
+    if (!targetUserId && currentSessionId) {
+      const currentSess = await this.database.userSession.findUnique({
+        where: { id: currentSessionId },
+        select: { userId: true },
+      });
+      if (currentSess) {
+        targetUserId = currentSess.userId;
+      }
+    }
+
+    const activeSessions = targetUserId
+      ? await this.database.userSession.findMany({
+          where: {
+            userId: targetUserId,
+            isActive: true,
+            revokedAt: null,
+          },
+          orderBy: { lastActivityAt: 'desc' },
+        })
+      : [];
 
     const sessions = activeSessions.map((sess) => ({
       sessionId: sess.id,
