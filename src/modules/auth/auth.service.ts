@@ -292,8 +292,11 @@ export class AuthService {
     // Successful Authentication
     await this.authRepository.resetLoginAttemptsAndRecordLogin(user.id);
 
+    const sessionUuid = crypto.randomUUID();
+
     const payload = {
       sub: user.id,
+      sessionId: sessionUuid,
       role: user.role,
       mobile: user.mobile,
       email: user.email,
@@ -319,7 +322,6 @@ export class AuthService {
     const tokenHash = this.hashToken(refreshToken);
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-    const sessionUuid = crypto.randomUUID();
 
     try {
       await this.database.userSession.create({
