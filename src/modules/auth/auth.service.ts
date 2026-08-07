@@ -739,6 +739,7 @@ export class AuthService {
     return {
       success: true,
       statusCode: 200,
+      message: 'OTP verified successfully and login completed.',
       data: {
         accessToken,
         expiresIn: expiresInSeconds,
