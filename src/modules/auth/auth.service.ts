@@ -721,7 +721,7 @@ export class AuthService {
         userId: user.id,
         identifier: cleanedPhone,
         refreshTokenHash,
-        deviceId: dto.deviceInfo.deviceId,
+        deviceId: dto.deviceInfo.deviceId || `dev_${crypto.randomUUID().substring(0, 8)}`,
         deviceName: dto.deviceInfo.deviceName || null,
         platform: dto.deviceInfo.platform || null,
         osVersion: dto.deviceInfo.osVersion,

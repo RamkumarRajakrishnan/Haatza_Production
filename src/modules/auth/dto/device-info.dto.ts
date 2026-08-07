@@ -2,10 +2,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class DeviceInfoDto {
-  @ApiProperty({ description: 'Unique device hardware identifier' })
-  @IsNotEmpty({ message: 'deviceId is required.' })
+  @ApiPropertyOptional({ description: 'Unique device hardware identifier' })
+  @IsOptional()
   @IsString({ message: 'deviceId must be a string.' })
-  deviceId: string;
+  deviceId?: string;
 
   @ApiPropertyOptional({ description: 'User human-readable device name' })
   @IsOptional()
