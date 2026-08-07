@@ -38,7 +38,7 @@ export class UserController {
   @UseGuards(JwtAuthGuard)
   @Get('me/sessions')
   getSessions(@Req() req: any) {
-    const userId = req.user?.id || req.user?.userId;
+    const userId = req.user?.id || req.user?.userId || req.user?.sub;
     const currentSessionId = req.user?.sessionId;
     return this.authService.getUserActiveSessions(userId, currentSessionId);
   }
