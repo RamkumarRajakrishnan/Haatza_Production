@@ -14,9 +14,9 @@ export class VerifyOtpSessionDto {
   @IsString({ message: 'otpCode must be a string.' })
   otpCode: string;
 
-  @ApiProperty({ type: DeviceInfoDto, description: 'Device metadata and FCM push token' })
-  @IsNotEmpty({ message: 'deviceInfo is required.' })
+  @ApiPropertyOptional({ type: DeviceInfoDto, description: 'Device metadata and FCM push token' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => DeviceInfoDto)
-  deviceInfo: DeviceInfoDto;
+  deviceInfo?: DeviceInfoDto;
 }
