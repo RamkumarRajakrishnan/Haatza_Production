@@ -104,6 +104,7 @@ model UserSession {
   id               String    @id @default(uuid()) @map("session_id")
   userId           String    @map("user_id")
   refreshTokenHash String    @unique @map("refresh_token_hash")
+  refreshToken     String?   @map("refresh_token")
   deviceId         String?   @map("device_id")
   deviceName       String?   @map("device_name")
   platform         String?   @map("platform")
