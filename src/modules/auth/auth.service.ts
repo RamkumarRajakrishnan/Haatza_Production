@@ -328,6 +328,7 @@ export class AuthService {
         data: {
           id: sessionUuid,
           userId: user.id,
+          identifier: rawIdentifier,
           refreshTokenHash: tokenHash,
           ipAddress: reqMeta?.ipAddress || null,
           userAgent: reqMeta?.userAgent || null,
@@ -718,6 +719,7 @@ export class AuthService {
       data: {
         id: sessionUuid,
         userId: user.id,
+        identifier: cleanedPhone,
         refreshTokenHash,
         deviceId: dto.deviceInfo.deviceId,
         deviceName: dto.deviceInfo.deviceName || null,
