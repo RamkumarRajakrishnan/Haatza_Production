@@ -341,7 +341,7 @@ export class AuthService {
         },
       });
     } catch (dbErr: any) {
-      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`);
+      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`, dbErr?.stack);
     }
 
     this.recordSuccessSideEffects({
@@ -838,7 +838,6 @@ export class AuthService {
         userId,
         isActive: true,
         revokedAt: null,
-        expiresAt: { gt: new Date() },
       },
       orderBy: { lastActivityAt: 'desc' },
     });
