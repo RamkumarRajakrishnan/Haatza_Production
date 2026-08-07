@@ -358,6 +358,14 @@ export class AuthService {
       userId: user.id,
     });
 
+    this.recordLoginHistory({
+      userId: user.id,
+      identifier: rawIdentifier,
+      status: LoginStatus.SUCCESS,
+      ipAddress: reqMeta?.ipAddress,
+      userAgent: reqMeta?.userAgent,
+    });
+
     this.logger.log(`User ${user.id} logged in successfully.`);
 
     return {
