@@ -886,6 +886,7 @@ export class AuthService {
       ipAddress: sess.ipAddress || '',
       identifier: sess.identifier || '',
       isCurrentDevice: sess.id === currentSessionId,
+      isActive: sess.isActive && (!sess.revokedAt) && (sess.expiresAt > new Date()),
       lastActiveAt: sess.lastActivityAt.toISOString(),
       createdAt: sess.createdAt.toISOString(),
     }));
