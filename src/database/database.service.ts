@@ -33,6 +33,16 @@ export class DatabaseService
     );
   }
 
+  async executePoolQuery(text: string, params: any[] = []): Promise<number> {
+    try {
+      const result = await this.pool.query(text, params);
+      return result.rowCount || 0;
+    } catch (err: any) {
+      this.logger.error(`Pool query failed: ${err.message}`);
+      return 0;
+    }
+  }
+
   async onModuleInit() {
     // Non-blocking background database connection so Cloud Run boots instantly
     this.connectWithRetry().catch((err) => {

@@ -15,10 +15,10 @@ export class OtpCleanupService {
   async deleteExpiredOtps() {
     try {
       const now = new Date();
-      const count = await this.database.$executeRaw`
-        DELETE FROM "OtpVerification" 
-        WHERE "expiresAt" < ${now} OR "isVerified" = true;
-      `;
+      const count = await this.database.executePoolQuery(
+        'DELETE FROM "OtpVerification" WHERE "expiresAt" < $1 OR "isVerified" = true;',
+        [now],
+      );
 
       if (count > 0) {
         this.logger.log(`Cleaned up ${count} expired/verified OTP records from database.`);
