@@ -14,17 +14,14 @@ export class OtpCleanupService {
   @Cron(CronExpression.EVERY_MINUTE)
   async deleteExpiredOtps() {
     try {
-      const result = await this.database.otpVerification.deleteMany({
-        where: {
-          OR: [
-            { expiresAt: { lt: new Date() } },
-            { isVerified: true },
-          ],
-        },
-      });
+      const now = new Date();
+      const count = await this.database.$executeRaw`
+        DELETE FROM "OtpVerification" 
+        WHERE "expiresAt" < ${now} OR "isVerified" = true;
+      `;
 
-      if (result.count > 0) {
-        this.logger.log(`Cleaned up ${result.count} expired/verified OTP records from database.`);
+      if (count > 0) {
+        this.logger.log(`Cleaned up ${count} expired/verified OTP records from database.`);
       }
     } catch (error: any) {
       this.logger.error(`Error during OTP database cleanup job: ${error?.message}`);
