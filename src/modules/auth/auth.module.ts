@@ -12,6 +12,8 @@ import { PermissionsGuard } from './guards/permissions.guard';
 
 import { SmsModule } from '../sms/sms.module';
 
+import { OtpCleanupService } from './otp-cleanup.service';
+
 @Module({
   imports: [
     ConfigModule,
@@ -47,6 +49,7 @@ import { SmsModule } from '../sms/sms.module';
   providers: [
     AuthService,
     AuthRepository,
+    OtpCleanupService,
     JwtStrategy,
     RolesGuard,
     PermissionsGuard,

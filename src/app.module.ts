@@ -3,6 +3,8 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER, APP_INTERCEPTOR } from '@nestjs/core';
 
+import { ScheduleModule } from '@nestjs/schedule';
+
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
@@ -71,6 +73,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
       },
     }),
 
+    ScheduleModule.forRoot(),
     DatabaseModule,
     MediaStorageModule,
     AuthModule,
