@@ -684,10 +684,6 @@ export class AuthService {
       throw new BadRequestException('Invalid OTP code');
     }
 
-    if (otpRecord.attemptCount >= otpRecord.maxAttempts) {
-      throw new BadRequestException('Maximum OTP verification attempts exceeded');
-    }
-
     await this.database.otpVerification.update({
       where: { id: otpRecord.id },
       data: { isVerified: true, verifiedAt: new Date() },
@@ -724,7 +720,6 @@ export class AuthService {
     });
 
     if (!otpRecord || new Date() > otpRecord.expiresAt || otpRecord.otpHash !== dto.otpCode) {
-      const remaining = Math.max(0, (otpRecord?.maxAttempts || 3) - ((otpRecord?.attemptCount || 0) + 1));
       if (otpRecord) {
         await this.database.otpVerification.update({
           where: { id: otpRecord.id },
@@ -739,7 +734,6 @@ export class AuthService {
         error: {
           code: 'INVALID_OTP',
           message: 'The OTP entered is incorrect or has expired.',
-          details: { attemptsRemaining: remaining },
         },
       });
     }
