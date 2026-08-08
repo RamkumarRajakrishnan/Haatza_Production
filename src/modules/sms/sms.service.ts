@@ -26,17 +26,17 @@ export class SmsService {
     this.route =
       this.configService.get<string>('FAST2SMS_ROUTE') ||
       process.env.FAST2SMS_ROUTE ||
-      'q';
+      'dlt';
 
     this.senderId =
       this.configService.get<string>('FAST2SMS_SENDER_ID') ||
       process.env.FAST2SMS_SENDER_ID ||
-      '';
+      'HAATZA';
 
     this.messageId =
       this.configService.get<string>('FAST2SMS_MESSAGE_ID') ||
       process.env.FAST2SMS_MESSAGE_ID ||
-      '';
+      '198076';
   }
 
   /**
@@ -54,10 +54,12 @@ export class SmsService {
   }
 
   /**
-   * Sends an OTP via Fast2SMS API.
-   * Supports 'q' (Quick SMS), 'otp' (Fast2SMS Default Template), and 'dlt' (Custom Approved DLT Template).
+   * Sends an OTP via Fast2SMS DLT Content Template.
+   * @param phone Recipient phone number
+   * @param otpCode Dynamic OTP code variable
+   * @param templateId Optional DLT template ID override (defaults to configured messageId 198076)
    */
-  async sendOtp(phone: string, otpCode: string): Promise<boolean> {
+  async sendOtp(phone: string, otpCode: string, templateId?: string): Promise<boolean> {
     const cleanedPhone = this.normalizePhoneNumber(phone);
 
     if (!this.apiKey) {
@@ -72,20 +74,19 @@ export class SmsService {
         `Dispatching Fast2SMS OTP (Route: ${this.route}) to ${cleanedPhone}...`,
       );
 
-      // Build query params for GET request matching Fast2SMS Dev API specification
       const urlParams = new URLSearchParams();
       urlParams.append('authorization', this.apiKey);
       urlParams.append('route', this.route);
       urlParams.append('numbers', cleanedPhone);
 
-      if (this.route === 'q') {
-        urlParams.append('message', `Your OTP verification code for Haatza is ${otpCode}. Valid for 10 minutes.`);
+      if (this.route === 'dlt') {
+        urlParams.append('sender_id', this.senderId);
+        urlParams.append('message', templateId || this.messageId);
+        urlParams.append('variables_values', otpCode);
+      } else if (this.route === 'q') {
+        urlParams.append('message', `Your OTP verification code for Haatza is ${otpCode}.`);
         urlParams.append('language', 'english');
         urlParams.append('flash', '0');
-      } else if (this.route === 'dlt') {
-        urlParams.append('variables_values', otpCode);
-        if (this.senderId) urlParams.append('sender_id', this.senderId);
-        if (this.messageId) urlParams.append('message', this.messageId);
       } else {
         urlParams.append('variables_values', otpCode);
       }
