@@ -16,7 +16,7 @@ export class OtpCleanupService {
     try {
       const now = new Date();
       const count = await this.database.executePoolQuery(
-        'DELETE FROM "OtpVerification" WHERE "expiresAt" < $1 OR "isVerified" = true;',
+        'DELETE FROM "otp_verifications" WHERE "expires_at" < $1 OR "is_verified" = true;',
         [now],
       );
 
