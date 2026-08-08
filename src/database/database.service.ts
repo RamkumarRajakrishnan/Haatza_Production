@@ -34,6 +34,9 @@ export class DatabaseService
   }
 
   async executePoolQuery(text: string, params: any[] = []): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
     try {
       const result = await this.pool.query(text, params);
       return result.rowCount || 0;
