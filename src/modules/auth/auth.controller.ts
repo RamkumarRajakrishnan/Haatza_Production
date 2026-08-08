@@ -38,7 +38,8 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Register a new user' })
-  @ApiResponse({ status: 201, description: 'User successfully registered' })
+  @ApiResponse({ status: 200, description: 'User successfully registered' })
+  @HttpCode(HttpStatus.OK)
   @Post('register')
   register(@Body() data: RegisterDto) {
     return this.authService.register(data);
