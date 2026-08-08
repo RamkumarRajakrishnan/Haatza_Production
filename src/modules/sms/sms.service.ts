@@ -21,12 +21,12 @@ export class SmsService {
     this.apiKey =
       this.configService.get<string>('FAST2SMS_API_KEY') ||
       process.env.FAST2SMS_API_KEY ||
-      '';
+      'U7SGzfsYaueBEK1XrokqhQVOlbnNwC6ypm5Fcxiv8Z2HMAPDLgpw6LlQOo3RsIWrUmYSkuN15Cqa29fg';
 
     this.route =
       this.configService.get<string>('FAST2SMS_ROUTE') ||
       process.env.FAST2SMS_ROUTE ||
-      'otp';
+      'q';
 
     this.senderId =
       this.configService.get<string>('FAST2SMS_SENDER_ID') ||
@@ -55,7 +55,7 @@ export class SmsService {
 
   /**
    * Sends an OTP via Fast2SMS API.
-   * Supports both 'otp' route (Fast2SMS Default Template) and 'dlt' route (Custom Approved DLT Template).
+   * Supports 'q' (Quick SMS), 'otp' (Fast2SMS Default Template), and 'dlt' (Custom Approved DLT Template).
    */
   async sendOtp(phone: string, otpCode: string): Promise<boolean> {
     const cleanedPhone = this.normalizePhoneNumber(phone);
@@ -76,12 +76,18 @@ export class SmsService {
       const urlParams = new URLSearchParams();
       urlParams.append('authorization', this.apiKey);
       urlParams.append('route', this.route);
-      urlParams.append('variables_values', otpCode);
       urlParams.append('numbers', cleanedPhone);
 
-      if (this.route === 'dlt') {
+      if (this.route === 'q') {
+        urlParams.append('message', `Your OTP verification code for Haatza is ${otpCode}. Valid for 10 minutes.`);
+        urlParams.append('language', 'english');
+        urlParams.append('flash', '0');
+      } else if (this.route === 'dlt') {
+        urlParams.append('variables_values', otpCode);
         if (this.senderId) urlParams.append('sender_id', this.senderId);
         if (this.messageId) urlParams.append('message', this.messageId);
+      } else {
+        urlParams.append('variables_values', otpCode);
       }
 
       const fullUrl = `${this.fast2SmsUrl}?${urlParams.toString()}`;
