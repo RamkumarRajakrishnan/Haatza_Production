@@ -57,10 +57,12 @@ export class DatabaseService
     for (let attempt = 1; attempt <= retries; attempt++) {
       try {
         await this.$connect();
+        await this.pool.query('SELECT 1');
         this.isConnected = true;
         this.logger.log('✅ Database connected successfully with explicit pg.Pool');
         return;
       } catch (err: any) {
+        this.isConnected = false;
         this.logger.warn(
           `⚠️ Database connection attempt ${attempt}/${retries} failed: ${err.message}. Retrying in ${delayMs}ms...`,
         );
