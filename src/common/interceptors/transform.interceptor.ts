@@ -24,14 +24,18 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
           data &&
           typeof data === 'object' &&
           (('success' in data && 'data' in data) ||
-            'statusCode' in data ||
-            'error' in data ||
             'exists' in data ||
             'buyer' in data ||
             url.includes('check-user') ||
             url.includes('checkuser') ||
             url.includes('register'))
         ) {
+          if ('statusCode' in data) {
+            delete (data as any).statusCode;
+          }
+          if ('error' in data && (data as any).error === null) {
+            delete (data as any).error;
+          }
           return data;
         }
 
