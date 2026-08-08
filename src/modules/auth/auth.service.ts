@@ -654,7 +654,6 @@ export class AuthService {
         otpId: otpRecord.id,
         expiresAt: otpRecord.expiresAt,
       },
-      error: null,
     };
   }
 
@@ -696,7 +695,6 @@ export class AuthService {
       data: {
         verified: true,
       },
-      error: null,
     };
   }
 
