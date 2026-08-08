@@ -14,14 +14,16 @@ export class OtpCleanupService {
   @Cron(CronExpression.EVERY_MINUTE)
   async deleteExpiredOtps() {
     try {
-      const now = new Date();
-      const count = await this.database.executePoolQuery(
-        'DELETE FROM "otp_verifications" WHERE "expires_at" < $1 OR "is_verified" = true;',
-        [now],
+      const count1 = await this.database.executePoolQuery(
+        'DELETE FROM otp_verifications WHERE expires_at < NOW();',
+      );
+      const count2 = await this.database.executePoolQuery(
+        'DELETE FROM otp_verifications WHERE is_verified = true;',
       );
 
-      if (count > 0) {
-        this.logger.log(`Cleaned up ${count} expired/verified OTP records from database.`);
+      const totalDeleted = count1 + count2;
+      if (totalDeleted > 0) {
+        this.logger.log(`Cleaned up ${totalDeleted} expired/verified OTP records from database.`);
       }
     } catch (error: any) {
       this.logger.error(`Error during OTP database cleanup job: ${error?.message}`);
