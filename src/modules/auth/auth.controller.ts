@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
@@ -32,6 +32,7 @@ export class AuthController {
   })
   @ApiResponse({ status: 400, description: 'Validation error for identifier format' })
   @Post(['check-user', 'checkUser'])
+  @HttpCode(HttpStatus.OK)
   checkUser(@Body() data: CheckUserDto) {
     return this.authService.checkUser(data);
   }
@@ -54,6 +55,7 @@ export class AuthController {
     description: 'Unauthorized - Invalid credentials or account status',
     type: LoginErrorResponseDto,
   })
+  @HttpCode(HttpStatus.OK)
   @Post(['login', 'api/login'])
   login(@Body() data: LoginDto, @Req() req: Request) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
@@ -64,6 +66,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Refresh access token using refresh token or session token' })
   @ApiResponse({ status: 200, description: 'Token refreshed successfully' })
+  @HttpCode(HttpStatus.OK)
   @Post('refresh')
   refreshSession(@Body() data: RefreshTokenSessionDto | RefreshTokenDto) {
     if ('deviceId' in data) {
@@ -74,6 +77,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Logout user and revoke refresh token session' })
   @ApiResponse({ status: 200, description: 'Logged out successfully' })
+  @HttpCode(HttpStatus.OK)
   @Post('logout')
   logout(@Body() data: LogoutDto) {
     return this.authService.logout(data.refreshToken);
@@ -81,6 +85,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Request password reset OTP' })
   @ApiResponse({ status: 200, description: 'Password reset OTP generated and sent' })
+  @HttpCode(HttpStatus.OK)
   @Post(['forgot-password', 'forgotpassword', 'forgotPassword'])
   forgotPassword(@Body() data: ForgotPasswordDto) {
     return this.authService.forgotPassword(data);
@@ -88,6 +93,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Generate OTP for authentication/verification' })
   @ApiResponse({ status: 200, description: 'OTP generated successfully' })
+  @HttpCode(HttpStatus.OK)
   @Post(['generate-otp', 'generateotp', 'generateOtp'])
   generateOtp(@Body() data: GenerateOtpDto) {
     return this.authService.generateOtp(data);
@@ -95,6 +101,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Verify OTP code and create session / login' })
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
+  @HttpCode(HttpStatus.OK)
   @Post(['verify-otp', 'verifyotp', 'verifyOtp'])
   verifyOtp(@Body() data: VerifyOtpSessionDto | VerifyOtpDto, @Req() req: Request) {
     if ('phoneNumber' in data) {
@@ -107,6 +114,7 @@ export class AuthController {
 
   @ApiOperation({ summary: 'Resend OTP code' })
   @ApiResponse({ status: 200, description: 'OTP resent successfully' })
+  @HttpCode(HttpStatus.OK)
   @Post(['resend-otp', 'resendotp', 'resendOtp'])
   resendOtp(@Body() data: GenerateOtpDto) {
     return this.authService.resendOtp(data);
