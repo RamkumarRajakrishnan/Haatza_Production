@@ -643,7 +643,11 @@ export class AuthService {
     this.logger.log(`Generated OTP for ${dto.identifier}: ${rawOtp}`);
 
     if (!isEmail) {
-      await this.smsService.sendOtp(dto.identifier, rawOtp);
+      let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
+      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+        cleanedPhone = cleanedPhone.substring(2);
+      }
+      await this.smsService.sendOtp(cleanedPhone, rawOtp);
     }
 
     return {
