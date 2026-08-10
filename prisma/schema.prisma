@@ -703,4 +703,34 @@ model UserLoginHistory {
   @@map("user_login_histories")
 }
 
+model Dashboard {
+  id               String   @id @default(uuid()) @map("id")
+  widgetType       String?  @map("widget_type")
+  widgetId         String   @unique @map("widget_id")
+  title            String?  @map("title")
+  subtitle         String?  @map("subtitle")
+  status           String?  @default("ACTIVE") @map("status")
+  sequence         Int?     @map("sequence")
+  image            String?  @map("image")
+  redirectLink     String?  @map("redirect_link")
+  categoryId       String?  @map("category_id")
+  categoryName     String?  @map("category_name")
+  priority         Int?     @map("priority")
+  productId        String?  @map("product_id")
+  product          String?  @map("product")
+  price            Float?   @map("price")
+  discount         Float?   @map("discount")
+  mainCategoryId   String?  @map("main_category_id")
+  subCategoryId    String?  @map("sub_category_id")
+  warehouseId      String?  @map("warehouse_id")
+  module           String?  @map("module")
+  titleImage       String?  @map("title_image")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@index([widgetId])
+  @@index([widgetType])
+  @@map("dashboard")
+}
+
 

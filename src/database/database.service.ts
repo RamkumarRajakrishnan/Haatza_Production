@@ -272,6 +272,32 @@ export class DatabaseService
           created_at timestamp DEFAULT now()
         );
 
+        CREATE TABLE IF NOT EXISTS public.dashboard (
+          id text PRIMARY KEY,
+          widget_type text,
+          widget_id text UNIQUE NOT NULL,
+          title text,
+          subtitle text,
+          status text DEFAULT 'ACTIVE',
+          sequence integer,
+          image text,
+          redirect_link text,
+          category_id text,
+          category_name text,
+          priority integer,
+          product_id text,
+          product text,
+          price double precision,
+          discount double precision,
+          main_category_id text,
+          sub_category_id text,
+          warehouse_id text,
+          module text,
+          title_image text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
         CREATE TABLE IF NOT EXISTS public.user_devices (
           device_id text PRIMARY KEY,
           user_id text NOT NULL,
