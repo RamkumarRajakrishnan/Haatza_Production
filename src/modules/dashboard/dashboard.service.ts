@@ -54,8 +54,11 @@ export class DashboardService {
 
     const whereCondition: any = {
       module: targetModule,
-      categoryId,
     };
+
+    if (categoryId && categoryId.trim() !== '') {
+      whereCondition.categoryId = categoryId.trim();
+    }
 
     if (warehouseId && warehouseId.trim() !== '') {
       whereCondition.warehouseId = warehouseId.trim();
