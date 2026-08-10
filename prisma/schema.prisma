@@ -703,34 +703,59 @@ model UserLoginHistory {
   @@map("user_login_histories")
 }
 
+enum DashboardModule {
+  LITE
+  HAATZA
+}
+
 model Dashboard {
-  id               String   @id @default(uuid()) @map("id")
-  widgetType       String?  @map("widget_type")
-  widgetId         String   @unique @map("widget_id")
-  title            String?  @map("title")
-  subtitle         String?  @map("subtitle")
-  status           String?  @default("ACTIVE") @map("status")
-  sequence         Int?     @map("sequence")
-  image            String?  @map("image")
-  redirectLink     String?  @map("redirect_link")
-  categoryId       String?  @map("category_id")
-  categoryName     String?  @map("category_name")
-  priority         Int?     @map("priority")
-  productId        String?  @map("product_id")
-  product          String?  @map("product")
-  price            Float?   @map("price")
-  discount         Float?   @map("discount")
-  mainCategoryId   String?  @map("main_category_id")
-  subCategoryId    String?  @map("sub_category_id")
-  warehouseId      String?  @map("warehouse_id")
-  module           String?  @map("module")
-  titleImage       String?  @map("title_image")
-  createdAt        DateTime @default(now()) @map("created_at")
-  updatedAt        DateTime @updatedAt @map("updated_at")
+  id               String           @id @default(uuid()) @map("id")
+  widgetType       String?          @map("widget_type")
+  widgetId         String           @unique @map("widget_id")
+  title            String?          @map("title")
+  subtitle         String?          @map("subtitle")
+  status           String?          @default("ACTIVE") @map("status")
+  sequence         Int?             @map("sequence")
+  image            String?          @map("image")
+  redirectLink     String?          @map("redirect_link")
+  categoryId       String?          @map("category_id")
+  categoryName     String?          @map("category_name")
+  priority         Int?             @map("priority")
+  productId        String?          @map("product_id")
+  product          String?          @map("product")
+  price            Float?           @map("price")
+  discount         Float?           @map("discount")
+  mainCategoryId   String?          @map("main_category_id")
+  subCategoryId    String?          @map("sub_category_id")
+  warehouseId      String?          @map("warehouse_id")
+  module           DashboardModule? @default(HAATZA) @map("module")
+  titleImage       String?          @map("title_image")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
   @@index([widgetId])
   @@index([widgetType])
+  @@index([module])
   @@map("dashboard")
+}
+
+model DashboardCategory {
+  id                 String           @id @default(uuid()) @map("id")
+  categoryId         String           @unique @map("category_id")
+  categoryName       String           @map("category_name")
+  image              String?          @map("image")
+  status             String?          @default("ACTIVE") @map("status")
+  appbarColour       String?          @map("appbar_colour")
+  appbarImage        String?          @map("appbar_image")
+  categoryTextcolour String?          @map("category_textcolour")
+  appbarBackground   String?          @map("appbar_background")
+  module             DashboardModule? @default(HAATZA) @map("module")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@index([module])
+  @@map("dashboard_category")
 }
 
 

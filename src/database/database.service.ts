@@ -109,6 +109,9 @@ export class DatabaseService
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DeviceOS') THEN
             CREATE TYPE public."DeviceOS" AS ENUM ('ANDROID', 'IOS', 'WEB', 'UNKNOWN');
           END IF;
+          IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'DashboardModule') THEN
+            CREATE TYPE public."DashboardModule" AS ENUM ('LITE', 'HAATZA');
+          END IF;
         END $$;
 
         CREATE TABLE IF NOT EXISTS public.users (
@@ -292,8 +295,23 @@ export class DatabaseService
           main_category_id text,
           sub_category_id text,
           warehouse_id text,
-          module text,
+          module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule",
           title_image text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.dashboard_category (
+          id text PRIMARY KEY,
+          category_id text UNIQUE NOT NULL,
+          category_name text NOT NULL,
+          image text,
+          status text DEFAULT 'ACTIVE',
+          appbar_colour text,
+          appbar_image text,
+          category_textcolour text,
+          appbar_background text,
+          module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule",
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
