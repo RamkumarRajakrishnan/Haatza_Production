@@ -289,7 +289,7 @@ export class DatabaseService
           category_name text,
           priority integer,
           product_id text,
-          product text,
+          product jsonb,
           price double precision,
           discount double precision,
           main_category_id text,

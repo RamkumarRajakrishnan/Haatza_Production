@@ -143,6 +143,20 @@ async function loadDataIntoPostgres() {
     const imageUrl = await downloadAndSaveImageLocally(row['Image']);
     const titleImageUrl = await downloadAndSaveImageLocally(row['Title Image']);
 
+    const rawProduct = row['widgetProducts'] || row['Product'] || row['Name'];
+    let productValue: any = null;
+    if (rawProduct && rawProduct.trim() !== '') {
+      if (rawProduct.trim().startsWith('[') || rawProduct.trim().startsWith('{')) {
+        try {
+          productValue = JSON.parse(rawProduct.trim());
+        } catch {
+          productValue = rawProduct.trim();
+        }
+      } else {
+        productValue = rawProduct.trim();
+      }
+    }
+
     await prisma.dashboard.upsert({
       where: { widgetId },
       update: {
@@ -157,7 +171,7 @@ async function loadDataIntoPostgres() {
         categoryName: row['Category Name'] || null,
         priority: row['Priority'] ? parseInt(row['Priority'], 10) : null,
         productId: row['Product ID'] || null,
-        product: row['Product'] || row['Name'] || null,
+        product: productValue,
         price: row['Price'] ? parseFloat(row['Price']) : null,
         discount: row['Discount'] ? parseFloat(row['Discount']) : null,
         mainCategoryId: row['Main Categore ID'] || null,
@@ -179,7 +193,7 @@ async function loadDataIntoPostgres() {
         categoryName: row['Category Name'] || null,
         priority: row['Priority'] ? parseInt(row['Priority'], 10) : null,
         productId: row['Product ID'] || null,
-        product: row['Product'] || row['Name'] || null,
+        product: productValue,
         price: row['Price'] ? parseFloat(row['Price']) : null,
         discount: row['Discount'] ? parseFloat(row['Discount']) : null,
         mainCategoryId: row['Main Categore ID'] || null,
