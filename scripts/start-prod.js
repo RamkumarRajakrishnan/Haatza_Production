@@ -7,6 +7,8 @@ const rootDir = path.resolve(__dirname, '..');
 // Auto-sync database tables (public.users, etc.) on container startup if DATABASE_URL is set
 if (process.env.DATABASE_URL) {
   try {
+    console.log('Generating Prisma Client...');
+    execSync('npx prisma generate', { stdio: 'inherit', cwd: rootDir });
     console.log('Synchronizing PostgreSQL schema with Database...');
     execSync('npx prisma db push --accept-data-loss', { stdio: 'inherit', cwd: rootDir });
     console.log('✅ Database schema synchronized successfully!');
