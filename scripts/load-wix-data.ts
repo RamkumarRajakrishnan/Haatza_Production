@@ -136,9 +136,8 @@ async function loadDataIntoPostgres() {
     });
 
     const widgetId = row['Widget ID'] || row['ID'] || `widget_${Date.now()}_${count}`;
-    const widgetTypeStr = row['Widget Type'] || '';
     const moduleStr = (row['Module'] || '').toUpperCase();
-    const moduleEnum = (moduleStr.includes('LITE') || widgetTypeStr.startsWith('Lite_')) ? DashboardModule.LITE : DashboardModule.HAATZA;
+    const moduleEnum = moduleStr === 'LITE' ? DashboardModule.LITE : DashboardModule.HAATZA;
 
     // Download image from Wix and get YOUR server's public URL
     const imageUrl = await downloadAndSaveImageLocally(row['Image']);
