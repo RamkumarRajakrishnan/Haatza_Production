@@ -24,10 +24,12 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
           data &&
           typeof data === 'object' &&
           (('success' in data && 'data' in data) ||
+            'status' in data ||
             'exists' in data ||
             'buyer' in data ||
             url.includes('check-user') ||
             url.includes('checkuser') ||
+            url.includes('dashboard') ||
             url.includes('register'))
         ) {
           if ('statusCode' in data) {

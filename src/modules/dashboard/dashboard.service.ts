@@ -51,7 +51,6 @@ export class DashboardService {
 
     const whereCondition: any = {
       module: DashboardModule.HAATZA,
-      status: { in: ['TRUE', 'ACTIVE'] },
       categoryId,
     };
 
