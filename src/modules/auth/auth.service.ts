@@ -381,7 +381,6 @@ export class AuthService {
           name: user.name,
           email: user.email,
           phoneNumber: user.mobile,
-          role: user.role,
           status: user.status,
         },
       },
@@ -970,13 +969,8 @@ export class AuthService {
     });
 
     if (session) {
-      await this.database.userSession.update({
+      await this.database.userSession.delete({
         where: { id: session.id },
-        data: {
-          isActive: false,
-          revokedAt: new Date(),
-          updatedAt: new Date(),
-        },
       });
     }
 
@@ -995,15 +989,10 @@ export class AuthService {
    * 5. Logout All Other Devices Except Current Device
    */
   async revokeAllOtherSessions(userId: string, currentSessionId: string) {
-    const result = await this.database.userSession.updateMany({
+    const result = await this.database.userSession.deleteMany({
       where: {
         userId,
         id: { not: currentSessionId },
-        isActive: true,
-      },
-      data: {
-        isActive: false,
-        revokedAt: new Date(),
       },
     });
 

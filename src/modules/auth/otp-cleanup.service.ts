@@ -6,7 +6,7 @@ import { DatabaseService } from '../../database/database.service';
 export class OtpCleanupService {
   private readonly logger = new Logger(OtpCleanupService.name);
 
-  constructor(private readonly database: DatabaseService) {}
+  constructor(private readonly database: DatabaseService) { }
 
   /**
    * Cron job that runs every minute to delete expired or used OTP records from OtpVerification table.
