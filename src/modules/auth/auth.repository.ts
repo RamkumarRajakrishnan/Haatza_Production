@@ -29,7 +29,6 @@ export class AuthRepository {
             equals: normalizedEmail,
             mode: 'insensitive',
           },
-          deletedAt: null,
         },
       });
     }
@@ -44,7 +43,6 @@ export class AuthRepository {
     return this.db.user.findFirst({
       where: {
         mobile: cleanedPhone,
-        deletedAt: null,
       },
     });
   }
@@ -75,7 +73,6 @@ export class AuthRepository {
       return this.db.user.findFirst({
         where: {
           email: { equals: normalizedEmail, mode: 'insensitive' },
-          deletedAt: null,
         },
         select,
       });
@@ -89,7 +86,6 @@ export class AuthRepository {
     return this.db.user.findFirst({
       where: {
         mobile: cleanedPhone,
-        deletedAt: null,
       },
       select,
     });

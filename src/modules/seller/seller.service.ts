@@ -52,7 +52,7 @@ export class SellerService {
   }
 
   async deleteAccount(userId: string) {
-    await this.db.user.update({ where: { id: userId }, data: { status: 'INACTIVE', deletedAt: new Date() } });
+    await this.db.user.update({ where: { id: userId }, data: { status: 'INACTIVE' } });
     return { success: true, message: 'Seller account deleted successfully' };
   }
 }

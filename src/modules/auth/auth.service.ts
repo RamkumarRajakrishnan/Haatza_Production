@@ -503,7 +503,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid refresh token');
     }
 
-    if (!session.isActive || session.revokedAt) {
+    if (!session.isActive) {
       throw new UnauthorizedException('Session has been revoked');
     }
 
@@ -557,12 +557,8 @@ export class AuthService {
     });
 
     if (session) {
-      await this.database.userSession.update({
+      await this.database.userSession.delete({
         where: { id: session.id },
-        data: {
-          isActive: false,
-          revokedAt: new Date(),
-        },
       });
     }
 
@@ -679,10 +675,6 @@ export class AuthService {
     }
 
     if (otpRecord.otpHash !== dto.otp) {
-      await this.database.otpVerification.update({
-        where: { id: otpRecord.id },
-        data: { attemptCount: otpRecord.attemptCount + 1 },
-      });
       throw new BadRequestException('Invalid OTP code');
     }
 
@@ -721,13 +713,6 @@ export class AuthService {
     });
 
     if (!otpRecord || new Date() > otpRecord.expiresAt || otpRecord.otpHash !== dto.otpCode) {
-      if (otpRecord) {
-        await this.database.otpVerification.update({
-          where: { id: otpRecord.id },
-          data: { attemptCount: otpRecord.attemptCount + 1 },
-        });
-      }
-
       throw new BadRequestException({
         success: false,
         statusCode: 400,
@@ -840,12 +825,11 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (!session || !session.isActive || session.revokedAt) {
+    if (!session || !session.isActive) {
       if (session?.userId) {
         this.logger.error(`Security alert: Token reuse detected for User ${session.userId}. Invalidating ALL active sessions.`);
-        await this.database.userSession.updateMany({
+        await this.database.userSession.deleteMany({
           where: { userId: session.userId },
-          data: { isActive: false, revokedAt: new Date() },
         });
       }
 
@@ -941,7 +925,7 @@ export class AuthService {
       ipAddress: sess.ipAddress || '',
       identifier: sess.identifier || '',
       isCurrentDevice: sess.id === currentSessionId,
-      isActive: sess.isActive && (!sess.revokedAt) && (sess.expiresAt > new Date()),
+      isActive: sess.isActive && (sess.expiresAt > new Date()),
       lastActiveAt: new Date(sess.lastActivityAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
       createdAt: new Date(sess.createdAt.getTime() + (5.5 * 60 * 60 * 1000)).toISOString().replace('Z', '+05:30'),
     }));

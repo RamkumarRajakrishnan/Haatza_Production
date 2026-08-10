@@ -138,7 +138,6 @@ export class DatabaseService
           locked_until timestamp,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now(),
-          deleted_at timestamp,
           refresh_token text,
           is_buyer boolean DEFAULT true,
           is_seller boolean DEFAULT false,
@@ -234,7 +233,6 @@ export class DatabaseService
           is_active boolean DEFAULT true,
           last_activity_at timestamp DEFAULT now(),
           expires_at timestamp NOT NULL,
-          revoked_at timestamp,
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
@@ -247,10 +245,6 @@ export class DatabaseService
           otp_hash text NOT NULL,
           purpose public."OtpPurpose" DEFAULT 'LOGIN'::public."OtpPurpose",
           channel public."OtpChannel" DEFAULT 'SMS'::public."OtpChannel",
-          attempt_count integer DEFAULT 0,
-          max_attempts integer DEFAULT 3,
-          resend_count integer DEFAULT 0,
-          max_resend_count integer DEFAULT 3,
           is_verified boolean DEFAULT false,
           expires_at timestamp NOT NULL,
           verified_at timestamp,

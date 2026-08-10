@@ -49,7 +49,6 @@ export class UserRepository {
 
     const user = await this.db.user.findFirst({
       where: {
-        deletedAt: null,
         OR: conditions,
       },
       select: {
