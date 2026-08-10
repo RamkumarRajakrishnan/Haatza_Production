@@ -9,7 +9,7 @@ import { DashboardModule } from '@prisma/client';
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 
-  @Get('haatza')
+  @Get(['', 'haatza'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Dashboard Page Widgets',
