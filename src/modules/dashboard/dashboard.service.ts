@@ -1,84 +1,71 @@
-import { Injectable, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
-import { GetDashboardWidgetsDto } from './dto/get-dashboard-widgets.dto';
+import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
-
-interface CacheEntry {
-  data: any;
-  time: number;
-}
 
 @Injectable()
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
-  private readonly cache = new Map<string, CacheEntry>();
-  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes TTL in ms
 
   constructor(private readonly db: DatabaseService) {}
 
   /**
-   * Helper to ensure image URLs are valid public HTTPS URLs
+   * Helper to ensure image URLs are valid direct public URLs
    */
-  private convertImageUrl(wixString: string | null | undefined): string {
-    if (!wixString || wixString.trim() === '' || wixString.trim() === 'FALSE') {
-      return '';
-    }
-
-    const trimmed = wixString.trim();
-
+  private formatImageUrl(url: string | null | undefined): string {
+    if (!url) return '';
+    const trimmed = url.trim();
     if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
       return trimmed;
     }
-
     if (trimmed.startsWith('wix:image://v1/')) {
       const parts = trimmed.replace('wix:image://v1/', '').split('/');
       const mediaId = parts[0];
       return `https://static.wixstatic.com/media/${mediaId}`;
     }
-
     return `https://static.wixstatic.com/media/${trimmed}`;
   }
 
   /**
-   * Fetches, transforms, and caches dashboard widgets matching Wix get_LitePageWidgets logic
+   * Helper to safely parse JSON widgetProducts
    */
-  async getLitePageWidgets(dto: GetDashboardWidgetsDto) {
-    const { categoryId, warehouseId, module = DashboardModule.LITE } = dto;
+  private parseWidgetProducts(productData: any): any[] {
+    if (!productData) return [];
+    if (Array.isArray(productData)) return productData;
+    if (typeof productData === 'string') {
+      try {
+        return JSON.parse(productData);
+      } catch (err) {
+        this.logger.warn(`Failed to parse widgetProducts JSON: ${err?.message}`);
+        return [];
+      }
+    }
+    return [];
+  }
 
-    if (!categoryId || !warehouseId) {
-      throw new BadRequestException('categoryId and warehouseId are required');
+  /**
+   * Get HAATZA Dashboard Widgets grouped by Widget Type matching reference format
+   */
+  async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
+    const { categoryId, warehouseId } = dto;
+
+    const whereCondition: any = {
+      module: DashboardModule.HAATZA,
+      status: 'ACTIVE',
+      categoryId,
+    };
+
+    if (warehouseId && warehouseId.trim() !== '') {
+      whereCondition.warehouseId = warehouseId.trim();
     }
 
-    const cacheKey = `${categoryId}_${warehouseId}_${module}`;
-    const now = Date.now();
-
-    // 1. CACHE HIT
-    const cached = this.cache.get(cacheKey);
-    if (cached && now - cached.time < this.CACHE_TTL_MS) {
-      this.logger.log(`Serving Dashboard Widgets from cache for key: ${cacheKey}`);
-      return {
-        success: true,
-        statusCode: 200,
-        data: cached.data,
-        error: null,
-      };
-    }
-
-    // 2. DB QUERY (Fetch widgets from PostgreSQL dashboard table)
     const items = await this.db.dashboard.findMany({
-      where: {
-        categoryId,
-        warehouseId,
-        status: 'ACTIVE',
-        module,
-      },
+      where: whereCondition,
       orderBy: {
         sequence: 'asc',
       },
-      take: 100,
     });
 
-    // 3. GROUPING & TRANSFORMATION LOGIC
     const groupedData: Record<string, { widgetsequence: number; items: any[] }> = {};
 
     items.forEach((item) => {
@@ -95,19 +82,22 @@ export class DashboardService {
 
       switch (widgetType) {
         case 'Lite_Promobanner':
+        case 'Promobanner':
+        case 'Haatza_Promobanner':
           row = {
-            backgroundImage: this.convertImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             page: item.redirectLink || '',
-            categoryId: item.categoryId || 0,
-            productId: item.productId || '',
+            categoryId: item.categoryId || '',
           };
           break;
 
         case 'Lite_Shopbycategory':
+        case 'Shopbycategory':
+        case 'Haatza_Shopbycategory':
           row = {
             title: item.title || '',
-            backgroundImage: this.convertImageUrl(item.image),
-            categoryId: item.categoryId || 0,
+            backgroundImage: this.formatImageUrl(item.image),
+            categoryId: item.categoryId || '',
             productId: item.productId || '',
             categoryName: item.categoryName || '',
             page: item.redirectLink || '',
@@ -115,43 +105,38 @@ export class DashboardService {
           break;
 
         case 'Lite_freshmarketSection':
-          let parsedProducts: any[] = [];
-          if (item.product) {
-            try {
-              parsedProducts = typeof item.product === 'string' ? JSON.parse(item.product) : item.product;
-            } catch {
-              parsedProducts = [];
-            }
-          }
-
+        case 'freshmarketSection':
+        case 'Haatza_freshmarketSection':
           row = {
-            titleimage: this.convertImageUrl(item.titleImage),
-            categoryId: item.categoryId || 0,
-            widgetProducts: parsedProducts,
+            titleimage: this.formatImageUrl(item.titleImage),
+            categoryId: item.categoryId || '',
+            widgetProducts: this.parseWidgetProducts(item.product),
             page: item.redirectLink || '',
             widgetbackgroundColor: item.subtitle || '',
             showMore: item.status === 'ACTIVE',
             showMorePage: item.redirectLink || '',
             showMoreButtonColor: '',
-            textColor: '#FFFFFF',
+            textColor: '',
           };
           break;
 
         case 'Lite_hurryDeals':
+        case 'hurryDeals':
+        case 'Haatza_hurryDeals':
           row = {
             title: item.title || '',
-            backgroundImage: this.convertImageUrl(item.image),
-            categoryId: item.categoryId || 0,
+            backgroundImage: this.formatImageUrl(item.image),
+            categoryId: item.categoryId || '',
             productId: item.productId || '',
             page: item.redirectLink || '',
-            placement: item.module || '',
+            placement: item.categoryName || '',
           };
           break;
 
         default:
           row = {
             widgettitle: item.title || '',
-            backgroundImage: this.convertImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             widgetsequence: item.sequence || 0,
           };
       }
@@ -159,31 +144,13 @@ export class DashboardService {
       groupedData[widgetType].items.push(row);
     });
 
-    const finalResponse = {
-      categoryId,
-      warehouseId,
-      data: groupedData,
-    };
-
-    // 4. SAVE TO IN-MEMORY CACHE
-    this.cache.set(cacheKey, {
-      data: finalResponse,
-      time: now,
-    });
-
     return {
-      success: true,
-      statusCode: 200,
-      data: finalResponse,
-      error: null,
+      status: 'success',
+      message: {
+        categoryId,
+        warehouseId: warehouseId || '',
+        data: groupedData,
+      },
     };
-  }
-
-  /**
-   * Flushes the in-memory dashboard cache
-   */
-  clearCache() {
-    this.cache.clear();
-    return { success: true, message: 'Dashboard cache cleared' };
   }
 }
