@@ -48,9 +48,12 @@ export class DashboardService {
    */
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
     const { categoryId, warehouseId } = dto;
+    const targetModule = dto.module
+      ? (String(dto.module).toUpperCase() as DashboardModule)
+      : DashboardModule.HAATZA;
 
     const whereCondition: any = {
-      module: DashboardModule.HAATZA,
+      module: targetModule,
       categoryId,
     };
 
@@ -148,6 +151,7 @@ export class DashboardService {
       message: {
         categoryId,
         warehouseId: warehouseId || '',
+        module: targetModule,
         data: groupedData,
       },
     };

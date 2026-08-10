@@ -1,5 +1,6 @@
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { DashboardModule } from '@prisma/client';
 
 export class GetHaatzaDashboardDto {
   @ApiProperty({
@@ -17,4 +18,14 @@ export class GetHaatzaDashboardDto {
   @IsOptional()
   @IsString()
   warehouseId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Module to filter dashboard widgets (HAATZA or LITE)',
+    enum: DashboardModule,
+    default: DashboardModule.HAATZA,
+    example: 'HAATZA',
+  })
+  @IsOptional()
+  @IsEnum(DashboardModule)
+  module?: DashboardModule = DashboardModule.HAATZA;
 }
