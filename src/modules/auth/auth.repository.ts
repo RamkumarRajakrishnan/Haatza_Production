@@ -6,7 +6,7 @@ import { DatabaseService } from '../../database/database.service';
 export class AuthRepository {
   private readonly logger = new Logger(AuthRepository.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   /**
    * Automatically detects whether rawIdentifier is an email or phone number,
@@ -29,6 +29,7 @@ export class AuthRepository {
             equals: normalizedEmail,
             mode: 'insensitive',
           },
+          deletedAt: null,
         },
       });
     }
@@ -43,6 +44,7 @@ export class AuthRepository {
     return this.db.user.findFirst({
       where: {
         mobile: cleanedPhone,
+        deletedAt: null,
       },
     });
   }
@@ -73,6 +75,7 @@ export class AuthRepository {
       return this.db.user.findFirst({
         where: {
           email: { equals: normalizedEmail, mode: 'insensitive' },
+          deletedAt: null,
         },
         select,
       });
@@ -86,6 +89,7 @@ export class AuthRepository {
     return this.db.user.findFirst({
       where: {
         mobile: cleanedPhone,
+        deletedAt: null,
       },
       select,
     });
