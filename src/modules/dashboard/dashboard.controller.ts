@@ -15,9 +15,9 @@ export class DashboardController {
     summary: 'Get Dashboard Page Widgets',
     description: 'Retrieves grouped dashboard widgets filtered by categoryId, optional warehouseId, and module (HAATZA or LITE).',
   })
-  @ApiQuery({ name: 'categoryId', required: false, type: String, example: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c' })
-  @ApiQuery({ name: 'warehouseId', required: false, type: String, example: 'WH00001' })
-  @ApiQuery({ name: 'module', required: true, enum: DashboardModule, example: 'HAATZA' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  @ApiQuery({ name: 'module', required: true, enum: DashboardModule })
   @ApiResponse({
     status: 200,
     description: 'HAATZA dashboard widgets retrieved successfully',
