@@ -4,7 +4,7 @@ import { DashboardService } from './dashboard.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 
 @ApiTags('Dashboard')
-@Controller(['dashboard', 'api/dashboard', 'api/v1/dashboard'])
+@Controller('dashboard')
 export class DashboardController {
   constructor(private readonly dashboardService: DashboardService) {}
 

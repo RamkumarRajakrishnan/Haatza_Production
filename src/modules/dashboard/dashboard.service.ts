@@ -51,7 +51,7 @@ export class DashboardService {
 
     const whereCondition: any = {
       module: DashboardModule.HAATZA,
-      status: 'ACTIVE',
+      status: { in: ['TRUE', 'ACTIVE'] },
       categoryId,
     };
 
@@ -113,7 +113,7 @@ export class DashboardService {
             widgetProducts: this.parseWidgetProducts(item.product),
             page: item.redirectLink || '',
             widgetbackgroundColor: item.subtitle || '',
-            showMore: item.status === 'ACTIVE',
+            showMore: item.status === 'TRUE' || item.status === 'ACTIVE',
             showMorePage: item.redirectLink || '',
             showMoreButtonColor: '',
             textColor: '',
