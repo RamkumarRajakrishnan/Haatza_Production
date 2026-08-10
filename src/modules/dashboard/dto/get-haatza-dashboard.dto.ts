@@ -19,13 +19,12 @@ export class GetHaatzaDashboardDto {
   @IsString()
   warehouseId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Module to filter dashboard widgets (HAATZA or LITE)',
+  @ApiProperty({
+    description: 'Mandatory Module to filter dashboard widgets (HAATZA or LITE)',
     enum: DashboardModule,
-    default: DashboardModule.HAATZA,
     example: 'HAATZA',
   })
-  @IsOptional()
+  @IsNotEmpty()
   @IsEnum(DashboardModule)
-  module?: DashboardModule = DashboardModule.HAATZA;
+  module: DashboardModule;
 }

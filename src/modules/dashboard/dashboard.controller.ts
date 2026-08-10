@@ -17,7 +17,7 @@ export class DashboardController {
   })
   @ApiQuery({ name: 'categoryId', required: true, type: String, example: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c' })
   @ApiQuery({ name: 'warehouseId', required: false, type: String, example: 'WH00001' })
-  @ApiQuery({ name: 'module', required: false, enum: DashboardModule, example: 'HAATZA' })
+  @ApiQuery({ name: 'module', required: true, enum: DashboardModule, example: 'HAATZA' })
   @ApiResponse({
     status: 200,
     description: 'HAATZA dashboard widgets retrieved successfully',
