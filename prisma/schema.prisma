@@ -42,6 +42,7 @@ model User {
   sessions            UserSession[]
   userRole            Role?              @relation(fields: [roleId], references: [id])
   loginHistories      UserLoginHistory[]
+  userPageRoles       UserPageRole[]
 
   @@index([roleId])
   @@index([sellerOnboardStatus])
@@ -758,5 +759,49 @@ model DashboardCategory {
   @@index([module])
   @@map("dashboard_category")
 }
+
+model RoleMaster {
+  id              String           @id @default(uuid()) @map("id")
+  roleName        String           @unique @map("role_name")
+  roleCode        String           @unique @map("role_code")
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  rolePageMasters RolePageMaster[]
+  userPageRoles   UserPageRole[]
+
+  @@map("role_master")
+}
+
+model RolePageMaster {
+  id        String     @id @default(uuid()) @map("id")
+  roleId    String     @map("role_id")
+  pageCode  String     @map("page_code")
+  pageName  String     @map("page_name")
+  route     String     @map("route")
+  canView   Boolean    @default(false) @map("can_view")
+  canCreate Boolean    @default(false) @map("can_create")
+  canEdit   Boolean    @default(false) @map("can_edit")
+  canDelete Boolean    @default(false) @map("can_delete")
+  role      RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, pageCode])
+  @@index([roleId])
+  @@map("role_page_master")
+}
+
+model UserPageRole {
+  id     String     @id @default(uuid()) @map("id")
+  userId String     @map("user_id")
+  roleId String     @map("role_id")
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_page_role")
+}
+
 
 

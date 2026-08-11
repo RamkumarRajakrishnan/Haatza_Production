@@ -595,21 +595,41 @@ export class AuthService {
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {
+    const rawId = (dto.identifier || dto.email || dto.mobile || '').trim();
+    const rawEmail = dto.email?.trim().toLowerCase();
+    const rawMobile = dto.mobile?.trim();
+
     const user = await this.database.user.findFirst({
       where: {
-        OR: [{ mobile: dto.identifier }, { email: dto.identifier }],
+        OR: [
+          ...(rawEmail ? [{ email: rawEmail }] : []),
+          ...(rawMobile ? [{ mobile: rawMobile }] : []),
+          ...(rawId ? [{ email: rawId.toLowerCase() }, { mobile: rawId }] : []),
+        ],
       },
     });
 
     if (!user) {
-      throw new NotFoundException('User with provided identifier not found');
+      throw new NotFoundException('User with provided credentials not found');
     }
 
-    return this.generateOtp({
-      identifier: dto.identifier,
+    const targetMobile = rawMobile || user.mobile;
+
+    const otpResult = await this.generateOtp({
+      identifier: targetMobile,
       purpose: OtpPurpose.FORGOT_PASSWORD,
-      channel: dto.identifier.includes('@') ? OtpChannel.EMAIL : OtpChannel.SMS,
+      channel: OtpChannel.SMS,
     });
+
+    return {
+      ...otpResult,
+      message: `OTP sent via SMS to mobile number ending in ${targetMobile.slice(-4)}`,
+      data: {
+        ...(otpResult.data || {}),
+        mobile: targetMobile,
+        email: user.email || dto.email,
+      },
+    };
   }
 
   async resetPassword(dto: ResetPasswordDto) {
