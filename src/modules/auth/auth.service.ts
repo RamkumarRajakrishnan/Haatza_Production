@@ -17,6 +17,7 @@ import { LoginDto } from './dto/login.dto';
 import { GenerateOtpDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
@@ -609,6 +610,74 @@ export class AuthService {
       purpose: OtpPurpose.FORGOT_PASSWORD,
       channel: dto.identifier.includes('@') ? OtpChannel.EMAIL : OtpChannel.SMS,
     });
+  }
+
+  async resetPassword(dto: ResetPasswordDto) {
+    let email = dto.email?.trim();
+    let mobile = dto.mobile?.trim();
+
+    if (dto.identifier) {
+      const trimmedId = dto.identifier.trim();
+      if (trimmedId.includes('@')) {
+        if (!email) email = trimmedId;
+      } else {
+        if (!mobile) mobile = trimmedId;
+      }
+    }
+
+    if (dto.confirmPassword && dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('New password and confirmation password do not match.');
+    }
+
+    let user;
+
+    if (email && mobile) {
+      // Check that BOTH email and mobile match the exact same user record in the database
+      user = await this.authRepository.findUserByEmailAndMobile(email, mobile);
+
+      if (!user) {
+        const userByEmail = await this.authRepository.findUserByIdentifier(email);
+        const userByMobile = await this.authRepository.findUserByIdentifier(mobile);
+
+        if (userByEmail || userByMobile) {
+          throw new BadRequestException('The provided email and mobile number do not belong to the same user account.');
+        } else {
+          throw new NotFoundException('User matching both the provided email and mobile number was not found.');
+        }
+      }
+    } else if (email) {
+      user = await this.authRepository.findUserByIdentifier(email);
+    } else if (mobile) {
+      user = await this.authRepository.findUserByIdentifier(mobile);
+    } else {
+      throw new BadRequestException('Email or mobile number is required to reset password.');
+    }
+
+    if (!user) {
+      throw new NotFoundException('User with provided credentials not found.');
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    await this.database.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        passwordChangedAt: new Date(),
+        failedLoginAttempts: 0,
+        lockedUntil: null,
+      },
+    });
+
+    this.logger.log(`Password reset successfully for user ID: ${user.id}`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: 'Password reset successfully. You can now login with your new password.',
+      data: null,
+      error: null,
+    };
   }
 
   async generateOtp(dto: GenerateOtpDto) {

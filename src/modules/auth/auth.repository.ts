@@ -48,6 +48,38 @@ export class AuthRepository {
   }
 
   /**
+   * Finds an active user where BOTH email and mobile match the exact same user record.
+   */
+  async findUserByEmailAndMobile(email: string, mobile: string): Promise<User | null> {
+    if (!email || !mobile) {
+      return null;
+    }
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    let cleanedPhone = mobile.trim().replace(/[\s\-\(\)\+]/g, '');
+    if (cleanedPhone.startsWith('91') && cleanedPhone.length === 12) {
+      cleanedPhone = cleanedPhone.substring(2);
+    }
+
+    this.logger.debug(`Searching user matching both email (${normalizedEmail}) and mobile (${cleanedPhone})`);
+
+    return this.db.user.findFirst({
+      where: {
+        email: {
+          equals: normalizedEmail,
+          mode: 'insensitive',
+        },
+        OR: [
+          { mobile: cleanedPhone },
+          { mobile: `+91${cleanedPhone}` },
+          { mobile: `91${cleanedPhone}` },
+        ],
+      },
+    });
+  }
+
+  /**
    * Optimized user lookup selecting ONLY required fields for check-user endpoint.
    */
   async findMinimalUserByIdentifier(rawIdentifier: string) {

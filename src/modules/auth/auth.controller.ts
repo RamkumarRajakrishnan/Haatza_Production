@@ -14,6 +14,7 @@ import { LogoutDto } from './dto/logout.dto';
 import { GenerateOtpDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { CheckUserDto } from './dto/check-user.dto';
 import { CheckUserResponseDto } from './dto/check-user-response.dto';
 import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
@@ -90,6 +91,14 @@ export class AuthController {
   @Post(['forgot-password', 'forgotpassword', 'forgotPassword'])
   forgotPassword(@Body() data: ForgotPasswordDto) {
     return this.authService.forgotPassword(data);
+  }
+
+  @ApiOperation({ summary: 'Reset user password' })
+  @ApiResponse({ status: 200, description: 'Password reset successfully' })
+  @HttpCode(HttpStatus.OK)
+  @Post(['reset-password', 'resetpassword', 'resetPassword'])
+  resetPassword(@Body() data: ResetPasswordDto) {
+    return this.authService.resetPassword(data);
   }
 
   @ApiOperation({ summary: 'Generate OTP for authentication/verification' })
