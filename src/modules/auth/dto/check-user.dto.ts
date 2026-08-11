@@ -1,7 +1,8 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import {
   IsNotEmpty,
+  IsOptional,
   IsString,
   IsEnum,
   Validate,
@@ -13,6 +14,7 @@ import {
 export enum Platform {
   BUYER = 'BUYER',
   SELLER = 'SELLER',
+  EMPLOYEE = 'EMPLOYEE',
 }
 
 @ValidatorConstraint({ name: 'isEmailOrPhone', async: false })
@@ -39,20 +41,34 @@ export class IsEmailOrPhoneConstraint implements ValidatorConstraintInterface {
 }
 
 export class CheckUserDto {
-  @ApiProperty({
+  @ApiPropertyOptional({
     description: 'User email address or phone number',
   })
-  @IsNotEmpty({ message: 'Identifier is required.' })
+  @IsOptional()
   @IsString({ message: 'Identifier must be a string.' })
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @Validate(IsEmailOrPhoneConstraint)
-  identifier: string;
+  identifier?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'Optional email address',
+  })
+  @IsOptional()
+  @IsString({ message: 'Email must be a string.' })
+  email?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional mobile phone number',
+  })
+  @IsOptional()
+  @IsString({ message: 'Mobile must be a string.' })
+  mobile?: string;
+
+  @ApiPropertyOptional({
     description: 'Target platform for user registration or login verification',
     enum: Platform,
   })
-  @IsNotEmpty({ message: 'Platform is required.' })
-  @IsEnum(Platform, { message: 'Platform must be either BUYER or SELLER.' })
-  platform: Platform;
+  @IsOptional()
+  @IsEnum(Platform, { message: 'Platform must be BUYER, SELLER, or EMPLOYEE.' })
+  platform?: Platform;
 }

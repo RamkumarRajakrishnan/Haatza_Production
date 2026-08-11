@@ -1,4 +1,4 @@
-import { Body, Controller, HttpCode, HttpStatus, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
 import type { Request } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 
@@ -128,5 +128,12 @@ export class AuthController {
   @Post(['resend-otp', 'resendotp', 'resendOtp'])
   resendOtp(@Body() data: GenerateOtpDto) {
     return this.authService.resendOtp(data);
+  }
+
+  @ApiOperation({ summary: 'Get role-based page permissions for frontend RBAC' })
+  @ApiResponse({ status: 200, description: 'Returns page-level permission matrix for the given role' })
+  @Get(['permissions', 'user-permissions'])
+  getUserPermissions(@Query('role') role: string) {
+    return this.authService.getUserPermissions(role || 'EMPLOYEE');
   }
 }

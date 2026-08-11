@@ -42,24 +42,20 @@ export class AuthService {
    * Check if a user exists by email or phone number identifier and platform flag.
    */
   async checkUser(data: CheckUserDto): Promise<CheckUserResponseDto> {
-    const rawIdentifier = data.identifier?.trim();
+    const rawIdentifier = (data.identifier || data.email || data.mobile)?.trim();
     if (!rawIdentifier) {
-      throw new BadRequestException('Identifier is required.');
-    }
-
-    if (!data.platform) {
-      throw new BadRequestException('Platform is required.');
+      throw new BadRequestException('Identifier, email, or mobile is required.');
     }
 
     const isEmail = rawIdentifier.includes('@');
     const identifierType: IdentifierType = isEmail ? 'EMAIL' : 'PHONE';
 
     this.logger.log(
-      `Checking user existence for platform [${data.platform}], identifier [${isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
+      `Checking user existence for platform [${data.platform || 'ANY'}], identifier [${isEmail ? rawIdentifier.toLowerCase() : rawIdentifier
       }]`,
     );
 
-    // Step 3: Find user by ONLY email or mobile (without filtering isBuyer/isSeller in DB query)
+    // Step 3: Find user by identifier / email / mobile
     const user = await this.authRepository.findMinimalUserByIdentifier(rawIdentifier);
 
     // Step 4: If user is not found (Scenario 3)
@@ -82,17 +78,80 @@ export class AuthService {
       };
     }
 
+    // Step 4b: If mobile parameter is optionally provided, verify it matches the found user's registered phone
+    if (data.mobile) {
+      let cleanedInputPhone = data.mobile.trim().replace(/[\s\-\(\)\+]/g, '');
+      if (cleanedInputPhone.startsWith('91') && cleanedInputPhone.length === 12) {
+        cleanedInputPhone = cleanedInputPhone.substring(2);
+      }
+
+      let cleanedUserPhone = user.mobile ? user.mobile.trim().replace(/[\s\-\(\)\+]/g, '') : '';
+      if (cleanedUserPhone.startsWith('91') && cleanedUserPhone.length === 12) {
+        cleanedUserPhone = cleanedUserPhone.substring(2);
+      }
+
+      if (cleanedInputPhone !== cleanedUserPhone) {
+        this.logger.warn(
+          `CheckUser mobile mismatch: input mobile [${data.mobile}] does not match user [${user.id}] mobile [${user.mobile}]`,
+        );
+        return {
+          success: true,
+          statusCode: 200,
+          message: 'User not found with provided mobile number.',
+          data: {
+            exists: false,
+            userId: '',
+            identifierType,
+            userType: '',
+            isActive: false,
+            emailVerified: false,
+            phoneVerified: false,
+            nextStep: 'REGISTER',
+          },
+          error: null,
+        };
+      }
+    }
+
+    // Step 4c: If email parameter is optionally provided, verify it matches the found user's registered email
+    if (data.email && user.email) {
+      if (data.email.trim().toLowerCase() !== user.email.trim().toLowerCase()) {
+        return {
+          success: true,
+          statusCode: 200,
+          message: 'User not found with provided email address.',
+          data: {
+            exists: false,
+            userId: '',
+            identifierType,
+            userType: '',
+            isActive: false,
+            emailVerified: false,
+            phoneVerified: false,
+            nextStep: 'REGISTER',
+          },
+          error: null,
+        };
+      }
+    }
+
     // Step 5: If user exists, verify platform authorization flag
-    const isBuyerApp = data.platform === Platform.BUYER;
-    const isRegisteredForPlatform = isBuyerApp ? user.isBuyer : (user.isSeller || user.isEmployee);
+    let isRegisteredForPlatform = true;
+    if (data.platform === Platform.BUYER) {
+      isRegisteredForPlatform = user.isBuyer;
+    } else if (data.platform === Platform.EMPLOYEE) {
+      isRegisteredForPlatform = user.isEmployee || user.role === 'EMPLOYEE';
+    } else if (data.platform === Platform.SELLER) {
+      isRegisteredForPlatform = user.isSeller || user.isEmployee;
+    }
 
     // Scenario 2: User exists but not registered for requested platform
     if (!isRegisteredForPlatform) {
-      const platformRoleName = isBuyerApp ? 'buyer' : 'seller';
+      const platformRoleName = (data.platform || 'requested platform').toLowerCase();
       return {
         success: true,
         statusCode: 200,
-        message: `User is not registered as a ${platformRoleName}.`,
+        message: `User is not registered for ${platformRoleName}.`,
         data: {
           exists: false,
           userId: '',
@@ -599,21 +658,50 @@ export class AuthService {
     const rawEmail = dto.email?.trim().toLowerCase();
     const rawMobile = dto.mobile?.trim();
 
-    const user = await this.database.user.findFirst({
-      where: {
-        OR: [
-          ...(rawEmail ? [{ email: rawEmail }] : []),
-          ...(rawMobile ? [{ mobile: rawMobile }] : []),
-          ...(rawId ? [{ email: rawId.toLowerCase() }, { mobile: rawId }] : []),
-        ],
-      },
-    });
+    let user: any = null;
 
-    if (!user) {
-      throw new NotFoundException('User with provided credentials not found');
+    if (rawEmail && rawMobile) {
+      // Enforce strict matching: both email and mobile must belong to the exact same user
+      user = await this.database.user.findFirst({
+        where: {
+          email: { equals: rawEmail, mode: 'insensitive' },
+          mobile: rawMobile,
+        },
+      });
+
+      if (!user) {
+        // Check if email or mobile exist independently to give a helpful error message
+        const userByEmail = await this.database.user.findFirst({
+          where: { email: { equals: rawEmail, mode: 'insensitive' } },
+        });
+        const userByMobile = await this.database.user.findFirst({
+          where: { mobile: rawMobile },
+        });
+
+        if (userByEmail || userByMobile) {
+          throw new BadRequestException(
+            'The provided email address and mobile number do not match the same account.',
+          );
+        }
+        throw new NotFoundException('User with provided credentials not found.');
+      }
+    } else {
+      user = await this.database.user.findFirst({
+        where: {
+          OR: [
+            ...(rawEmail ? [{ email: { equals: rawEmail, mode: 'insensitive' as const } }] : []),
+            ...(rawMobile ? [{ mobile: rawMobile }] : []),
+            ...(rawId ? [{ email: { equals: rawId.toLowerCase(), mode: 'insensitive' as const } }, { mobile: rawId }] : []),
+          ],
+        },
+      });
+
+      if (!user) {
+        throw new NotFoundException('User with provided credentials not found.');
+      }
     }
 
-    const targetMobile = rawMobile || user.mobile;
+    const targetMobile = user.mobile || rawMobile;
 
     const otpResult = await this.generateOtp({
       identifier: targetMobile,
@@ -1121,6 +1209,61 @@ export class AuthService {
     if (ua.includes('iphone') || ua.includes('ipad') || ua.includes('ios')) return 'IOS';
     if (ua.includes('android')) return 'ANDROID';
     return 'WEB';
+  }
+
+  /**
+   * Returns the page-level permission matrix for a given user role.
+   * Used by the Employee Portal frontend for dynamic RBAC (sidebar, route guards, action buttons).
+   */
+  getUserPermissions(role: string): {
+    role: string;
+    pages: Array<{
+      pageCode: string;
+      pageName: string;
+      route: string;
+      canView: boolean;
+      canCreate: boolean;
+      canEdit: boolean;
+      canDelete: boolean;
+    }>;
+  } {
+    const normalizedRole = (role || 'EMPLOYEE').toUpperCase();
+
+    const isAdmin = normalizedRole === 'ADMIN';
+    const isHR = normalizedRole === 'HR';
+    const isManager = normalizedRole === 'MANAGER';
+
+    const pages = [
+      {
+        pageCode: 'DASHBOARD',
+        pageName: 'Dashboard',
+        route: '/dashboard',
+        canView: true,
+        canCreate: false,
+        canEdit: false,
+        canDelete: false,
+      },
+      {
+        pageCode: 'EMPLOYEES',
+        pageName: 'Employees',
+        route: '/employees',
+        canView: isAdmin || isHR || isManager,
+        canCreate: isAdmin || isHR,
+        canEdit: isAdmin || isHR,
+        canDelete: isAdmin,
+      },
+      {
+        pageCode: 'ROLES',
+        pageName: 'Roles & Permissions',
+        route: '/roles',
+        canView: isAdmin,
+        canCreate: isAdmin,
+        canEdit: isAdmin,
+        canDelete: isAdmin,
+      },
+    ];
+
+    return { role: normalizedRole, pages };
   }
 }
 
