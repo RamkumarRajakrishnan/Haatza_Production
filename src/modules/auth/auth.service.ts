@@ -228,7 +228,6 @@ export class AuthService {
         buyer: isBuyerBool,
         seller: isSellerBool,
         employee: finalIsEmployeeBool,
-        isEmployee: finalIsEmployeeBool,
       },
       error: null,
     };
