@@ -109,6 +109,9 @@ describe('AuthService', () => {
         status: 'ACTIVE',
         failedLoginAttempts: 0,
         lockedUntil: null,
+        isBuyer: true,
+        isSeller: false,
+        isEmployee: false,
       };
 
       authRepository.findUserByIdentifier.mockResolvedValue(mockUser as any);
@@ -127,7 +130,6 @@ describe('AuthService', () => {
         name: mockUser.name,
         email: mockUser.email,
         phoneNumber: mockUser.mobile,
-        role: mockUser.role,
         status: mockUser.status,
       });
       expect(authRepository.resetLoginAttemptsAndRecordLogin).toHaveBeenCalledWith(mockUser.id);

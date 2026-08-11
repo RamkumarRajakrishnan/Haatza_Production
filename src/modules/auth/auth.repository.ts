@@ -64,6 +64,7 @@ export class AuthRepository {
       status: true,
       isBuyer: true,
       isSeller: true,
+      isEmployee: true,
       emailVerifiedAt: true,
       phoneVerifiedAt: true,
     };

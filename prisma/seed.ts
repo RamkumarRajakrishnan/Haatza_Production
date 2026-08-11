@@ -14,6 +14,7 @@ const rolesData = [
   { name: 'ACCOUNT_MANAGER', code: 'account_manager', description: 'Assigned Haatza Account Manager supporting seller stores', isSystemRole: true, isDefault: false },
   { name: 'ADMIN', code: 'admin', description: 'System Administrator with full platform permissions', isSystemRole: true, isDefault: false },
   { name: 'SUPPORT', code: 'support', description: 'Customer and Seller Support Representative', isSystemRole: true, isDefault: false },
+  { name: 'EMPLOYEE', code: 'employee', description: 'Company Employee with internal operational permissions', isSystemRole: true, isDefault: false },
 ];
 
 const permissionsData = [

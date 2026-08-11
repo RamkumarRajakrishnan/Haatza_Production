@@ -40,7 +40,6 @@ describe('AuthRepository', () => {
       expect(db.user.findFirst).toHaveBeenCalledWith({
         where: {
           email: { equals: email, mode: 'insensitive' },
-          deletedAt: null,
         },
       });
     });
@@ -55,7 +54,6 @@ describe('AuthRepository', () => {
       expect(db.user.findFirst).toHaveBeenCalledWith({
         where: {
           mobile: phone,
-          deletedAt: null,
         },
       });
     });

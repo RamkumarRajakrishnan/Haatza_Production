@@ -83,7 +83,7 @@ export class AuthService {
 
     // Step 5: If user exists, verify platform authorization flag
     const isBuyerApp = data.platform === Platform.BUYER;
-    const isRegisteredForPlatform = isBuyerApp ? user.isBuyer : user.isSeller;
+    const isRegisteredForPlatform = isBuyerApp ? user.isBuyer : (user.isSeller || user.isEmployee);
 
     // Scenario 2: User exists but not registered for requested platform
     if (!isRegisteredForPlatform) {
@@ -160,10 +160,18 @@ export class AuthService {
 
     const hashedPassword = await bcrypt.hash(data.password, 10);
 
-    const isBuyerBool =
-      data.buyer === true || data.buyer === 'true' as any || data.role === UserRole.BUYER;
+    const isEmployeeBool =
+      (data as any).employee === true ||
+      (data as any).employee === 'true' ||
+      (data as any).isEmployee === true ||
+      (data as any).isEmployee === 'true' ||
+      data.role === UserRole.EMPLOYEE;
 
-    const userRole = data.role || (isBuyerBool ? UserRole.BUYER : UserRole.SELLER);
+    const isBuyerBool =
+      (data.buyer === true || (data.buyer as any) === 'true' || data.role === UserRole.BUYER) &&
+      !isEmployeeBool;
+
+    const userRole = data.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
 
     const roleRecord = await this.database.role.findFirst({
       where: {
@@ -171,7 +179,11 @@ export class AuthService {
       },
     });
 
-    const isSellerBool = userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF;
+    const isSellerBool =
+      (userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF) &&
+      !isEmployeeBool;
+
+    const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
 
     let user;
     try {
@@ -184,6 +196,7 @@ export class AuthService {
           role: userRole,
           isBuyer: isBuyerBool,
           isSeller: isSellerBool,
+          isEmployee: finalIsEmployeeBool,
           roleId: roleRecord ? roleRecord.id : null,
         },
       });
@@ -213,6 +226,9 @@ export class AuthService {
         mobile: user.mobile,
         email: user.email || '',
         buyer: isBuyerBool,
+        seller: isSellerBool,
+        employee: finalIsEmployeeBool,
+        isEmployee: finalIsEmployeeBool,
       },
       error: null,
     };
@@ -800,6 +816,7 @@ export class AuthService {
           status: user.status,
           isBuyer: user.isBuyer,
           isSeller: user.isSeller,
+          isEmployee: user.isEmployee,
         },
         session: {
           sessionId: session.id,

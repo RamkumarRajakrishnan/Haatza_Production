@@ -187,6 +187,7 @@ enum UserRole {
   SELLER_OWNER
   SELLER_STAFF
   ACCOUNT_MANAGER
+  EMPLOYEE
 }
 
 enum UserStatus {

@@ -89,8 +89,11 @@ export class DatabaseService
             CREATE TYPE public."UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'BLOCKED', 'PENDING');
           END IF;
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
-            CREATE TYPE public."UserRole" AS ENUM ('ADMIN', 'SELLER', 'BUYER', 'NEST_WORKER', 'DELIVERY_PARTNER', 'SUPPORT', 'SELLER_OWNER', 'SELLER_STAFF', 'ACCOUNT_MANAGER');
+            CREATE TYPE public."UserRole" AS ENUM ('ADMIN', 'SELLER', 'BUYER', 'NEST_WORKER', 'DELIVERY_PARTNER', 'SUPPORT', 'SELLER_OWNER', 'SELLER_STAFF', 'ACCOUNT_MANAGER', 'EMPLOYEE');
           END IF;
+          DO $$ BEGIN
+            ALTER TYPE public."UserRole" ADD VALUE IF NOT EXISTS 'EMPLOYEE';
+          EXCEPTION WHEN OTHERS THEN NULL; END $$;
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OtpIdentifierType') THEN
             CREATE TYPE public."OtpIdentifierType" AS ENUM ('EMAIL', 'PHONE');
           END IF;

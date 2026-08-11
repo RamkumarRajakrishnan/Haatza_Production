@@ -32,7 +32,7 @@ export class RegisterDto {
   @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : value))
   @IsEnum(UserRole, {
     message:
-      'role must be one of the following values: ADMIN, SELLER, BUYER, NEST_WORKER, DELIVERY_PARTNER, SUPPORT, SELLER_OWNER, SELLER_STAFF, ACCOUNT_MANAGER',
+      'role must be one of the following values: ADMIN, SELLER, BUYER, NEST_WORKER, DELIVERY_PARTNER, SUPPORT, SELLER_OWNER, SELLER_STAFF, ACCOUNT_MANAGER, EMPLOYEE',
   })
   role?: UserRole;
 
@@ -47,4 +47,28 @@ export class RegisterDto {
   })
   @IsBoolean()
   buyer?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      if (value.toLowerCase() === 'true') return true;
+      if (value.toLowerCase() === 'false') return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  employee?: boolean;
+
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      if (value.toLowerCase() === 'true') return true;
+      if (value.toLowerCase() === 'false') return false;
+    }
+    return value;
+  })
+  @IsBoolean()
+  isEmployee?: boolean;
 }

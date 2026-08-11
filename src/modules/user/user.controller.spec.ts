@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UserController } from './user.controller';
 import { UserService } from './user.service';
+import { AuthService } from '../auth/auth.service';
 
 describe('UserController', () => {
   let controller: UserController;
@@ -13,10 +14,14 @@ describe('UserController', () => {
       updateUserProfile: jest.fn(),
       getAllUsers: jest.fn(),
     };
+    const mockAuthService = {};
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
-      providers: [{ provide: UserService, useValue: mockUserService }],
+      providers: [
+        { provide: UserService, useValue: mockUserService },
+        { provide: AuthService, useValue: mockAuthService },
+      ],
     }).compile();
 
     controller = module.get<UserController>(UserController);
