@@ -63,30 +63,19 @@ async function seedRBAC() {
   // Ensure new columns, types, tables, and validation triggers exist in database
   try {
     await prisma.$executeRawUnsafe(`
-      DO $$ BEGIN
-        IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserType') THEN
-          CREATE TYPE public."UserType" AS ENUM ('BUYER', 'SELLER', 'EMPLOYEE');
-        END IF;
-      END $$;
-
       ALTER TABLE public.role_master ADD COLUMN IF NOT EXISTS description text;
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS page_id text;
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT now();
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now();
-      ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type public."UserType" DEFAULT 'BUYER'::public."UserType";
 
-      -- Sync user_type and flags for existing employee and seller users
+      -- Sync boolean capability flags for existing employee and seller users
       UPDATE public.users 
-      SET is_seller = true, user_type = 'SELLER'::public."UserType"
+      SET is_seller = true
       WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF') OR user_id IN (SELECT user_id FROM public.sellers);
 
       UPDATE public.users 
-      SET is_employee = true, user_type = 'EMPLOYEE'::public."UserType"
+      SET is_employee = true
       WHERE is_employee = true OR role::text IN ('EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SUPPORT', 'NEST_WORKER');
-
-      UPDATE public.users 
-      SET user_type = 'BUYER'::public."UserType"
-      WHERE is_employee = false AND is_seller = false;
 
       CREATE TABLE IF NOT EXISTS public.page_master (
         id text PRIMARY KEY,
@@ -228,12 +217,11 @@ async function seedRBAC() {
     const roleId = roleIdMap.get(assignment.roleCode);
 
     if (user && roleId) {
-      // Ensure user has isEmployee: true and userType: EMPLOYEE for RBAC trigger compliance
+      // Ensure user has isEmployee: true for RBAC trigger compliance
       await prisma.user.update({
         where: { id: user.id },
         data: {
           isEmployee: true,
-          userType: 'EMPLOYEE',
         },
       });
 

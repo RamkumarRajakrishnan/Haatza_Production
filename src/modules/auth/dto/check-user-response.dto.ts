@@ -16,6 +16,15 @@ export class CheckUserDataDto {
   @ApiProperty({ description: 'Role or type of user or empty string' })
   userType: string;
 
+  @ApiProperty({ description: 'Whether user is a buyer', required: false })
+  isBuyer?: boolean;
+
+  @ApiProperty({ description: 'Whether user is a seller', required: false })
+  isSeller?: boolean;
+
+  @ApiProperty({ description: 'Whether user is an employee', required: false })
+  isEmployee?: boolean;
+
   @ApiProperty({ description: 'Whether user account status is ACTIVE' })
   isActive: boolean;
 

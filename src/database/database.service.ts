@@ -611,21 +611,16 @@ export class DatabaseService
         -- Employee RBAC Master Tables DDL
         ALTER TABLE public.role_master ADD COLUMN IF NOT EXISTS description text;
         ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS page_id text;
-        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type public."UserType" DEFAULT 'BUYER'::public."UserType";
 
-        -- Automatic sync of user_type and flags for existing accounts
+        -- Automatic sync of boolean capability flags for existing accounts
         DO $$ BEGIN
           UPDATE public.users 
-          SET is_seller = true, user_type = 'SELLER'::public."UserType"
+          SET is_seller = true
           WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF') OR user_id IN (SELECT user_id FROM public.sellers);
 
           UPDATE public.users 
-          SET is_employee = true, user_type = 'EMPLOYEE'::public."UserType"
+          SET is_employee = true
           WHERE is_employee = true OR role::text IN ('EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SUPPORT', 'NEST_WORKER');
-
-          UPDATE public.users 
-          SET user_type = 'BUYER'::public."UserType"
-          WHERE is_employee = false AND is_seller = false;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (
@@ -656,13 +651,12 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_role_page_master_role_id ON public.role_page_master(role_id);
         CREATE INDEX IF NOT EXISTS idx_role_page_master_page_id ON public.role_page_master(page_id);
 
-        -- PostgreSQL Employee-Only Role Validation Trigger
+        -- PostgreSQL Employee-Only Role Validation Trigger (is_employee = true)
         DO $$ BEGIN
           CREATE OR REPLACE FUNCTION public.fn_validate_employee_role_assignment()
           RETURNS TRIGGER AS $trg$
           DECLARE
             v_is_employee boolean;
-            v_user_type text;
             v_role text;
           BEGIN
             SELECT is_employee, role INTO v_is_employee, v_role
@@ -672,7 +666,7 @@ export class DatabaseService
             IF v_is_employee = true OR v_role = 'EMPLOYEE' OR v_role = 'SUPER_ADMIN' OR v_role = 'ADMIN' OR v_role = 'MANAGER' THEN
               RETURN NEW;
             ELSE
-              RAISE EXCEPTION 'Security Policy Violation: Cannot assign employee role (Role ID: %) to non-employee user (User ID: %). RBAC roles apply ONLY to employees.', 
+              RAISE EXCEPTION 'Security Policy Violation: Cannot assign employee role (Role ID: %) to non-employee user (User ID: %). RBAC roles apply ONLY to users with is_employee = true.', 
                 NEW.role_id, NEW.user_id;
             END IF;
           END;

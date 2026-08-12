@@ -6,12 +6,6 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserType {
-  BUYER
-  SELLER
-  EMPLOYEE
-}
-
 model User {
   id                  String             @id @default(uuid()) @map("user_id")
   sellerId            String?            @unique @map("seller_id")
@@ -28,7 +22,6 @@ model User {
   state               String?            @map("state")
   country             String?            @map("country")
   sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
-  userType            UserType           @default(BUYER) @map("user_type")
   role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
   status              UserStatus         @default(ACTIVE) @map("status")

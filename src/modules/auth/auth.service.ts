@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus, UserRole, UserType } from '@prisma/client';
+import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus, UserRole } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -182,7 +182,10 @@ export class AuthService {
         exists: true,
         userId: user.id,
         identifierType,
-        userType: (user as any).userType || user.role,
+        userType: user.isEmployee ? 'EMPLOYEE' : (user.isSeller ? 'SELLER' : 'BUYER'),
+        isBuyer: user.isBuyer,
+        isSeller: user.isSeller,
+        isEmployee: user.isEmployee,
         isActive,
         emailVerified,
         phoneVerified,
@@ -246,10 +249,6 @@ export class AuthService {
 
     const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
 
-    const derivedUserType = finalIsEmployeeBool
-      ? UserType.EMPLOYEE
-      : (isSellerBool ? UserType.SELLER : UserType.BUYER);
-
     let user;
     try {
       user = await this.database.user.create({
@@ -259,7 +258,6 @@ export class AuthService {
           email: data.email,
           password: data.password,
           role: userRole,
-          userType: derivedUserType,
           isBuyer: isBuyerBool,
           isSeller: isSellerBool,
           isEmployee: finalIsEmployeeBool,
@@ -1432,7 +1430,6 @@ export class AuthService {
         name: true,
         email: true,
         mobile: true,
-        userType: true,
         isBuyer: true,
         isSeller: true,
         isEmployee: true,
@@ -1464,7 +1461,7 @@ export class AuthService {
         name: user.name,
         email: user.email,
         mobile: user.mobile,
-        userType: user.userType,
+        userType: user.isEmployee ? 'EMPLOYEE' : (user.isSeller ? 'SELLER' : 'BUYER'),
         isBuyer: user.isBuyer,
         isSeller: user.isSeller,
         isEmployee: user.isEmployee,
