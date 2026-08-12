@@ -246,6 +246,10 @@ export class AuthService {
 
     const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
 
+    const derivedUserType = finalIsEmployeeBool
+      ? UserType.EMPLOYEE
+      : (isSellerBool ? UserType.SELLER : UserType.BUYER);
+
     let user;
     try {
       user = await this.database.user.create({
@@ -255,6 +259,7 @@ export class AuthService {
           email: data.email,
           password: data.password,
           role: userRole,
+          userType: derivedUserType,
           isBuyer: isBuyerBool,
           isSeller: isSellerBool,
           isEmployee: finalIsEmployeeBool,

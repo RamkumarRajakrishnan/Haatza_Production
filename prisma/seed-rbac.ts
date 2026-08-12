@@ -75,6 +75,10 @@ async function seedRBAC() {
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now();
       ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type public."UserType" DEFAULT 'BUYER'::public."UserType";
 
+      -- Sync user_type for existing employee and seller users
+      UPDATE public.users SET user_type = 'EMPLOYEE'::public."UserType" WHERE is_employee = true;
+      UPDATE public.users SET user_type = 'SELLER'::public."UserType" WHERE is_seller = true AND is_employee = false;
+
       CREATE TABLE IF NOT EXISTS public.page_master (
         id text PRIMARY KEY,
         page_code text UNIQUE NOT NULL,
