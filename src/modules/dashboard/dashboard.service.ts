@@ -23,6 +23,14 @@ export class DashboardService {
       const mediaId = parts[0];
       return `https://static.wixstatic.com/media/${mediaId}`;
     }
+    if (trimmed.startsWith('/') || trimmed.startsWith('uploads/')) {
+      const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
+      const baseUrl =
+        process.env.APP_URL ||
+        process.env.BASE_DOMAIN ||
+        'https://haatza-production-807150947524.asia-south1.run.app';
+      return `${baseUrl.replace(/\/$/, '')}${path}`;
+    }
     return `https://static.wixstatic.com/media/${trimmed}`;
   }
 
@@ -86,6 +94,22 @@ export class DashboardService {
       let row: any = {};
 
       switch (widgetType) {
+        case 'Lite_hero_banner':
+        case 'hero_banner':
+        case 'Haatza_hero_banner':
+        case 'Lite_heroBanner':
+        case 'heroBanner':
+        case 'Haatza_heroBanner':
+          row = {
+            banner_image: this.formatImageUrl(item.image),
+            Redrict_link: item.redirectLink || '',
+            category_id: item.categoryId || '',
+            product_id: item.productId || '',
+            mailcategory_id: item.mainCategoryId || '',
+            subcategory_id: item.subCategoryId || '',
+          };
+          break;
+
         case 'Lite_Promobanner':
         case 'Promobanner':
         case 'Haatza_Promobanner':
