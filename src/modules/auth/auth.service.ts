@@ -4,6 +4,7 @@ import {
   UnauthorizedException,
   BadRequestException,
   NotFoundException,
+  ForbiddenException,
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -18,6 +19,8 @@ import { GenerateOtpDto } from './dto/generate-otp.dto';
 import { VerifyOtpDto } from './dto/verify-otp.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { SelectRoleDto } from './dto/select-role.dto';
+import { SwitchRoleDto } from './dto/switch-role.dto';
 
 import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
@@ -1264,6 +1267,218 @@ export class AuthService {
     ];
 
     return { role: normalizedRole, pages };
+  }
+
+  // =========================================================================
+  // RBAC ROLE SELECTION & PERMISSIONS ENGINE
+  // =========================================================================
+
+  /**
+   * API 1: Return ONLY the active roles assigned to the currently authenticated user.
+   */
+  async getUserRoles(userId: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required.');
+    }
+
+    const user = await this.database.user.findUnique({
+      where: { id: userId },
+      select: { id: true, status: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new ForbiddenException('User account is inactive.');
+    }
+
+    const roles = await this.authRepository.findUserAssignedRoles(userId);
+
+    return {
+      success: true,
+      message: 'Roles retrieved successfully',
+      data: {
+        roles: roles.map((r) => ({
+          roleId: r.id,
+          roleCode: r.roleCode,
+          roleName: r.roleName,
+        })),
+      },
+    };
+  }
+
+  /**
+   * API 2: Allow the authenticated user to select one of their assigned roles.
+   */
+  async selectRole(userId: string, dto: SelectRoleDto) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required.');
+    }
+
+    const user = await this.database.user.findUnique({
+      where: { id: userId },
+      select: { id: true, mobile: true, email: true, status: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    if (user.status !== 'ACTIVE') {
+      throw new ForbiddenException('User account is inactive.');
+    }
+
+    // Verify role assignment & role active status in database
+    const assignedRole = await this.authRepository.findUserRoleById(userId, dto.roleId);
+
+    if (!assignedRole) {
+      this.logger.warn(`Role selection rejected: User [${userId}] attempted to select unassigned or inactive role [${dto.roleId}]`);
+      throw new ForbiddenException('The requested role is not assigned to your account or is inactive.');
+    }
+
+    // Generate new Access Token containing selected role context
+    const accessToken = this.jwtService.sign({
+      sub: user.id,
+      role: assignedRole.roleCode,
+      roleId: assignedRole.id,
+      mobile: user.mobile,
+    });
+
+    this.logger.log(`Role [${assignedRole.roleCode}] selected successfully for User [${user.id}]`);
+
+    return {
+      success: true,
+      message: 'Role selected successfully',
+      data: {
+        role: {
+          roleId: assignedRole.id,
+          roleCode: assignedRole.roleCode,
+          roleName: assignedRole.roleName,
+        },
+        accessToken,
+      },
+    };
+  }
+
+  /**
+   * API 3: Return page-level and action-level permissions for the currently selected role.
+   */
+  async getPermissions(userId: string, currentRoleCode?: string, currentRoleId?: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required.');
+    }
+
+    let targetRole: { id: string; roleCode: string; roleName: string } | null = null;
+
+    if (currentRoleId) {
+      targetRole = await this.authRepository.findUserRoleById(userId, currentRoleId);
+    }
+
+    if (!targetRole && currentRoleCode) {
+      const assignedRoles = await this.authRepository.findUserAssignedRoles(userId);
+      targetRole = assignedRoles.find((r) => r.roleCode.toUpperCase() === currentRoleCode.toUpperCase()) || null;
+    }
+
+    if (!targetRole) {
+      const assignedRoles = await this.authRepository.findUserAssignedRoles(userId);
+      targetRole = assignedRoles[0] || null;
+    }
+
+    if (!targetRole) {
+      throw new ForbiddenException('No active role assignment found for user.');
+    }
+
+    const pages = await this.authRepository.findRolePagesByRoleId(targetRole.id);
+
+    return {
+      success: true,
+      message: 'Permissions retrieved successfully',
+      data: {
+        role: {
+          roleId: targetRole.id,
+          roleCode: targetRole.roleCode,
+          roleName: targetRole.roleName,
+        },
+        pages: pages.map((p) => ({
+          pageCode: p.pageCode,
+          pageName: p.pageName,
+          route: p.route,
+          canView: p.canView,
+          canCreate: p.canCreate,
+          canEdit: p.canEdit,
+          canDelete: p.canDelete,
+        })),
+      },
+    };
+  }
+
+  /**
+   * API 4: Return current authenticated user profile & active role information.
+   */
+  async getCurrentUser(userId: string, currentRoleId?: string) {
+    if (!userId) {
+      throw new UnauthorizedException('Authentication required.');
+    }
+
+    const user = await this.database.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        mobile: true,
+        status: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('User not found.');
+    }
+
+    let selectedRole: { id: string; roleCode: string; roleName: string } | null = null;
+    if (currentRoleId) {
+      selectedRole = await this.authRepository.findUserRoleById(userId, currentRoleId);
+    }
+
+    if (!selectedRole) {
+      const assignedRoles = await this.authRepository.findUserAssignedRoles(userId);
+      selectedRole = assignedRoles[0] || null;
+    }
+
+    return {
+      success: true,
+      message: 'User profile retrieved successfully',
+      data: {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        mobile: user.mobile,
+        status: user.status,
+        isActive: user.status === 'ACTIVE',
+        selectedRole: selectedRole
+          ? {
+            roleId: selectedRole.id,
+            roleCode: selectedRole.roleCode,
+            roleName: selectedRole.roleName,
+          }
+          : null,
+      },
+    };
+  }
+
+  /**
+   * API 5: Switch user role to another assigned role.
+   */
+  async switchRole(userId: string, dto: SwitchRoleDto) {
+    const res = await this.selectRole(userId, dto);
+    return {
+      ...res,
+      message: 'Role switched successfully',
+    };
   }
 }
 

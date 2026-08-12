@@ -160,4 +160,111 @@ export class AuthRepository {
       },
     });
   }
+
+  /**
+   * Find active roles assigned to user via user_page_role JOIN role_master.
+   */
+  async findUserAssignedRoles(userId: string) {
+    const assignments = await this.db.userPageRole.findMany({
+      where: {
+        userId,
+        role: {
+          isActive: true,
+        },
+      },
+      select: {
+        role: {
+          select: {
+            id: true,
+            roleCode: true,
+            roleName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return assignments.map((a) => a.role);
+  }
+
+  /**
+   * Verify if a specific role is assigned to a user and is active.
+   */
+  async findUserRoleById(userId: string, roleId: string) {
+    const assignment = await this.db.userPageRole.findFirst({
+      where: {
+        userId,
+        roleId,
+        role: {
+          isActive: true,
+        },
+      },
+      select: {
+        role: {
+          select: {
+            id: true,
+            roleCode: true,
+            roleName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    return assignment?.role || null;
+  }
+
+  /**
+   * Find permissions (pages) for a specific role ID from role_page_master.
+   */
+  async findRolePagesByRoleId(roleId: string) {
+    return this.db.rolePageMaster.findMany({
+      where: {
+        roleId,
+      },
+      select: {
+        pageCode: true,
+        pageName: true,
+        route: true,
+        canView: true,
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
+      },
+    });
+  }
+
+  /**
+   * Find permissions (pages) for a specific role code from role_page_master.
+   */
+  async findRolePagesByRoleCode(roleCode: string) {
+    const role = await this.db.roleMaster.findFirst({
+      where: {
+        roleCode: { equals: roleCode, mode: 'insensitive' },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        roleCode: true,
+        roleName: true,
+      },
+    });
+
+    if (!role) return null;
+
+    const pages = await this.db.rolePageMaster.findMany({
+      where: { roleId: role.id },
+      select: {
+        pageCode: true,
+        pageName: true,
+        route: true,
+        canView: true,
+        canCreate: true,
+        canEdit: true,
+        canDelete: true,
+      },
+    });
+
+    return { role, pages };
+  }
 }

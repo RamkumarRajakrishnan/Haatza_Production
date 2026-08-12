@@ -1,6 +1,6 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, Req, UseGuards } from '@nestjs/common';
 import type { Request } from 'express';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
 
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
@@ -19,6 +19,9 @@ import { CheckUserDto } from './dto/check-user.dto';
 import { CheckUserResponseDto } from './dto/check-user-response.dto';
 import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
 import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
+import { SelectRoleDto } from './dto/select-role.dto';
+import { SwitchRoleDto } from './dto/switch-role.dto';
+import { JwtAuthGuard } from './guards/jwt-auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -130,10 +133,62 @@ export class AuthController {
     return this.authService.resendOtp(data);
   }
 
-  @ApiOperation({ summary: 'Get role-based page permissions for frontend RBAC' })
-  @ApiResponse({ status: 200, description: 'Returns page-level permission matrix for the given role' })
+  @ApiOperation({ summary: 'API 1 — GET USER ROLES: Return active roles assigned to authenticated user' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'User roles retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden' })
+  @UseGuards(JwtAuthGuard)
+  @Get('roles')
+  getUserRoles(@Req() req: any) {
+    return this.authService.getUserRoles(req.user?.id);
+  }
+
+  @ApiOperation({ summary: 'API 2 — SELECT ROLE: Select one of the assigned roles for the authenticated user' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Role selected successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Role not assigned to user or inactive' })
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Post('select-role')
+  selectRole(@Req() req: any, @Body() data: SelectRoleDto) {
+    return this.authService.selectRole(req.user?.id, data);
+  }
+
+  @ApiOperation({ summary: 'API 3 — GET PERMISSIONS: Return page & action permissions for currently selected role' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Permissions retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @UseGuards(JwtAuthGuard)
   @Get(['permissions', 'user-permissions'])
-  getUserPermissions(@Query('role') role: string) {
-    return this.authService.getUserPermissions(role || 'EMPLOYEE');
+  getPermissions(@Req() req: any, @Query('role') queryRole?: string) {
+    return this.authService.getPermissions(
+      req.user?.id,
+      req.user?.role || queryRole,
+      req.user?.roleId,
+    );
+  }
+
+  @ApiOperation({ summary: 'API 4 — CURRENT USER: Return authenticated user profile and active role info' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Current user profile retrieved successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  getCurrentUser(@Req() req: any) {
+    return this.authService.getCurrentUser(req.user?.id, req.user?.roleId);
+  }
+
+  @ApiOperation({ summary: 'API 5 — SWITCH ROLE: Switch authenticated user active role to another assigned role' })
+  @ApiBearerAuth()
+  @ApiResponse({ status: 200, description: 'Role switched successfully' })
+  @ApiResponse({ status: 401, description: 'Unauthorized' })
+  @ApiResponse({ status: 403, description: 'Forbidden - Target role not assigned to user' })
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @Post('switch-role')
+  switchRole(@Req() req: any, @Body() data: SwitchRoleDto) {
+    return this.authService.switchRole(req.user?.id, data);
   }
 }
