@@ -163,8 +163,18 @@ export class AuthRepository {
 
   /**
    * Find active roles assigned to user via user_role JOIN role_master (or legacy user_page_role).
+   * Strictly restricted to users with isEmployee === true.
    */
   async findUserAssignedRoles(userId: string) {
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: { isEmployee: true },
+    });
+
+    if (!user || user.isEmployee !== true) {
+      return [];
+    }
+
     const assignments = await this.db.userRoleMapping.findMany({
       where: {
         userId,
@@ -214,8 +224,18 @@ export class AuthRepository {
 
   /**
    * Verify if a specific role is assigned to a user and is active.
+   * Strictly restricted to users with isEmployee === true.
    */
   async findUserRoleById(userId: string, roleId: string) {
+    const user = await this.db.user.findUnique({
+      where: { id: userId },
+      select: { isEmployee: true },
+    });
+
+    if (!user || user.isEmployee !== true) {
+      return null;
+    }
+
     const assignment = await this.db.userRoleMapping.findFirst({
       where: {
         userId,

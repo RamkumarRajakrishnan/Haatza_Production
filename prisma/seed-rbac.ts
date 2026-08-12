@@ -110,16 +110,15 @@ async function seedRBAC() {
         RETURNS TRIGGER AS $trg$
         DECLARE
           v_is_employee boolean;
-          v_role text;
         BEGIN
-          SELECT is_employee, role INTO v_is_employee, v_role
+          SELECT is_employee INTO v_is_employee
           FROM public.users
           WHERE user_id = NEW.user_id;
 
-          IF v_is_employee = true OR v_role = 'EMPLOYEE' OR v_role = 'SUPER_ADMIN' OR v_role = 'ADMIN' OR v_role = 'MANAGER' THEN
+          IF v_is_employee = true THEN
             RETURN NEW;
           ELSE
-            RAISE EXCEPTION 'Security Policy Violation: Cannot assign employee role (Role ID: %) to non-employee user (User ID: %). RBAC roles apply ONLY to employees.', 
+            RAISE EXCEPTION 'Security Policy Violation: Cannot assign employee role (Role ID: %) to non-employee user (User ID: %). RBAC roles apply ONLY to users with is_employee = true.', 
               NEW.role_id, NEW.user_id;
           END IF;
         END;
