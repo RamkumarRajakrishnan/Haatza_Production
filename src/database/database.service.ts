@@ -612,8 +612,12 @@ export class DatabaseService
         ALTER TABLE public.role_master ADD COLUMN IF NOT EXISTS description text;
         ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS page_id text;
 
-        -- Automatic sync of boolean capability flags for existing accounts
+        -- Automatic sync of boolean capability flags and cleanup of legacy roles
         DO $$ BEGIN
+          DELETE FROM public.role_page_master WHERE role_id IN ('role_seller', 'role_buyer', 'SELLER', 'BUYER');
+          DELETE FROM public.user_role WHERE role_id IN ('role_seller', 'role_buyer', 'SELLER', 'BUYER');
+          DELETE FROM public.role_master WHERE id IN ('role_seller', 'role_buyer') OR role_code IN ('SELLER', 'BUYER');
+
           UPDATE public.users 
           SET is_seller = true
           WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF') OR user_id IN (SELECT user_id FROM public.sellers);

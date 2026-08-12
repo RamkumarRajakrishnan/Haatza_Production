@@ -68,6 +68,11 @@ async function seedRBAC() {
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS created_at timestamp DEFAULT now();
       ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS updated_at timestamp DEFAULT now();
 
+      -- Clean up legacy buyer/seller roles from RBAC master tables
+      DELETE FROM public.role_page_master WHERE role_id IN ('role_seller', 'role_buyer', 'SELLER', 'BUYER');
+      DELETE FROM public.user_role WHERE role_id IN ('role_seller', 'role_buyer', 'SELLER', 'BUYER');
+      DELETE FROM public.role_master WHERE id IN ('role_seller', 'role_buyer') OR role_code IN ('SELLER', 'BUYER');
+
       -- Sync boolean capability flags for existing employee and seller users
       UPDATE public.users 
       SET is_seller = true
