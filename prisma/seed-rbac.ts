@@ -209,6 +209,7 @@ async function seedRBAC() {
     { email: 'john.doe@example.com', roleCode: 'ADMIN' },
     { email: 'arun@haatza.com', roleCode: 'MANAGER' },
     { email: 'seller@haatza11.com', roleCode: 'EMPLOYEE' },
+    { email: 'seller@haatza111.com', roleCode: 'EMPLOYEE' },
   ];
 
   for (const assignment of userRoleAssignments) {
