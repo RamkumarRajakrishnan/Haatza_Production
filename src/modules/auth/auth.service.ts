@@ -221,8 +221,6 @@ export class AuthService {
       throw new ConflictException('User with these credentials already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
-
     const isEmployeeBool =
       (data as any).employee === true ||
       (data as any).employee === 'true' ||
@@ -255,7 +253,7 @@ export class AuthService {
           name: data.name,
           mobile: data.mobile,
           email: data.email,
-          password: hashedPassword,
+          password: data.password,
           role: userRole,
           isBuyer: isBuyerBool,
           isSeller: isSellerBool,
@@ -344,8 +342,10 @@ export class AuthService {
       });
     }
 
-    // Password Verification via bcrypt
-    const isPasswordValid = await bcrypt.compare(data.password, user.password);
+    // Password Verification (Plaintext comparison with bcrypt fallback for legacy hashed passwords)
+    const isPasswordValid =
+      data.password === user.password ||
+      (user.password?.startsWith('$2') ? await bcrypt.compare(data.password, user.password) : false);
 
     if (!isPasswordValid) {
       const lockResult = await this.authRepository.incrementFailedLoginAttempts(
@@ -768,12 +768,10 @@ export class AuthService {
       throw new NotFoundException('User with provided credentials not found.');
     }
 
-    const hashedPassword = await bcrypt.hash(dto.password, 10);
-
     await this.database.user.update({
       where: { id: user.id },
       data: {
-        password: hashedPassword,
+        password: dto.password,
         passwordChangedAt: new Date(),
         failedLoginAttempts: 0,
         lockedUntil: null,

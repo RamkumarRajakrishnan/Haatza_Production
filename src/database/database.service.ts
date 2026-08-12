@@ -123,7 +123,7 @@ export class DatabaseService
           first_name text NOT NULL,
           email text UNIQUE,
           phone text UNIQUE NOT NULL,
-          password_hash text NOT NULL,
+          password text NOT NULL,
           company_name text,
           gstin text,
           pan_number text,
@@ -150,7 +150,13 @@ export class DatabaseService
           is_employee boolean DEFAULT false
         );
 
-        -- Safe column additions for existing tables
+        -- Safe column additions and rename for existing tables
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password text;
+        DO $$ BEGIN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash') THEN
+            ALTER TABLE public.users RENAME COLUMN password_hash TO password;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS refresh_token text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_id text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company_name text;
@@ -598,10 +604,71 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_seller_products_search_keywords ON public.seller_products USING gin(search_keywords);
         CREATE INDEX IF NOT EXISTS idx_seller_products_product_images ON public.seller_products USING gin(product_images);
         CREATE INDEX IF NOT EXISTS idx_seller_products_variant_price ON public.seller_products USING gin(variant_price);
-        CREATE INDEX IF NOT EXISTS idx_seller_products_product_options ON public.seller_products USING gin(product_options);
         ALTER TABLE public.seller_products ADD COLUMN IF NOT EXISTS media jsonb;
         CREATE INDEX IF NOT EXISTS idx_seller_products_collections ON public.seller_products USING gin(collections);
         CREATE INDEX IF NOT EXISTS idx_seller_products_media ON public.seller_products USING gin(media);
+
+        -- Employee RBAC Master Tables DDL
+        ALTER TABLE public.role_master ADD COLUMN IF NOT EXISTS description text;
+        ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS page_id text;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type text DEFAULT 'BUYER';
+
+        CREATE TABLE IF NOT EXISTS public.page_master (
+          id text PRIMARY KEY,
+          page_code text UNIQUE NOT NULL,
+          page_name text NOT NULL,
+          route text NOT NULL,
+          description text,
+          is_active boolean DEFAULT true,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE TABLE IF NOT EXISTS public.user_role (
+          id text PRIMARY KEY,
+          user_id text NOT NULL,
+          role_id text NOT NULL,
+          is_active boolean DEFAULT true,
+          assigned_at timestamp DEFAULT now(),
+          assigned_by text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now(),
+          CONSTRAINT uq_user_role_pair UNIQUE (user_id, role_id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_user_role_user_id ON public.user_role(user_id);
+        CREATE INDEX IF NOT EXISTS idx_user_role_role_id ON public.user_role(role_id);
+        CREATE INDEX IF NOT EXISTS idx_role_page_master_role_id ON public.role_page_master(role_id);
+        CREATE INDEX IF NOT EXISTS idx_role_page_master_page_id ON public.role_page_master(page_id);
+
+        -- PostgreSQL Employee-Only Role Validation Trigger
+        DO $$ BEGIN
+          CREATE OR REPLACE FUNCTION public.fn_validate_employee_role_assignment()
+          RETURNS TRIGGER AS $trg$
+          DECLARE
+            v_is_employee boolean;
+            v_user_type text;
+            v_role text;
+          BEGIN
+            SELECT is_employee, role INTO v_is_employee, v_role
+            FROM public.users
+            WHERE user_id = NEW.user_id;
+
+            IF v_is_employee = true OR v_role = 'EMPLOYEE' OR v_role = 'SUPER_ADMIN' OR v_role = 'ADMIN' OR v_role = 'MANAGER' THEN
+              RETURN NEW;
+            ELSE
+              RAISE EXCEPTION 'Security Policy Violation: Cannot assign employee role (Role ID: %) to non-employee user (User ID: %). RBAC roles apply ONLY to employees.', 
+                NEW.role_id, NEW.user_id;
+            END IF;
+          END;
+          $trg$ LANGUAGE plpgsql;
+
+          DROP TRIGGER IF EXISTS trg_check_employee_role_assignment ON public.user_role;
+          CREATE TRIGGER trg_check_employee_role_assignment
+          BEFORE INSERT OR UPDATE ON public.user_role
+          FOR EACH ROW
+          EXECUTE FUNCTION public.fn_validate_employee_role_assignment();
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
       `);
       this.logger.log('✅ All PostgreSQL tables & enum types verified and active!');
     } catch (err: any) {

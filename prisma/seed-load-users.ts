@@ -21,8 +21,6 @@ const TOTAL_USERS = 1000;
 const TEST_PASSWORD = 'Password@123';
 
 async function main() {
-  const passwordHash = await bcrypt.hash(TEST_PASSWORD, 10);
-
   console.log(`Creating ${TOTAL_USERS} test users...`);
 
   for (let i = 1; i <= TOTAL_USERS; i += 1) {
@@ -33,12 +31,12 @@ async function main() {
         mobile,
       },
       update: {
-        password: passwordHash,
+        password: TEST_PASSWORD,
       },
       create: {
         name: `Load Test User ${i}`,
         mobile,
-        password: passwordHash,
+        password: TEST_PASSWORD,
       },
     });
 

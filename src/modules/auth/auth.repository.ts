@@ -162,10 +162,35 @@ export class AuthRepository {
   }
 
   /**
-   * Find active roles assigned to user via user_page_role JOIN role_master.
+   * Find active roles assigned to user via user_role JOIN role_master (or legacy user_page_role).
    */
   async findUserAssignedRoles(userId: string) {
-    const assignments = await this.db.userPageRole.findMany({
+    const assignments = await this.db.userRoleMapping.findMany({
+      where: {
+        userId,
+        isActive: true,
+        role: {
+          isActive: true,
+        },
+      },
+      select: {
+        role: {
+          select: {
+            id: true,
+            roleCode: true,
+            roleName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (assignments.length > 0) {
+      return assignments.map((a) => a.role);
+    }
+
+    // Fallback to legacy user_page_role table
+    const legacyAssignments = await this.db.userPageRole.findMany({
       where: {
         userId,
         role: {
@@ -184,14 +209,37 @@ export class AuthRepository {
       },
     });
 
-    return assignments.map((a) => a.role);
+    return legacyAssignments.map((a) => a.role);
   }
 
   /**
    * Verify if a specific role is assigned to a user and is active.
    */
   async findUserRoleById(userId: string, roleId: string) {
-    const assignment = await this.db.userPageRole.findFirst({
+    const assignment = await this.db.userRoleMapping.findFirst({
+      where: {
+        userId,
+        roleId,
+        isActive: true,
+        role: {
+          isActive: true,
+        },
+      },
+      select: {
+        role: {
+          select: {
+            id: true,
+            roleCode: true,
+            roleName: true,
+            isActive: true,
+          },
+        },
+      },
+    });
+
+    if (assignment?.role) return assignment.role;
+
+    const legacyAssignment = await this.db.userPageRole.findFirst({
       where: {
         userId,
         roleId,
@@ -211,7 +259,7 @@ export class AuthRepository {
       },
     });
 
-    return assignment?.role || null;
+    return legacyAssignment?.role || null;
   }
 
   /**

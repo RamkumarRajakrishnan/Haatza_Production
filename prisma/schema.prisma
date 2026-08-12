@@ -6,6 +6,12 @@ datasource db {
   provider = "postgresql"
 }
 
+enum UserType {
+  BUYER
+  SELLER
+  EMPLOYEE
+}
+
 model User {
   id                  String             @id @default(uuid()) @map("user_id")
   sellerId            String?            @unique @map("seller_id")
@@ -22,6 +28,7 @@ model User {
   state               String?            @map("state")
   country             String?            @map("country")
   sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
+  userType            UserType           @default(BUYER) @map("user_type")
   role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
   status              UserStatus         @default(ACTIVE) @map("status")
@@ -43,6 +50,7 @@ model User {
   userRole            Role?              @relation(fields: [roleId], references: [id])
   loginHistories      UserLoginHistory[]
   userPageRoles       UserPageRole[]
+  userRoles           UserRoleMapping[]
 
   @@index([roleId])
   @@index([sellerOnboardStatus])
@@ -760,33 +768,54 @@ model DashboardCategory {
   @@map("dashboard_category")
 }
 
-model RoleMaster {
+model PageMaster {
   id              String           @id @default(uuid()) @map("id")
-  roleName        String           @unique @map("role_name")
-  roleCode        String           @unique @map("role_code")
+  pageCode        String           @unique @map("page_code")
+  pageName        String           @map("page_name")
+  route           String           @map("route")
+  description     String?          @map("description")
   isActive        Boolean          @default(true) @map("is_active")
   createdAt       DateTime         @default(now()) @map("created_at")
   updatedAt       DateTime         @updatedAt @map("updated_at")
   rolePageMasters RolePageMaster[]
+
+  @@map("page_master")
+}
+
+model RoleMaster {
+  id              String            @id @default(uuid()) @map("id")
+  roleName        String            @unique @map("role_name")
+  roleCode        String            @unique @map("role_code")
+  description     String?           @map("description")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  rolePageMasters RolePageMaster[]
   userPageRoles   UserPageRole[]
+  userRoles       UserRoleMapping[]
 
   @@map("role_master")
 }
 
 model RolePageMaster {
-  id        String     @id @default(uuid()) @map("id")
-  roleId    String     @map("role_id")
-  pageCode  String     @map("page_code")
-  pageName  String     @map("page_name")
-  route     String     @map("route")
-  canView   Boolean    @default(false) @map("can_view")
-  canCreate Boolean    @default(false) @map("can_create")
-  canEdit   Boolean    @default(false) @map("can_edit")
-  canDelete Boolean    @default(false) @map("can_delete")
-  role      RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  id        String      @id @default(uuid()) @map("id")
+  roleId    String      @map("role_id")
+  pageId    String?     @map("page_id")
+  pageCode  String      @map("page_code")
+  pageName  String      @map("page_name")
+  route     String      @map("route")
+  canView   Boolean     @default(false) @map("can_view")
+  canCreate Boolean     @default(false) @map("can_create")
+  canEdit   Boolean     @default(false) @map("can_edit")
+  canDelete Boolean     @default(false) @map("can_delete")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
+  role      RoleMaster  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  page      PageMaster? @relation(fields: [pageId], references: [id], onDelete: Restrict)
 
   @@unique([roleId, pageCode])
   @@index([roleId])
+  @@index([pageId])
   @@map("role_page_master")
 }
 
@@ -801,6 +830,24 @@ model UserPageRole {
   @@index([userId])
   @@index([roleId])
   @@map("user_page_role")
+}
+
+model UserRoleMapping {
+  id         String     @id @default(uuid()) @map("id")
+  userId     String     @map("user_id")
+  roleId     String     @map("role_id")
+  isActive   Boolean    @default(true) @map("is_active")
+  assignedAt DateTime   @default(now()) @map("assigned_at")
+  assignedBy String?    @map("assigned_by")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at")
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role       RoleMaster @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_role")
 }
 
 
