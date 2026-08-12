@@ -11,7 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import * as crypto from 'crypto';
 import * as bcrypt from 'bcrypt';
 import { JwtService } from '@nestjs/jwt';
-import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus, UserRole } from '@prisma/client';
+import { OtpChannel, OtpIdentifierType, OtpPurpose, LoginStatus, UserRole, UserType } from '@prisma/client';
 import { DatabaseService } from '../../database/database.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -182,7 +182,7 @@ export class AuthService {
         exists: true,
         userId: user.id,
         identifierType,
-        userType: user.role,
+        userType: (user as any).userType || user.role,
         isActive,
         emailVerified,
         phoneVerified,
@@ -1432,6 +1432,10 @@ export class AuthService {
         name: true,
         email: true,
         mobile: true,
+        userType: true,
+        isBuyer: true,
+        isSeller: true,
+        isEmployee: true,
         status: true,
         createdAt: true,
         updatedAt: true,
@@ -1460,6 +1464,10 @@ export class AuthService {
         name: user.name,
         email: user.email,
         mobile: user.mobile,
+        userType: user.userType,
+        isBuyer: user.isBuyer,
+        isSeller: user.isSeller,
+        isEmployee: user.isEmployee,
         status: user.status,
         isActive: user.status === 'ACTIVE',
         selectedRole: selectedRole
