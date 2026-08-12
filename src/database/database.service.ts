@@ -611,7 +611,22 @@ export class DatabaseService
         -- Employee RBAC Master Tables DDL
         ALTER TABLE public.role_master ADD COLUMN IF NOT EXISTS description text;
         ALTER TABLE public.role_page_master ADD COLUMN IF NOT EXISTS page_id text;
-        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type text DEFAULT 'BUYER';
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS user_type public."UserType" DEFAULT 'BUYER'::public."UserType";
+
+        -- Automatic sync of user_type and flags for existing accounts
+        DO $$ BEGIN
+          UPDATE public.users 
+          SET is_seller = true, user_type = 'SELLER'::public."UserType"
+          WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF') OR user_id IN (SELECT user_id FROM public.sellers);
+
+          UPDATE public.users 
+          SET is_employee = true, user_type = 'EMPLOYEE'::public."UserType"
+          WHERE is_employee = true OR role::text IN ('EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SUPPORT', 'NEST_WORKER');
+
+          UPDATE public.users 
+          SET user_type = 'BUYER'::public."UserType"
+          WHERE is_employee = false AND is_seller = false;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (
           id text PRIMARY KEY,
