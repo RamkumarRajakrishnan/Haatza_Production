@@ -1,5 +1,5 @@
-import { Controller, Get, Query, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiQuery } from '@nestjs/swagger';
+import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
@@ -24,5 +24,16 @@ export class DashboardController {
   })
   async getHaatzaDashboard(@Query() dto: GetHaatzaDashboardDto) {
     return this.dashboardService.getHaatzaDashboard(dto);
+  }
+
+  @Post('upsert')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Upsert single or bulk Dashboard Widgets',
+    description: 'Insert or update one or multiple dashboard widgets.',
+  })
+  @ApiBody({ description: 'Single widget object or array of widget objects' })
+  async upsertWidgets(@Body() body: any) {
+    return this.dashboardService.upsertWidgets(body);
   }
 }

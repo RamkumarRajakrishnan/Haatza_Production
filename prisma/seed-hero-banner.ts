@@ -1,12 +1,8 @@
 import { PrismaClient, DashboardModule } from '@prisma/client';
-import { PrismaPg } from '@prisma/adapter-pg';
+import * as crypto from 'crypto';
 import 'dotenv/config';
 
-const adapter = new PrismaPg({
-  connectionString: process.env.DATABASE_URL,
-});
-
-const prisma = new PrismaClient({ adapter });
+const prisma = new PrismaClient();
 
 async function seedHeroBanner() {
   console.log('🌱 Seeding Hero Banner into Dashboard table...');
@@ -14,16 +10,16 @@ async function seedHeroBanner() {
   const heroBannerData = {
     widgetType: 'hero_banner',
     widgetId: 'hero_banner_widget_01',
-    title: 'Test Title',
+    title: 'Hero Banner',
     subtitle: 'Powered by Coffee + Charcoal',
     status: 'ACTIVE',
     sequence: 1,
-    image: 'https://haatza-production-807150947524.asia-south1.run.app/uploads/dashboard/img_coffee_charcoal_banner.png',
+    image: 'https://storage.googleapis.com/haatza-media-bucket/products/ca2360b6-d63b-42d2-a7c9-0fd5c9a1d9b1.webp',
     redirectLink: 'Category Page',
-    categoryId: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c',
-    productId: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c',
-    mainCategoryId: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c',
-    subCategoryId: 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c',
+    categoryId: crypto.randomUUID(),
+    productId: crypto.randomUUID(),
+    mainCategoryId: crypto.randomUUID(),
+    subCategoryId: crypto.randomUUID(),
     module: DashboardModule.HAATZA,
   };
 

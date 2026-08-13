@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as crypto from 'crypto';
 import { DatabaseService } from '../../database/database.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
@@ -181,6 +182,55 @@ export class DashboardService {
         module: targetModule,
         data: groupedData,
       },
+    };
+  }
+
+  /**
+   * Bulk or single upsert of dashboard widgets
+   */
+  async upsertWidgets(widgetsPayload: any) {
+    const list = Array.isArray(widgetsPayload) ? widgetsPayload : [widgetsPayload];
+    const results: any[] = [];
+
+    for (const w of list) {
+      const widgetId = w.widgetId || `widget_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const data: any = {
+        widgetType: w.widgetType || 'hero_banner',
+        title: w.title ?? null,
+        subtitle: w.subtitle ?? null,
+        status: w.status || 'ACTIVE',
+        sequence: Number(w.sequence) || 1,
+        image: w.image ?? null,
+        redirectLink: w.redirectLink ?? null,
+        categoryId: w.categoryId || crypto.randomUUID(),
+        categoryName: w.categoryName ?? null,
+        priority: w.priority ? Number(w.priority) : null,
+        productId: w.productId || crypto.randomUUID(),
+        product: w.product ?? null,
+        price: w.price ? Number(w.price) : null,
+        discount: w.discount ? Number(w.discount) : null,
+        mainCategoryId: w.mainCategoryId || crypto.randomUUID(),
+        subCategoryId: w.subCategoryId || crypto.randomUUID(),
+        warehouseId: w.warehouseId ?? null,
+        module: w.module || 'HAATZA',
+        titleImage: w.titleImage ?? null,
+      };
+
+      const record = await this.db.dashboard.upsert({
+        where: { widgetId },
+        update: data,
+        create: {
+          ...data,
+          widgetId,
+        },
+      });
+      results.push(record);
+    }
+
+    return {
+      success: true,
+      message: `Successfully upserted ${results.length} dashboard widget(s)`,
+      data: results,
     };
   }
 }
