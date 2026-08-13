@@ -110,7 +110,7 @@ export class DashboardService implements OnModuleInit {
       },
     });
 
-    const groupedData: Record<string, { widgetsequence: number; items: any[] }> = {};
+    const groupedData: Record<string, { widgetsequence: number; title?: string; items: any[] }> = {};
 
     items.forEach((item) => {
       const widgetType = item.widgetType || 'Others';
@@ -118,6 +118,7 @@ export class DashboardService implements OnModuleInit {
       if (!groupedData[widgetType]) {
         groupedData[widgetType] = {
           widgetsequence: item.sequence || 0,
+          title: item.title || '',
           items: [],
         };
       }
@@ -155,13 +156,51 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_Shopbycategory':
         case 'Shopbycategory':
         case 'Haatza_Shopbycategory':
+        case 'shop_by_category':
           row = {
-            title: item.title || '',
+            Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
             productId: item.productId || '',
             categoryName: item.categoryName || '',
+            redrict_link: item.redirectLink || '',
+            redirect_link: item.redirectLink || '',
             page: item.redirectLink || '',
+            mailcategory_id: item.mainCategoryId || '',
+            subcategory_id: item.subCategoryId || '',
+          };
+          break;
+
+        case 'trending_now':
+        case 'trendingNow':
+        case 'Lite_trending_now':
+        case 'Haatza_trending_now':
+          row = {
+            Image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
+            categoryId: item.categoryId || '',
+            productId: item.productId || '',
+            categoryName: item.categoryName || '',
+            redrict_link: item.redirectLink || '',
+            redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
+            mailcategory_id: item.mainCategoryId || '',
+            subcategory_id: item.subCategoryId || '',
+          };
+          break;
+
+        case 'bank_offers':
+        case 'bankOffers':
+        case 'Lite_bank_offers':
+        case 'Haatza_bank_offers':
+          row = {
+            banner_image: this.formatImageUrl(item.image),
+            Redrict_link: item.redirectLink || '',
+            redirect_link: item.redirectLink || '',
+            category_id: item.categoryId || '',
+            product_id: item.productId || '',
+            mailcategory_id: item.mainCategoryId || '',
+            subcategory_id: item.subCategoryId || '',
           };
           break;
 
