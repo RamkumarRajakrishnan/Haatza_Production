@@ -17,13 +17,13 @@ const prisma = new PrismaClient({ adapter });
 // ✏️ EDIT YOUR WIDGET VALUES HERE BEFORE RUNNING SCRIPT
 // =========================================================================
 const WIDGET_DATA = {
-  widgetType: 'flash_sales',
+  widgetType: 'deals_zone',
   widgetId: crypto.randomUUID(), // Clean UUID, no prefix
-  title: 'Flash Sales',
-  subtitle: 'Limited Time Flash Deals',
+  title: 'Deals Zone',
+  subtitle: 'Best Deals of the Day',
   status: 'ACTIVE',
-  sequence: 8,
-  image: 'https://storage.googleapis.com/haatza-media-bucket/products/507f287b-3bf6-47be-ab8a-d1cdc009e92d.webp',
+  sequence: 9,
+  image: 'https://storage.googleapis.com/haatza-media-bucket/products/c59fbdfd-8b66-4dc9-ad0a-08f9d00a91b2.webp',
   redirectLink: 'Deals Page',
   categoryId: crypto.randomUUID(),
   productId: crypto.randomUUID(),
