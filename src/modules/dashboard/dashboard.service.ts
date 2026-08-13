@@ -4,6 +4,22 @@ import { DatabaseService } from '../../database/database.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Widget type constants
+// ─────────────────────────────────────────────────────────────────────────────
+const BANNER_WIDGETS = new Set([
+  'hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer',
+]);
+const CATEGORY_WIDGETS = new Set([
+  'shop_by_category', 'trending_now', 'best_sellers', 'deals_zone',
+  'best_rated', 'must_have', 'top_categories',
+]);
+const PRODUCT_ONLY_WIDGETS = new Set([
+  'super_sales', 'featured_products', 'haatza_special',
+]);
+const SEASONAL_WIDGETS = new Set(['seasonal_picks']);
+const SPECIAL_OFFER_WIDGETS = new Set(['special_offers']);
+
 @Injectable()
 export class DashboardService implements OnModuleInit {
   private readonly logger = new Logger(DashboardService.name);
@@ -40,9 +56,11 @@ export class DashboardService implements OnModuleInit {
     }
   }
 
-  /**
-   * Helper to ensure image URLs are valid direct public URLs
-   */
+  // ───────────────────────────────────────────────────────────────────────────
+  // Private helpers
+  // ───────────────────────────────────────────────────────────────────────────
+
+  /** Return a safe absolute image URL */
   private formatImageUrl(url: string | null | undefined): string {
     if (!url) return '';
     const trimmed = url.trim();
@@ -50,40 +68,66 @@ export class DashboardService implements OnModuleInit {
       return trimmed;
     }
     if (trimmed.startsWith('wix:image://v1/')) {
-      const parts = trimmed.replace('wix:image://v1/', '').split('/');
-      const mediaId = parts[0];
+      const mediaId = trimmed.replace('wix:image://v1/', '').split('/')[0];
       return `https://static.wixstatic.com/media/${mediaId}`;
     }
     if (trimmed.startsWith('/') || trimmed.startsWith('uploads/')) {
       const path = trimmed.startsWith('/') ? trimmed : `/${trimmed}`;
-      const baseUrl =
+      const base =
         process.env.APP_URL ||
         process.env.BASE_DOMAIN ||
         'https://haatza-production-807150947524.asia-south1.run.app';
-      return `${baseUrl.replace(/\/$/, '')}${path}`;
+      return `${base.replace(/\/$/, '')}${path}`;
     }
     return `https://static.wixstatic.com/media/${trimmed}`;
   }
 
-  /**
-   * Helper to safely parse JSON widgetProducts
-   */
-  private parseWidgetProducts(productData: any): any[] {
-    if (!productData) return [];
-    if (Array.isArray(productData)) return productData;
-    if (typeof productData === 'string') {
-      try {
-        return JSON.parse(productData);
-      } catch (err) {
-        this.logger.warn(`Failed to parse widgetProducts JSON: ${err?.message}`);
-        return [];
-      }
-    }
-    return [];
+  /** Build a banner item (hero_banner, bank_offers, new_arrival, flash_sales, mega_offer) */
+  private buildBannerItem(item: any) {
+    return {
+      banner_image: this.formatImageUrl(item.image),
+      Redrict_link: item.redirectLink || '',
+      redirect_link: item.redirectLink || '',
+      category_id: item.categoryId || '',
+      product_id: item.productId || '',
+      mailcategory_id: item.mainCategoryId || '',
+      subcategory_id: item.subCategoryId || '',
+    };
   }
 
+  /** Build a category item (shop_by_category, trending_now, best_sellers, deals_zone, best_rated, must_have, top_categories) */
+  private buildCategoryItem(item: any) {
+    return {
+      Image: this.formatImageUrl(item.image),
+      categoryId: item.categoryId || '',
+      productId: item.productId || '',
+      categoryName: item.categoryName || '',
+      redrict_link: item.redirectLink || '',
+      redirect_link: item.redirectLink || '',
+      mailcategory_id: item.mainCategoryId || '',
+      subcategory_id: item.subCategoryId || '',
+    };
+  }
+
+  /** Build a product-only item (super_sales, featured_products, haatza_special) */
+  private buildProductItem(item: any) {
+    return {
+      Image: this.formatImageUrl(item.image),
+      productId: item.productId || '',
+      redrict_link: item.redirectLink || '',
+      redirect_link: item.redirectLink || '',
+      mailcategory_id: item.mainCategoryId || '',
+      subcategory_id: item.subCategoryId || '',
+    };
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+  // Public API
+  // ───────────────────────────────────────────────────────────────────────────
+
   /**
-   * Get HAATZA Dashboard Widgets grouped by Widget Type matching reference format
+   * Get Dashboard Widgets grouped by Widget Type for both HAATZA and LITE modules.
+   * Only the 17 defined widget types are included in the response.
    */
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
     const { categoryId, warehouseId } = dto;
@@ -91,429 +135,82 @@ export class DashboardService implements OnModuleInit {
       ? (String(dto.module).toUpperCase() as DashboardModule)
       : DashboardModule.HAATZA;
 
-    const whereCondition: any = {
-      module: targetModule,
-    };
-
-    if (categoryId && categoryId.trim() !== '') {
-      whereCondition.categoryId = categoryId.trim();
-    }
-
-    if (warehouseId && warehouseId.trim() !== '') {
-      whereCondition.warehouseId = warehouseId.trim();
-    }
+    const whereCondition: any = { module: targetModule };
+    if (categoryId?.trim()) whereCondition.categoryId = categoryId.trim();
+    if (warehouseId?.trim()) whereCondition.warehouseId = warehouseId.trim();
 
     const items = await this.db.dashboard.findMany({
       where: whereCondition,
-      orderBy: {
-        sequence: 'asc',
-      },
+      orderBy: { sequence: 'asc' },
     });
 
-    const groupedData: Record<
-      string,
-      {
-        widgetsequence: number;
-        title?: string;
-        titleimage?: string;
-        theme?: string;
-        see_more?: boolean;
-        items: any[];
-      }
-    > = {};
+    const groupedData: Record<string, any> = {};
 
     items.forEach((item) => {
-      const widgetType = item.widgetType || 'Others';
+      const widgetType = item.widgetType;
+      if (!widgetType) return;
 
+      // Only process the 17 known widget types
+      const isKnown =
+        BANNER_WIDGETS.has(widgetType) ||
+        CATEGORY_WIDGETS.has(widgetType) ||
+        PRODUCT_ONLY_WIDGETS.has(widgetType) ||
+        SEASONAL_WIDGETS.has(widgetType) ||
+        SPECIAL_OFFER_WIDGETS.has(widgetType);
+
+      if (!isKnown) return;
+
+      // ── Initialize group header ──
       if (!groupedData[widgetType]) {
         const header: any = {
           widgetsequence: item.sequence || 0,
+          title: item.title || '',
+          items: [],
         };
 
-        if (['super_sales', 'featured_products', 'haatza_special'].includes(widgetType)) {
-          if (item.titleImage) header.titleimage = this.formatImageUrl(item.titleImage);
-          if (item.subtitle) header.theme = item.subtitle;
-          header.see_more = item.status === 'TRUE' || item.status === 'ACTIVE';
+        // Extra header fields for product-only widgets
+        if (PRODUCT_ONLY_WIDGETS.has(widgetType)) {
+          header.titleimage = this.formatImageUrl(item.titleImage);
+          header.theme = item.subtitle || '';
+          header.see_more = item.status === 'ACTIVE';
         }
 
-        header.items = [];
         groupedData[widgetType] = header;
       }
 
-      let row: any = {};
+      // ── Build item row ──
+      let row: any;
 
-      switch (widgetType) {
-        case 'Lite_hero_banner':
-        case 'hero_banner':
-        case 'Haatza_hero_banner':
-        case 'Lite_heroBanner':
-        case 'heroBanner':
-        case 'Haatza_heroBanner':
-          row = {
-            banner_image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            category_id: item.categoryId || '',
-            categoryId: item.categoryId || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'Lite_Promobanner':
-        case 'Promobanner':
-        case 'Haatza_Promobanner':
-          row = {
-            backgroundImage: this.formatImageUrl(item.image),
-            banner_image: this.formatImageUrl(item.image),
-            page: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            categoryId: item.categoryId || '',
-            category_id: item.categoryId || '',
-          };
-          break;
-
-        case 'Lite_Shopbycategory':
-        case 'Shopbycategory':
-        case 'Haatza_Shopbycategory':
-        case 'shop_by_category':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'trending_now':
-        case 'trendingNow':
-        case 'Lite_trending_now':
-        case 'Haatza_trending_now':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'bank_offers':
-        case 'bankOffers':
-        case 'Lite_bank_offers':
-        case 'Haatza_bank_offers':
-          row = {
-            banner_image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            category_id: item.categoryId || '',
-            categoryId: item.categoryId || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'best_sellers':
-        case 'bestSellers':
-        case 'Lite_best_sellers':
-        case 'Haatza_best_sellers':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'new_arrival':
-        case 'newArrival':
-        case 'new_arrivals':
-        case 'Lite_new_arrival':
-        case 'Haatza_new_arrival':
-          row = {
-            banner_image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            category_id: item.categoryId || '',
-            categoryId: item.categoryId || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'super_sales':
-        case 'superSales':
-        case 'Lite_super_sales':
-        case 'Haatza_super_sales':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'flash_sales':
-        case 'flashSales':
-        case 'Lite_flash_sales':
-        case 'Haatza_flash_sales':
-          row = {
-            banner_image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            category_id: item.categoryId || '',
-            categoryId: item.categoryId || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'deals_zone':
-        case 'dealsZone':
-        case 'Lite_deals_zone':
-        case 'Haatza_deals_zone':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'featured_products':
-        case 'featuredProducts':
-        case 'Lite_featured_products':
-        case 'Haatza_featured_products':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'mega_offer':
-        case 'megaOffer':
-        case 'Lite_mega_offer':
-        case 'Haatza_mega_offer':
-          row = {
-            banner_image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            category_id: item.categoryId || '',
-            categoryId: item.categoryId || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'haatza_special':
-        case 'haatzaSpecial':
-        case 'Lite_haatza_special':
-        case 'Haatza_haatza_special':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'best_rated':
-        case 'bestRated':
-        case 'Lite_best_rated':
-        case 'Haatza_best_rated':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'special_offers':
-        case 'specialOffers':
-        case 'Lite_special_offers':
-        case 'Haatza_special_offers':
-          row = {
-            image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            Title: item.title || '',
-            'Sub title': item.subtitle || '',
-            product_id: item.productId || '',
-            productId: item.productId || '',
-            'External Link': item.redirectLink || '',
-            external_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-          };
-          break;
-
-        case 'must_have':
-        case 'mustHave':
-        case 'Lite_must_have':
-        case 'Haatza_must_have':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'seasonal_picks':
-        case 'seasonalPicks':
-        case 'Lite_seasonal_picks':
-        case 'Haatza_seasonal_picks':
-          row = {
-            categoryId: item.categoryId || '',
-            categoryName: item.categoryName || '',
-            subcategory: [
-              {
-                Image: this.formatImageUrl(item.image),
-                backgroundImage: this.formatImageUrl(item.image),
-                productId: item.productId || '',
-                redirect_link: item.redirectLink || '',
-                page: item.redirectLink || '',
-                maincategory_id: item.mainCategoryId || '',
-                subcategory_id: item.subCategoryId || '',
-              },
-            ],
-          };
-          break;
-
-        case 'top_categories':
-        case 'topCategories':
-        case 'Lite_top_categories':
-        case 'Haatza_top_categories':
-          row = {
-            title: item.title || '',
-            Image: this.formatImageUrl(item.image),
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            categoryName: item.categoryName || '',
-            redrict_link: item.redirectLink || '',
-            redirect_link: item.redirectLink || '',
-            page: item.redirectLink || '',
-            mailcategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
-          };
-          break;
-
-        case 'Lite_freshmarketSection':
-        case 'freshmarketSection':
-        case 'Haatza_freshmarketSection':
-          row = {
-            titleimage: this.formatImageUrl(item.titleImage),
-            categoryId: item.categoryId || '',
-            widgetProducts: this.parseWidgetProducts(item.product),
-            page: item.redirectLink || '',
-            widgetbackgroundColor: item.subtitle || '#000080',
-            showMore: item.status === 'TRUE' || item.status === 'ACTIVE',
-            showMorePage: item.redirectLink || '',
-            showMoreButtonColor: '#FFA500',
-            textColor: '#FFFFFF',
-          };
-          break;
-
-        case 'Lite_hurryDeals':
-        case 'hurryDeals':
-        case 'Haatza_hurryDeals':
-          row = {
-            title: item.title || '',
-            backgroundImage: this.formatImageUrl(item.image),
-            categoryId: item.categoryId || '',
-            productId: item.productId || '',
-            page: item.redirectLink || '',
-            placement: item.categoryName || '',
-          };
-          break;
-
-        default:
-          row = {
-            widgettitle: item.title || '',
-            backgroundImage: this.formatImageUrl(item.image),
-            widgetsequence: item.sequence || 0,
-          };
+      if (BANNER_WIDGETS.has(widgetType)) {
+        row = this.buildBannerItem(item);
+      } else if (CATEGORY_WIDGETS.has(widgetType)) {
+        row = this.buildCategoryItem(item);
+      } else if (PRODUCT_ONLY_WIDGETS.has(widgetType)) {
+        row = this.buildProductItem(item);
+      } else if (SEASONAL_WIDGETS.has(widgetType)) {
+        // seasonal_picks — nested subcategory format
+        row = {
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || '',
+          subcategory: [
+            {
+              Image: this.formatImageUrl(item.image),
+              productId: item.productId || '',
+              redirect_link: item.redirectLink || '',
+              maincategory_id: item.mainCategoryId || '',
+              subcategory_id: item.subCategoryId || '',
+            },
+          ],
+        };
+      } else if (SPECIAL_OFFER_WIDGETS.has(widgetType)) {
+        // special_offers — media + title + external link format
+        row = {
+          image: this.formatImageUrl(item.image),
+          Title: item.title || '',
+          'Sub title': item.subtitle || '',
+          product_id: item.productId || '',
+          'External Link': item.redirectLink || '',
+        };
       }
 
       groupedData[widgetType].items.push(row);
@@ -522,7 +219,6 @@ export class DashboardService implements OnModuleInit {
     return {
       status: 'success',
       message: {
-        categoryId,
         warehouseId: warehouseId || '',
         module: targetModule,
         data: groupedData,
@@ -564,10 +260,7 @@ export class DashboardService implements OnModuleInit {
       const record = await this.db.dashboard.upsert({
         where: { widgetId },
         update: data,
-        create: {
-          ...data,
-          widgetId,
-        },
+        create: { ...data, widgetId },
       });
       results.push(record);
     }
