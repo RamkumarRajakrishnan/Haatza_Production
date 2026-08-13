@@ -75,59 +75,57 @@ export class DashboardService {
 
       let row: any;
 
-      // Handle seasonal_picks nested subcategory structure
-      if (widgetType.toLowerCase().includes('seasonal')) {
+      const lowerType = widgetType.toLowerCase();
+
+      if (lowerType.includes('seasonal')) {
+        // seasonal_picks — nested subcategory format
         row = {
           categoryId: item.categoryId || '',
           categoryName: item.categoryName || '',
           subcategory: [
             {
               Image: mediaUrl,
-              backgroundImage: mediaUrl,
               productId: item.productId || '',
               redirect_link: item.redirectLink || '',
-              page: item.redirectLink || '',
               maincategory_id: item.mainCategoryId || '',
               subcategory_id: item.subCategoryId || '',
             },
           ],
         };
-      } else {
-        // Universal dynamic mapping for ALL widgets from Dashboard table
+      } else if (lowerType.includes('special_offer') || lowerType.includes('specialoffer')) {
+        // special_offers — media + title + external link format
         row = {
-          // Media fields
-          Image: mediaUrl,
-          banner_image: mediaUrl,
-          backgroundImage: mediaUrl,
           image: isVideo ? '' : mediaUrl,
           video: isVideo ? mediaUrl : '',
-
-          // Titles & Headers
-          title: item.title || '',
           Title: item.title || '',
-          subtitle: item.subtitle || '',
           'Sub title': item.subtitle || '',
-
-          // Categories & Products
-          categoryId: item.categoryId || '',
+          product_id: item.productId || '',
+          'External Link': item.redirectLink || '',
+        };
+      } else if (
+        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(
+          widgetType,
+        )
+      ) {
+        // Banner Widgets — clean single keys
+        row = {
+          banner_image: mediaUrl,
+          redirect_link: item.redirectLink || '',
           category_id: item.categoryId || '',
-          categoryName: item.categoryName || '',
-          productId: item.productId || '',
           product_id: item.productId || '',
           maincategory_id: item.mainCategoryId || '',
-          mainCategoryId: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          subCategoryId: item.subCategoryId || '',
-
-          // Links
+        };
+      } else {
+        // Category / Product Widgets — clean single keys
+        row = {
+          Image: mediaUrl,
+          categoryId: item.categoryId || '',
+          productId: item.productId || '',
+          categoryName: item.categoryName || '',
           redirect_link: item.redirectLink || '',
-          'External Link': item.redirectLink || '',
-          page: item.redirectLink || '',
-
-          // Price & Priority (if available in DB)
-          price: item.price ?? null,
-          discount: item.discount ?? null,
-          priority: item.priority ?? null,
+          maincategory_id: item.mainCategoryId || '',
+          subcategory_id: item.subCategoryId || '',
         };
       }
 
