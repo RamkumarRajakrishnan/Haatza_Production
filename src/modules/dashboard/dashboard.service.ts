@@ -126,14 +126,18 @@ export class DashboardService implements OnModuleInit {
       const widgetType = item.widgetType || 'Others';
 
       if (!groupedData[widgetType]) {
-        groupedData[widgetType] = {
+        const header: any = {
           widgetsequence: item.sequence || 0,
-          title: item.title || '',
-          titleimage: this.formatImageUrl(item.titleImage),
-          theme: item.subtitle || '',
-          see_more: item.status === 'TRUE' || item.status === 'ACTIVE',
-          items: [],
         };
+
+        if (['super_sales', 'featured_products', 'haatza_special'].includes(widgetType)) {
+          if (item.titleImage) header.titleimage = this.formatImageUrl(item.titleImage);
+          if (item.subtitle) header.theme = item.subtitle;
+          header.see_more = item.status === 'TRUE' || item.status === 'ACTIVE';
+        }
+
+        header.items = [];
+        groupedData[widgetType] = header;
       }
 
       let row: any = {};
@@ -147,10 +151,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_heroBanner':
           row = {
             banner_image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             category_id: item.categoryId || '',
+            categoryId: item.categoryId || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -161,8 +169,11 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_Promobanner':
           row = {
             backgroundImage: this.formatImageUrl(item.image),
+            banner_image: this.formatImageUrl(item.image),
             page: item.redirectLink || '',
+            redirect_link: item.redirectLink || '',
             categoryId: item.categoryId || '',
+            category_id: item.categoryId || '',
           };
           break;
 
@@ -171,6 +182,7 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_Shopbycategory':
         case 'shop_by_category':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -189,6 +201,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_trending_now':
         case 'Haatza_trending_now':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -208,10 +221,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_bank_offers':
           row = {
             banner_image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             category_id: item.categoryId || '',
+            categoryId: item.categoryId || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -222,6 +239,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_best_sellers':
         case 'Haatza_best_sellers':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -229,6 +247,7 @@ export class DashboardService implements OnModuleInit {
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -241,10 +260,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_new_arrival':
           row = {
             banner_image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             category_id: item.categoryId || '',
+            categoryId: item.categoryId || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -255,12 +278,14 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_super_sales':
         case 'Haatza_super_sales':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             productId: item.productId || '',
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -272,10 +297,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_flash_sales':
           row = {
             banner_image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             category_id: item.categoryId || '',
+            categoryId: item.categoryId || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -286,6 +315,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_deals_zone':
         case 'Haatza_deals_zone':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -293,6 +323,7 @@ export class DashboardService implements OnModuleInit {
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -303,12 +334,14 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_featured_products':
         case 'Haatza_featured_products':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             productId: item.productId || '',
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -320,10 +353,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_mega_offer':
           row = {
             banner_image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             category_id: item.categoryId || '',
+            categoryId: item.categoryId || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -334,12 +371,14 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_haatza_special':
         case 'Haatza_haatza_special':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             productId: item.productId || '',
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -350,6 +389,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_best_rated':
         case 'Haatza_best_rated':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -357,6 +397,7 @@ export class DashboardService implements OnModuleInit {
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -368,11 +409,14 @@ export class DashboardService implements OnModuleInit {
         case 'Haatza_special_offers':
           row = {
             image: this.formatImageUrl(item.image),
+            backgroundImage: this.formatImageUrl(item.image),
             Title: item.title || '',
             'Sub title': item.subtitle || '',
             product_id: item.productId || '',
+            productId: item.productId || '',
             'External Link': item.redirectLink || '',
             external_link: item.redirectLink || '',
+            page: item.redirectLink || '',
           };
           break;
 
@@ -381,6 +425,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_must_have':
         case 'Haatza_must_have':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -388,6 +433,7 @@ export class DashboardService implements OnModuleInit {
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -403,8 +449,10 @@ export class DashboardService implements OnModuleInit {
             subcategory: [
               {
                 Image: this.formatImageUrl(item.image),
+                backgroundImage: this.formatImageUrl(item.image),
                 productId: item.productId || '',
                 redirect_link: item.redirectLink || '',
+                page: item.redirectLink || '',
                 maincategory_id: item.mainCategoryId || '',
                 subcategory_id: item.subCategoryId || '',
               },
@@ -417,6 +465,7 @@ export class DashboardService implements OnModuleInit {
         case 'Lite_top_categories':
         case 'Haatza_top_categories':
           row = {
+            title: item.title || '',
             Image: this.formatImageUrl(item.image),
             backgroundImage: this.formatImageUrl(item.image),
             categoryId: item.categoryId || '',
@@ -424,6 +473,7 @@ export class DashboardService implements OnModuleInit {
             categoryName: item.categoryName || '',
             redrict_link: item.redirectLink || '',
             redirect_link: item.redirectLink || '',
+            page: item.redirectLink || '',
             mailcategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           };
@@ -437,11 +487,11 @@ export class DashboardService implements OnModuleInit {
             categoryId: item.categoryId || '',
             widgetProducts: this.parseWidgetProducts(item.product),
             page: item.redirectLink || '',
-            widgetbackgroundColor: item.subtitle || '',
+            widgetbackgroundColor: item.subtitle || '#000080',
             showMore: item.status === 'TRUE' || item.status === 'ACTIVE',
             showMorePage: item.redirectLink || '',
-            showMoreButtonColor: '',
-            textColor: '',
+            showMoreButtonColor: '#FFA500',
+            textColor: '#FFFFFF',
           };
           break;
 
