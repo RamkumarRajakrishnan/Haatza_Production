@@ -17,14 +17,14 @@ const prisma = new PrismaClient({ adapter });
 // ✏️ EDIT YOUR WIDGET VALUES HERE BEFORE RUNNING SCRIPT
 // =========================================================================
 const WIDGET_DATA = {
-  widgetType: 'must_have',
+  widgetType: 'seasonal_picks',
   widgetId: crypto.randomUUID(), // Clean UUID, no prefix
-  title: 'Must Have',
-  subtitle: 'Essential Products for You',
+  title: 'Seasonal Picks',
+  subtitle: 'Top Choices for the Season',
   status: 'ACTIVE',
-  sequence: 15,
-  image: 'https://storage.googleapis.com/haatza-media-bucket/products/640583ca-8af9-4858-a551-a71af25ca059.webp',
-  redirectLink: 'Product Page',
+  sequence: 16,
+  image: 'https://storage.googleapis.com/haatza-media-bucket/products/6b4c9c92-77ea-4e45-916f-3abdff195afd.webp',
+  redirectLink: 'Category Page',
   categoryId: crypto.randomUUID(),
   productId: crypto.randomUUID(),
   mainCategoryId: crypto.randomUUID(),
