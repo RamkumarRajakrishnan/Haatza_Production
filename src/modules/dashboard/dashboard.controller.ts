@@ -26,7 +26,7 @@ export class DashboardController {
     return this.dashboardService.getHaatzaDashboard(dto);
   }
 
-  @Post('upsert')
+  @Post(['upsert', ''])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Upsert single or bulk Dashboard Widgets',
