@@ -1,14 +1,44 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DatabaseService } from '../../database/database.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
 
 @Injectable()
-export class DashboardService {
+export class DashboardService implements OnModuleInit {
   private readonly logger = new Logger(DashboardService.name);
 
   constructor(private readonly db: DatabaseService) {}
+
+  async onModuleInit() {
+    try {
+      this.logger.log('🌱 Auto-seeding default Hero Banner if missing...');
+      await this.db.dashboard.upsert({
+        where: { widgetId: 'hero_banner_widget_01' },
+        update: {
+          image: 'https://storage.googleapis.com/haatza-media-bucket/products/ca2360b6-d63b-42d2-a7c9-0fd5c9a1d9b1.webp',
+        },
+        create: {
+          widgetType: 'hero_banner',
+          widgetId: 'hero_banner_widget_01',
+          title: 'Coffee & Charcoal Banner',
+          subtitle: 'Powered by Coffee + Charcoal',
+          status: 'ACTIVE',
+          sequence: 1,
+          image: 'https://storage.googleapis.com/haatza-media-bucket/products/ca2360b6-d63b-42d2-a7c9-0fd5c9a1d9b1.webp',
+          redirectLink: 'Category Page',
+          categoryId: crypto.randomUUID(),
+          productId: crypto.randomUUID(),
+          mainCategoryId: crypto.randomUUID(),
+          subCategoryId: crypto.randomUUID(),
+          module: DashboardModule.HAATZA,
+        },
+      });
+      this.logger.log('✅ Default Hero Banner verified/seeded successfully!');
+    } catch (err: any) {
+      this.logger.warn(`⚠️ Auto-seeding hero banner skipped: ${err?.message}`);
+    }
+  }
 
   /**
    * Helper to ensure image URLs are valid direct public URLs
