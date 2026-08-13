@@ -1,43 +1,58 @@
 import { PrismaClient, DashboardModule } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import * as crypto from 'crypto';
 import 'dotenv/config';
 
-const prisma = new PrismaClient();
+// Initialize Database Connection
+const connectionString = process.env.DATABASE_URL;
+const pool = new Pool({
+  connectionString,
+  ssl: { rejectUnauthorized: false },
+});
+const adapter = new PrismaPg(pool);
+const prisma = new PrismaClient({ adapter });
 
-async function seedHeroBanner() {
-  console.log('🌱 Seeding Hero Banner into Dashboard table...');
+// =========================================================================
+// ✏️ EDIT YOUR WIDGET VALUES HERE BEFORE RUNNING SCRIPT
+// =========================================================================
+const WIDGET_DATA = {
+  widgetType: 'Lite_Shopbycategory',
+  widgetId: crypto.randomUUID(), // Unique auto-generated UUID
+  title: 'Shop By Category',
+  subtitle: 'Explore Top Categories',
+  status: 'ACTIVE',
+  sequence: 2,
+  image: 'https://storage.googleapis.com/haatza-media-bucket/products/6e291a6f-e58c-4358-882d-5a5dd956a7a9.webp',
+  redirectLink: 'Product page',
+  categoryName: 'Skincare & Beauty',
+  categoryId: crypto.randomUUID(),
+  productId: crypto.randomUUID(),
+  mainCategoryId: crypto.randomUUID(),
+  subCategoryId: crypto.randomUUID(),
+  module: DashboardModule.HAATZA,
+};
+// =========================================================================
 
-  const heroBannerData = {
-    widgetType: 'hero_banner',
-    widgetId: 'hero_banner_widget_01',
-    title: 'Hero Banner',
-    subtitle: 'Powered by Coffee + Charcoal',
-    status: 'ACTIVE',
-    sequence: 1,
-    image: 'https://storage.googleapis.com/haatza-media-bucket/products/ca2360b6-d63b-42d2-a7c9-0fd5c9a1d9b1.webp',
-    redirectLink: 'Category Page',
-    categoryId: crypto.randomUUID(),
-    productId: crypto.randomUUID(),
-    mainCategoryId: crypto.randomUUID(),
-    subCategoryId: crypto.randomUUID(),
-    module: DashboardModule.HAATZA,
-  };
+async function seedDashboardWidget() {
+  console.log(`🌱 Seeding [${WIDGET_DATA.widgetType}] widget into Dashboard table...`);
 
   const record = await prisma.dashboard.upsert({
-    where: { widgetId: heroBannerData.widgetId },
-    update: heroBannerData,
-    create: heroBannerData,
+    where: { widgetId: WIDGET_DATA.widgetId },
+    update: WIDGET_DATA,
+    create: WIDGET_DATA,
   });
 
-  console.log('✅ Hero Banner successfully saved to database!');
+  console.log('✅ Dashboard Widget successfully saved to database!');
   console.log(record);
 }
 
-seedHeroBanner()
+seedDashboardWidget()
   .catch((e) => {
-    console.error('❌ Error seeding hero banner:', e);
+    console.error('❌ Error seeding dashboard widget:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
+    await pool.end();
   });
