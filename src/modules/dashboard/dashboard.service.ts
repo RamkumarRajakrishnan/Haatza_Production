@@ -223,7 +223,7 @@ export class DashboardService implements OnModuleInit {
     const results: any[] = [];
 
     for (const w of list) {
-      const widgetId = w.widgetId || `widget_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const widgetId = w.widgetId || `widget_${crypto.randomUUID()}`;
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
         title: w.title ?? null,
