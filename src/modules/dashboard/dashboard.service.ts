@@ -134,6 +134,7 @@ export class DashboardService implements OnModuleInit {
           row = {
             banner_image: this.formatImageUrl(item.image),
             Redrict_link: item.redirectLink || '',
+            redirect_link: item.redirectLink || '',
             category_id: item.categoryId || '',
             product_id: item.productId || '',
             mailcategory_id: item.mainCategoryId || '',
