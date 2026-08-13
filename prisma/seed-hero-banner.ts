@@ -17,14 +17,14 @@ const prisma = new PrismaClient({ adapter });
 // ✏️ EDIT YOUR WIDGET VALUES HERE BEFORE RUNNING SCRIPT
 // =========================================================================
 const WIDGET_DATA = {
-  widgetType: 'haatza_special',
+  widgetType: 'best_rated',
   widgetId: crypto.randomUUID(), // Clean UUID, no prefix
-  title: 'Haatza Special',
-  subtitle: 'Exclusive Haatza Curated Products',
+  title: 'Best Rated',
+  subtitle: 'Top Rated by Customers',
   status: 'ACTIVE',
-  sequence: 12,
-  image: 'https://storage.googleapis.com/haatza-media-bucket/products/c3c9e4af-f911-45d5-b0ed-1bda19e87a7c.webp',
-  redirectLink: 'Special Page',
+  sequence: 13,
+  image: 'https://storage.googleapis.com/haatza-media-bucket/products/48f02bf6-11fb-49ed-9922-c697a9914853.webp',
+  redirectLink: 'Product Page',
   categoryId: crypto.randomUUID(),
   productId: crypto.randomUUID(),
   mainCategoryId: crypto.randomUUID(),
