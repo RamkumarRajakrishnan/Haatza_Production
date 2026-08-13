@@ -1,17 +1,38 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString, Length } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsEnum, IsOptional, IsString, Length } from 'class-validator';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import { OtpPurpose } from '@prisma/client';
 
 export class VerifyOtpDto {
-  @ApiProperty({ description: 'Mobile number or email identifier' })
+  @ApiPropertyOptional({ description: 'Mobile number or email identifier' })
   @IsString()
-  @IsNotEmpty()
-  identifier: string;
+  @IsOptional()
+  identifier?: string;
 
-  @ApiProperty({ description: '6-digit OTP code' })
+  @ApiPropertyOptional({ description: 'Registered mobile number alias' })
   @IsString()
+  @IsOptional()
+  mobile?: string;
+
+  @ApiPropertyOptional({ description: 'Registered phone number alias' })
+  @IsString()
+  @IsOptional()
+  phone?: string;
+
+  @ApiPropertyOptional({ description: 'Registered email address alias' })
+  @IsString()
+  @IsOptional()
+  email?: string;
+
+  @ApiPropertyOptional({ description: '6-digit OTP code' })
+  @IsString()
+  @IsOptional()
   @Length(4, 6)
-  otp: string;
+  otp?: string;
+
+  @ApiPropertyOptional({ description: 'OTP code alias' })
+  @IsString()
+  @IsOptional()
+  otpCode?: string;
 
   @ApiPropertyOptional({ enum: OtpPurpose, default: OtpPurpose.LOGIN })
   @IsEnum(OtpPurpose)

@@ -860,9 +860,22 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
+    const targetIdentifier = (
+      dto.identifier ||
+      dto.mobile ||
+      dto.phone ||
+      dto.email ||
+      ''
+    ).replace(/[\s\-\(\)\+]/g, '');
+    const targetOtp = dto.otp || dto.otpCode || '';
+
+    if (!targetIdentifier || !targetOtp) {
+      throw new BadRequestException('Identifier and OTP code are required');
+    }
+
     const otpRecord = await this.database.otpVerification.findFirst({
       where: {
-        identifier: dto.identifier,
+        identifier: targetIdentifier,
         purpose: dto.purpose ?? OtpPurpose.LOGIN,
         isVerified: false,
       },
@@ -877,7 +890,7 @@ export class AuthService {
       throw new BadRequestException('OTP has expired');
     }
 
-    if (otpRecord.otpHash !== dto.otp) {
+    if (otpRecord.otpHash !== targetOtp) {
       throw new BadRequestException('Invalid OTP code');
     }
 
