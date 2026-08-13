@@ -17,15 +17,14 @@ const prisma = new PrismaClient({ adapter });
 // ✏️ EDIT YOUR WIDGET VALUES HERE BEFORE RUNNING SCRIPT
 // =========================================================================
 const WIDGET_DATA = {
-  widgetType: 'Lite_Shopbycategory',
+  widgetType: 'trending_now',
   widgetId: crypto.randomUUID(), // Unique auto-generated UUID
-  title: 'Shop By Category',
-  subtitle: 'Explore Top Categories',
+  title: 'Trending Now',
+  subtitle: 'Hot items right now',
   status: 'ACTIVE',
-  sequence: 2,
-  image: 'https://storage.googleapis.com/haatza-media-bucket/products/6e291a6f-e58c-4358-882d-5a5dd956a7a9.webp',
-  redirectLink: 'Product page',
-  categoryName: 'Skincare & Beauty',
+  sequence: 3,
+  image: 'https://storage.googleapis.com/haatza-media-bucket/products/a2ac7857-0884-4f94-bbb5-5c728b5e785d.webp',
+  redirectLink: 'Category Page',
   categoryId: crypto.randomUUID(),
   productId: crypto.randomUUID(),
   mainCategoryId: crypto.randomUUID(),
