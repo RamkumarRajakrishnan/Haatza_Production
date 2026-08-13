@@ -86,11 +86,10 @@ export class DashboardService implements OnModuleInit {
   private buildBannerItem(item: any) {
     return {
       banner_image: this.formatImageUrl(item.image),
-      Redrict_link: item.redirectLink || '',
       redirect_link: item.redirectLink || '',
       category_id: item.categoryId || '',
       product_id: item.productId || '',
-      mailcategory_id: item.mainCategoryId || '',
+      maincategory_id: item.mainCategoryId || '',
       subcategory_id: item.subCategoryId || '',
     };
   }
@@ -102,9 +101,8 @@ export class DashboardService implements OnModuleInit {
       categoryId: item.categoryId || '',
       productId: item.productId || '',
       categoryName: item.categoryName || '',
-      redrict_link: item.redirectLink || '',
       redirect_link: item.redirectLink || '',
-      mailcategory_id: item.mainCategoryId || '',
+      maincategory_id: item.mainCategoryId || '',
       subcategory_id: item.subCategoryId || '',
     };
   }
@@ -114,9 +112,8 @@ export class DashboardService implements OnModuleInit {
     return {
       Image: this.formatImageUrl(item.image),
       productId: item.productId || '',
-      redrict_link: item.redirectLink || '',
       redirect_link: item.redirectLink || '',
-      mailcategory_id: item.mainCategoryId || '',
+      maincategory_id: item.mainCategoryId || '',
       subcategory_id: item.subCategoryId || '',
     };
   }
@@ -203,9 +200,12 @@ export class DashboardService implements OnModuleInit {
           ],
         };
       } else if (SPECIAL_OFFER_WIDGETS.has(widgetType)) {
-        // special_offers — media + title + external link format
+        // special_offers — image/video media + title + external link format
+        const mediaUrl = this.formatImageUrl(item.image);
+        const isVideo = /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
         row = {
-          image: this.formatImageUrl(item.image),
+          image: isVideo ? '' : mediaUrl,
+          video: isVideo ? mediaUrl : '',
           Title: item.title || '',
           'Sub title': item.subtitle || '',
           product_id: item.productId || '',
