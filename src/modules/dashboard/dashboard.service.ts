@@ -155,24 +155,35 @@ export class DashboardService {
       const widgetId = w.widgetId || crypto.randomUUID();
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
-        title: w.title ?? null,
-        subtitle: w.subtitle ?? null,
+        title: w.title ?? w.Title ?? null,
+        subtitle: w.subtitle ?? w.theme ?? w['Sub title'] ?? null,
         status: w.status || 'ACTIVE',
         sequence: Number(w.sequence) || 1,
-        image: w.image ?? null,
-        redirectLink: w.redirectLink ?? null,
-        categoryId: w.categoryId || crypto.randomUUID(),
+        image: w.image ?? w.Image ?? w.banner_image ?? w.backgroundImage ?? null,
+        redirectLink:
+          w.redirectLink ??
+          w.redirect_link ??
+          w.Redrict_link ??
+          w.redrict_link ??
+          w.page ??
+          w['External Link'] ??
+          null,
+        categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         priority: w.priority ? Number(w.priority) : null,
-        productId: w.productId || crypto.randomUUID(),
-        product: w.product ?? null,
+        productId: w.productId ?? w.product_id ?? crypto.randomUUID(),
+        product: w.product ?? (w.widgetProducts ? JSON.stringify(w.widgetProducts) : null),
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,
-        mainCategoryId: w.mainCategoryId || crypto.randomUUID(),
-        subCategoryId: w.subCategoryId || crypto.randomUUID(),
+        mainCategoryId:
+          w.mainCategoryId ??
+          w.maincategory_id ??
+          w.mailcategory_id ??
+          crypto.randomUUID(),
+        subCategoryId: w.subCategoryId ?? w.subcategory_id ?? crypto.randomUUID(),
         warehouseId: w.warehouseId ?? null,
         module: w.module || 'HAATZA',
-        titleImage: w.titleImage ?? null,
+        titleImage: w.titleImage ?? w.titleimage ?? null,
       };
 
       const record = await this.db.dashboard.upsert({
