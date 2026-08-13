@@ -234,27 +234,27 @@ export class DashboardService implements OnModuleInit {
     const results: any[] = [];
 
     for (const w of list) {
-      const widgetId = w.widgetId || crypto.randomUUID();
+      const widgetId = w.widgetId || w.widget_id || crypto.randomUUID();
       const data: any = {
-        widgetType: w.widgetType || 'hero_banner',
+        widgetType: w.widgetType || w.widget_type || 'hero_banner',
         title: w.title ?? null,
         subtitle: w.subtitle ?? null,
         status: w.status || 'ACTIVE',
         sequence: Number(w.sequence) || 1,
-        image: w.image ?? null,
-        redirectLink: w.redirectLink ?? null,
-        categoryId: w.categoryId || crypto.randomUUID(),
-        categoryName: w.categoryName ?? null,
+        image: w.image || w.banner_image || w.Image || null,
+        redirectLink: w.redirectLink || w.redirect_link || w.redrict_link || w.Redrict_link || w.page || null,
+        categoryId: w.categoryId || w.category_id || crypto.randomUUID(),
+        categoryName: w.categoryName || w.category_name || null,
         priority: w.priority ? Number(w.priority) : null,
-        productId: w.productId || crypto.randomUUID(),
+        productId: w.productId || w.product_id || crypto.randomUUID(),
         product: w.product ?? null,
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,
-        mainCategoryId: w.mainCategoryId || crypto.randomUUID(),
-        subCategoryId: w.subCategoryId || crypto.randomUUID(),
-        warehouseId: w.warehouseId ?? null,
+        mainCategoryId: w.mainCategoryId || w.maincategory_id || w.mailcategory_id || crypto.randomUUID(),
+        subCategoryId: w.subCategoryId || w.subcategory_id || crypto.randomUUID(),
+        warehouseId: w.warehouseId || w.warehouse_id || null,
         module: w.module || 'HAATZA',
-        titleImage: w.titleImage ?? null,
+        titleImage: w.titleImage || w.title_image || w.titleimage || null,
       };
 
       const record = await this.db.dashboard.upsert({
