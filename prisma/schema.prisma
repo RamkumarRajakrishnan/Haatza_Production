@@ -723,8 +723,6 @@ model Dashboard {
   redirectLink     String?          @map("redirect_link")
   categoryId       String?          @map("category_id")
   categoryName     String?          @map("category_name")
-  priority         Int?             @map("priority")
-  productId        String?          @map("product_id")
   item             Json?            @map("Item")
   price            Float?           @map("price")
   discount         Float?           @map("discount")
