@@ -119,7 +119,6 @@ export class DashboardService {
 
         catEntry.subcategory.push({
           Image: mediaUrl,
-          productId: item.productId || '',
           redirect_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
@@ -132,7 +131,6 @@ export class DashboardService {
           image: isVideo ? '' : mediaUrl,
           Title: item.title || '',
           'Sub title': item.subtitle || '',
-          product_id: item.productId || '',
           'External Link': item.redirectLink || '',
         };
       } else if (
@@ -142,7 +140,6 @@ export class DashboardService {
           banner_image: mediaUrl,
           Redrict_link: item.redirectLink || '',
           category_id: item.categoryId || '',
-          product_id: item.productId || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
@@ -151,7 +148,6 @@ export class DashboardService {
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
-          productId: item.productId || '',
           categoryName: item.categoryName || '',
           redrict_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
@@ -211,6 +207,7 @@ export class DashboardService {
 
     for (const w of list) {
       const widgetId = w.widgetId || crypto.randomUUID();
+      const itemData = w.item ?? w.Item ?? w.product ?? (w.widgetProducts ? w.widgetProducts : null);
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
         title: w.title ?? w.Title ?? null,
@@ -229,8 +226,8 @@ export class DashboardService {
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         priority: w.priority ? Number(w.priority) : null,
-        productId: w.productId ?? w.product_id ?? crypto.randomUUID(),
-        product: w.product ?? (w.widgetProducts ? JSON.stringify(w.widgetProducts) : null),
+        productId: w.productId ?? w.product_id ?? null,
+        item: itemData ? (typeof itemData === 'string' ? itemData : JSON.stringify(itemData)) : null,
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,
         mainCategoryId:
