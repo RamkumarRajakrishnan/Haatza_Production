@@ -23,6 +23,7 @@ export class DatabaseService
       min: Number(process.env.DATABASE_POOL_MIN) || 3,
       idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS) || 30000,
       connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
+      ssl: { rejectUnauthorized: false },
     });
     const adapter = new PrismaPg(pool);
     super({ adapter });
