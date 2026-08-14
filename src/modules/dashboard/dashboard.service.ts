@@ -61,21 +61,28 @@ export class DashboardService {
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
-      const widgetKey = widgetType.toLowerCase();
+      const rawKey = widgetType;
+      const lowerKey = widgetType.toLowerCase();
 
-      // Initialize group header matching exact user schema specifications
+      // Determine output widget group key name
+      let widgetKey = rawKey;
+      if (lowerKey === 'shopbycategory' || lowerKey === 'shop_by_category') {
+        widgetKey = 'Lite_Shopbycategory';
+      }
+
+      // Initialize group header matching user's exact requested schema
       if (!groupedData[widgetKey]) {
         const header: any = {
           widgetsequence: item.sequence || 0,
         };
 
-        if (['super_sales', 'featured_products', 'haatza_special'].includes(widgetKey)) {
+        if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
           header.titleimage = this.formatImageUrl(item.titleImage);
           header.theme = item.subtitle || '';
           header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
-        } else if (widgetKey === 'seasonal_picks') {
+        } else if (lowerKey === 'seasonal_picks') {
           header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
-        } else if (!['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(widgetKey)) {
+        } else if (['Lite_Shopbycategory', 'shopbycategory', 'shop_by_category', 'trending_now', 'best_sellers', 'best_rated', 'must_have', 'top_categories', 'deals_zone'].includes(widgetKey) || ['trending_now', 'best_sellers', 'best_rated', 'must_have', 'top_categories', 'deals_zone'].includes(lowerKey)) {
           header.title = item.title || '';
         }
 
@@ -85,8 +92,7 @@ export class DashboardService {
 
       let row: any;
 
-      if (widgetKey === 'seasonal_picks') {
-        // Find existing category entry in items
+      if (lowerKey === 'seasonal_picks') {
         let catEntry = groupedData[widgetKey].items.find(
           (c: any) => c.categoryId === (item.categoryId || ''),
         );
@@ -101,7 +107,6 @@ export class DashboardService {
 
         catEntry.subcategory.push({
           Image: mediaUrl,
-          productId: item.productId || '',
           redirect_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
@@ -109,22 +114,20 @@ export class DashboardService {
         return;
       }
 
-      if (widgetKey === 'special_offers') {
+      if (lowerKey === 'special_offers') {
         row = {
           image: isVideo ? '' : mediaUrl,
           Title: item.title || '',
           'Sub title': item.subtitle || '',
-          product_id: item.productId || '',
           'External Link': item.redirectLink || '',
         };
       } else if (
-        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(widgetKey)
+        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
       ) {
         row = {
           banner_image: mediaUrl,
           Redrict_link: item.redirectLink || '',
           category_id: item.categoryId || '',
-          product_id: item.productId || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
@@ -133,7 +136,6 @@ export class DashboardService {
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
-          productId: item.productId || '',
           categoryName: item.categoryName || '',
           redrict_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
