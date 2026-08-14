@@ -57,79 +57,91 @@ export class DashboardService {
       const widgetType = item.widgetType;
       if (!widgetType) return;
 
-      // Initialize group header dynamically for any widgetType
-      if (!groupedData[widgetType]) {
-        groupedData[widgetType] = {
-          widgetsequence: item.sequence || 0,
-          title: item.title || '',
-          titleimage: this.formatImageUrl(item.titleImage),
-          theme: item.subtitle || '',
-          see_more: item.status === 'ACTIVE' || item.status === 'TRUE',
-          items: [],
-        };
-      }
-
       const mediaUrl = this.formatImageUrl(item.image);
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
+      const widgetKey = widgetType.toLowerCase();
+
+      // Initialize group header matching exact user schema specifications
+      if (!groupedData[widgetKey]) {
+        const header: any = {
+          widgetsequence: item.sequence || 0,
+        };
+
+        if (['super_sales', 'featured_products', 'haatza_special'].includes(widgetKey)) {
+          header.titleimage = this.formatImageUrl(item.titleImage);
+          header.theme = item.subtitle || '';
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
+        } else if (widgetKey === 'seasonal_picks') {
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
+        } else if (!['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(widgetKey)) {
+          header.title = item.title || '';
+        }
+
+        header.items = [];
+        groupedData[widgetKey] = header;
+      }
+
       let row: any;
 
-      const lowerType = widgetType.toLowerCase();
+      if (widgetKey === 'seasonal_picks') {
+        // Find existing category entry in items
+        let catEntry = groupedData[widgetKey].items.find(
+          (c: any) => c.categoryId === (item.categoryId || ''),
+        );
+        if (!catEntry) {
+          catEntry = {
+            categoryId: item.categoryId || '',
+            categoryName: item.categoryName || '',
+            subcategory: [],
+          };
+          groupedData[widgetKey].items.push(catEntry);
+        }
 
-      if (lowerType.includes('seasonal')) {
-        // seasonal_picks — nested subcategory format
-        row = {
-          categoryId: item.categoryId || '',
-          categoryName: item.categoryName || '',
-          subcategory: [
-            {
-              Image: mediaUrl,
-              productId: item.productId || '',
-              redirect_link: item.redirectLink || '',
-              maincategory_id: item.mainCategoryId || '',
-              subcategory_id: item.subCategoryId || '',
-            },
-          ],
-        };
-      } else if (lowerType.includes('special_offer') || lowerType.includes('specialoffer')) {
-        // special_offers — media + title + external link format
+        catEntry.subcategory.push({
+          Image: mediaUrl,
+          productId: item.productId || '',
+          redirect_link: item.redirectLink || '',
+          mailcategory_id: item.mainCategoryId || '',
+          subcategory_id: item.subCategoryId || '',
+        });
+        return;
+      }
+
+      if (widgetKey === 'special_offers') {
         row = {
           image: isVideo ? '' : mediaUrl,
-          video: isVideo ? mediaUrl : '',
           Title: item.title || '',
           'Sub title': item.subtitle || '',
           product_id: item.productId || '',
           'External Link': item.redirectLink || '',
         };
       } else if (
-        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(
-          widgetType,
-        )
+        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(widgetKey)
       ) {
-        // Banner Widgets — clean single keys
         row = {
           banner_image: mediaUrl,
-          redirect_link: item.redirectLink || '',
+          Redrict_link: item.redirectLink || '',
           category_id: item.categoryId || '',
           product_id: item.productId || '',
-          maincategory_id: item.mainCategoryId || '',
+          mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
       } else {
-        // Category / Product Widgets — clean single keys
+        // shop_by_category, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
           productId: item.productId || '',
           categoryName: item.categoryName || '',
-          redirect_link: item.redirectLink || '',
-          maincategory_id: item.mainCategoryId || '',
+          redrict_link: item.redirectLink || '',
+          mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
       }
 
-      groupedData[widgetType].items.push(row);
+      groupedData[widgetKey].items.push(row);
     });
 
     return {
