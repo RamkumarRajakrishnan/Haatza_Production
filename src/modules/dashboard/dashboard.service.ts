@@ -181,6 +181,12 @@ export class DashboardService {
           redrict_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
+          product: {
+            title: item.title || '',
+            price: item.price || 0,
+            discount: item.discount || 0,
+            image: mediaUrl,
+          },
         };
       }
 
