@@ -70,31 +70,16 @@ export class DashboardService {
         widgetKey = 'Lite_Shopbycategory';
       }
 
-      // Initialize group header matching EXACT user specification per widget type
+      // Initialize group header matching EXACT user JSON output sample
       if (!groupedData[widgetKey]) {
-        const header: any = {};
-
-        if (['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(lowerKey)) {
-          // Banner & Special Offer widgets — ONLY items (no sequence, title, theme, see_more headers)
-          header.items = [];
-        } else {
-          header.widgetsequence = item.sequence || 0;
-
-          if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
-            header.titleimage = this.formatImageUrl(item.titleImage);
-            header.theme = item.subtitle || '';
-            header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
-          } else if (lowerKey === 'seasonal_picks') {
-            header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
-          } else {
-            // Lite_Shopbycategory, trending_now, best_sellers, deals_zone, best_rated, must_have, top_categories
-            header.title = item.title || '';
-          }
-
-          header.items = [];
-        }
-
-        groupedData[widgetKey] = header;
+        groupedData[widgetKey] = {
+          widgetsequence: item.sequence || 0,
+          title: item.title || '',
+          titleimage: this.formatImageUrl(item.titleImage),
+          theme: item.subtitle || '',
+          see_more: item.status === 'ACTIVE' || item.status === 'TRUE' || true,
+          items: [],
+        };
       }
 
       let row: any;
