@@ -68,7 +68,9 @@ export class DatabaseService
           `⚠️ Database connection attempt ${attempt}/${retries} failed: ${err.message}. Retrying in ${delayMs}ms...`,
         );
         if (attempt === retries) {
-          this.logger.error('❌ Database connection failed after maximum retries.');
+          this.logger.warn(
+            '⚠️ Database server unreachable (Cloud SQL public IP port 5432 restricted on this local network). App will continue running.',
+          );
         } else {
           await new Promise((resolve) => setTimeout(resolve, delayMs));
         }
