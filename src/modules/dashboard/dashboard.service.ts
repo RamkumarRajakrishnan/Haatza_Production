@@ -162,6 +162,36 @@ export class DashboardService {
       groupedData[widgetKey].items.push(row);
     });
 
+    // STRICT ENFORCEMENT: Clean header fields for each section right before returning
+    Object.keys(groupedData).forEach((key) => {
+      const lowerKey = key.toLowerCase();
+      const group = groupedData[key];
+
+      if (
+        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(lowerKey)
+      ) {
+        // Banner Sections: Keep ONLY items key (Remove widgetsequence, title, titleimage, theme, see_more)
+        delete group.widgetsequence;
+        delete group.title;
+        delete group.titleimage;
+        delete group.theme;
+        delete group.see_more;
+      } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
+        // Styled Sections: Keep widgetsequence, titleimage, theme, see_more, items (Remove title)
+        delete group.title;
+      } else if (lowerKey === 'seasonal_picks') {
+        // Seasonal Picks: Keep widgetsequence, see_more, items (Remove title, titleimage, theme)
+        delete group.title;
+        delete group.titleimage;
+        delete group.theme;
+      } else {
+        // Standard Card Sections: Keep widgetsequence, title, items (Remove titleimage, theme, see_more)
+        delete group.titleimage;
+        delete group.theme;
+        delete group.see_more;
+      }
+    });
+
     return {
       status: 'success',
       message: {
