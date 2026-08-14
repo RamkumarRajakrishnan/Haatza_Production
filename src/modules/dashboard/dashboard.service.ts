@@ -70,16 +70,36 @@ export class DashboardService {
         widgetKey = 'Lite_Shopbycategory';
       }
 
-      // Initialize group header matching EXACT user JSON output sample
+      // Initialize group header matching EXACT widget specification breakdown
       if (!groupedData[widgetKey]) {
-        groupedData[widgetKey] = {
-          widgetsequence: item.sequence || 0,
-          title: item.title || '',
-          titleimage: this.formatImageUrl(item.titleImage),
-          theme: item.subtitle || '',
-          see_more: item.status === 'ACTIVE' || item.status === 'TRUE' || true,
-          items: [],
-        };
+        const header: any = {};
+
+        if (['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)) {
+          // Banner Widgets — ONLY items key (no widgetsequence, title, theme, see_more headers)
+          header.items = [];
+        } else if (lowerKey === 'special_offers') {
+          // Special Offers — ONLY items key
+          header.items = [];
+        } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
+          // Styled Offer Card Sections — widgetsequence, titleimage, theme, see_more, items
+          header.widgetsequence = item.sequence || 0;
+          header.titleimage = this.formatImageUrl(item.titleImage);
+          header.theme = item.subtitle || '';
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
+          header.items = [];
+        } else if (lowerKey === 'seasonal_picks') {
+          // Seasonal Picks — widgetsequence, see_more, items
+          header.widgetsequence = item.sequence || 0;
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
+          header.items = [];
+        } else {
+          // Lite_Shopbycategory, trending_now, best_sellers, deals_zone, best_rated, must_have, top_categories
+          header.widgetsequence = item.sequence || 0;
+          header.title = item.title || '';
+          header.items = [];
+        }
+
+        groupedData[widgetKey] = header;
       }
 
       let row: any;
