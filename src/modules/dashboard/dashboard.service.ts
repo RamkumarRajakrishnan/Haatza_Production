@@ -226,7 +226,7 @@ export class DashboardService {
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         priority: w.priority ? Number(w.priority) : null,
-        item: itemData ? (typeof itemData === 'string' ? itemData : JSON.stringify(itemData)) : null,
+        item: itemData ?? w.items ?? null,
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,
         mainCategoryId:
