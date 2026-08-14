@@ -102,6 +102,35 @@ export class DashboardService {
         groupedData[widgetKey] = header;
       }
 
+      // Check if custom Items JSON array is stored directly on the database row
+      let storedItems: any[] = [];
+      if (item.item) {
+        if (Array.isArray(item.item)) {
+          storedItems = item.item;
+        } else if (typeof item.item === 'string') {
+          try {
+            const parsed = JSON.parse(item.item);
+            storedItems = Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            storedItems = [];
+          }
+        } else if (typeof item.item === 'object') {
+          storedItems = [item.item];
+        }
+      }
+
+      if (storedItems.length > 0) {
+        // Use custom items stored in database column
+        if (lowerKey === 'seasonal_picks') {
+          groupedData[widgetKey].items.push(...storedItems);
+        } else {
+          storedItems.forEach((subItem: any) => {
+            groupedData[widgetKey].items.push(subItem);
+          });
+        }
+        return;
+      }
+
       let row: any;
 
       if (lowerKey === 'seasonal_picks') {
