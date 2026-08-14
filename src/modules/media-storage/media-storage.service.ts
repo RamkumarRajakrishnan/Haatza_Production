@@ -374,24 +374,41 @@ export class MediaStorageService {
 
       if (key === 'mainMedia' && typeof val === 'string') {
         result[key] = this.getPublicUrl(val);
-      } else if ((key === 'media' || key === 'productImages' || key === 'mediaUrls') && val) {
-        if (Array.isArray(val)) {
-          result[key] = val.map((item) => {
+      } else if ((key === 'media' || key === 'productImages' || key === 'mediaUrls' || key === 'promotionPhotos') && val) {
+        let parsedVal = val;
+        if (typeof val === 'string') {
+          try {
+            const trimmed = val.trim();
+            if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+              parsedVal = JSON.parse(trimmed);
+            } else {
+              result[key] = this.getPublicUrl(val);
+              continue;
+            }
+          } catch {
+            result[key] = this.getPublicUrl(val);
+            continue;
+          }
+        }
+
+        if (Array.isArray(parsedVal)) {
+          result[key] = parsedVal.map((item) => {
             if (typeof item === 'string') {
               return this.getPublicUrl(item);
             }
             if (item && typeof item === 'object') {
-              const itemKey = item.key || item.url;
+              const itemKey = item.url || item.key || item.src || item.image || item.main_media;
               return {
                 ...item,
                 key: item.key ? item.key : this.extractKey(itemKey),
                 url: this.getPublicUrl(itemKey),
+                src: item.src ? this.getPublicUrl(item.src) : undefined,
               };
             }
             return item;
           });
-        } else if (typeof val === 'object') {
-          result[key] = this.transformMediaToUrls(val);
+        } else if (typeof parsedVal === 'object') {
+          result[key] = this.transformMediaToUrls(parsedVal);
         }
       } else if (val && typeof val === 'object') {
         result[key] = this.transformMediaToUrls(val);
