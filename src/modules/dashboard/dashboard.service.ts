@@ -207,7 +207,23 @@ export class DashboardService {
 
     for (const w of list) {
       const widgetId = w.widgetId || crypto.randomUUID();
-      const itemData = w.item ?? w.Item ?? w.product ?? (w.widgetProducts ? w.widgetProducts : null);
+      const rawItem = w.items ?? w.Items ?? w.item ?? w.Item ?? w.product ?? w.widgetProducts ?? null;
+      let parsedItemArray: any = null;
+      if (rawItem) {
+        if (Array.isArray(rawItem)) {
+          parsedItemArray = rawItem;
+        } else if (typeof rawItem === 'string') {
+          try {
+            const parsed = JSON.parse(rawItem);
+            parsedItemArray = Array.isArray(parsed) ? parsed : [parsed];
+          } catch {
+            parsedItemArray = [rawItem];
+          }
+        } else {
+          parsedItemArray = [rawItem];
+        }
+      }
+
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
         title: w.title ?? w.Title ?? null,
@@ -226,7 +242,7 @@ export class DashboardService {
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         priority: w.priority ? Number(w.priority) : null,
-        item: itemData ?? w.items ?? null,
+        item: parsedItemArray,
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,
         mainCategoryId:
