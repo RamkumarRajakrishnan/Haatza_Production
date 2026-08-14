@@ -70,16 +70,23 @@ export class DashboardService {
         widgetKey = 'Lite_Shopbycategory';
       }
 
-      // Initialize group header matching user's exact requested schema
+      // Initialize group header matching EXACT user specification per widget type
       if (!groupedData[widgetKey]) {
         const header: any = {
           widgetsequence: item.sequence || 0,
-          title: item.title || '',
-          titleimage: this.formatImageUrl(item.titleImage),
-          theme: item.subtitle || '',
-          see_more: item.status === 'ACTIVE' || item.status === 'TRUE',
-          items: [],
         };
+
+        if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
+          header.titleimage = this.formatImageUrl(item.titleImage);
+          header.theme = item.subtitle || '';
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
+        } else if (lowerKey === 'seasonal_picks') {
+          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE';
+        } else if (['Lite_Shopbycategory', 'shopbycategory', 'shop_by_category', 'trending_now', 'best_sellers', 'best_rated', 'must_have', 'top_categories', 'deals_zone'].includes(widgetKey) || ['trending_now', 'best_sellers', 'best_rated', 'must_have', 'top_categories', 'deals_zone'].includes(lowerKey)) {
+          header.title = item.title || '';
+        }
+
+        header.items = [];
         groupedData[widgetKey] = header;
       }
 
@@ -100,6 +107,7 @@ export class DashboardService {
 
         catEntry.subcategory.push({
           Image: mediaUrl,
+          productId: item.productId || '',
           redirect_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
@@ -112,6 +120,7 @@ export class DashboardService {
           image: isVideo ? '' : mediaUrl,
           Title: item.title || '',
           'Sub title': item.subtitle || '',
+          product_id: item.productId || '',
           'External Link': item.redirectLink || '',
         };
       } else if (
@@ -121,6 +130,7 @@ export class DashboardService {
           banner_image: mediaUrl,
           Redrict_link: item.redirectLink || '',
           category_id: item.categoryId || '',
+          product_id: item.productId || '',
           mailcategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
@@ -129,6 +139,7 @@ export class DashboardService {
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
+          productId: item.productId || '',
           categoryName: item.categoryName || '',
           redrict_link: item.redirectLink || '',
           mailcategory_id: item.mainCategoryId || '',
