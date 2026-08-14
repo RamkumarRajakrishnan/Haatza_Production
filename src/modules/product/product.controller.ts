@@ -6,7 +6,7 @@ import { StorageService } from '../seller-product/storage.service';
 import { ApiTags } from '@nestjs/swagger';
 
 @ApiTags('Products')
-@Controller(['products', 'api/products'])
+@Controller()
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
