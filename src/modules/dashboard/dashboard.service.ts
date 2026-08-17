@@ -122,6 +122,43 @@ export class DashboardService {
       let row: any;
       const productArray = this.formatProductArray(item.item);
 
+      if (lowerKey === 'seasonal_picks') {
+        let catEntry = groupedData[widgetKey].items.find(
+          (c: any) => c.categoryId === (item.categoryId || ''),
+        );
+        if (!catEntry) {
+          catEntry = {
+            categoryId: item.categoryId || '',
+            categoryName: item.categoryName || '',
+            subcategory: [],
+          };
+          groupedData[widgetKey].items.push(catEntry);
+        }
+
+        if (productArray.length > 0) {
+          for (const storedItem of productArray) {
+            if (typeof storedItem === 'object' && storedItem !== null && (storedItem.Image || storedItem.redirect_link || storedItem.subcategory_id)) {
+              catEntry.subcategory.push(storedItem);
+            } else {
+              catEntry.subcategory.push({
+                Image: mediaUrl,
+                redirect_link: item.redirectLink || '',
+                maincategory_id: item.mainCategoryId || '',
+                subcategory_id: item.subCategoryId || '',
+              });
+            }
+          }
+        } else {
+          catEntry.subcategory.push({
+            Image: mediaUrl,
+            redirect_link: item.redirectLink || '',
+            maincategory_id: item.mainCategoryId || '',
+            subcategory_id: item.subCategoryId || '',
+          });
+        }
+        return;
+      }
+
       // If DB column "Item" has stored JSON item objects, use them directly
       if (productArray.length > 0) {
         for (const storedItem of productArray) {
@@ -142,28 +179,6 @@ export class DashboardService {
             break;
           }
         }
-        return;
-      }
-
-      if (lowerKey === 'seasonal_picks') {
-        let catEntry = groupedData[widgetKey].items.find(
-          (c: any) => c.categoryId === (item.categoryId || ''),
-        );
-        if (!catEntry) {
-          catEntry = {
-            categoryId: item.categoryId || '',
-            categoryName: item.categoryName || '',
-            subcategory: [],
-          };
-          groupedData[widgetKey].items.push(catEntry);
-        }
-
-        catEntry.subcategory.push({
-          Image: mediaUrl,
-          redirect_link: item.redirectLink || '',
-          maincategory_id: item.mainCategoryId || '',
-          subcategory_id: item.subCategoryId || '',
-        });
         return;
       }
 
