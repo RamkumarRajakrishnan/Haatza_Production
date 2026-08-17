@@ -13,19 +13,14 @@ export class DashboardController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Dashboard Page Widgets',
-    description:
-      'Retrieves grouped dashboard widgets filtered by categoryId, module (HAATZA or LITE), and warehouseId. Note: warehouseId is MANDATORY for LITE module and optional for HAATZA module.',
+    description: 'Retrieves grouped dashboard widgets filtered by categoryId, optional warehouseId, and module (HAATZA or LITE).',
   })
-  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Optional category ID' })
-  @ApiQuery({ name: 'warehouseId', required: false, type: String, description: 'Mandatory for LITE, optional for HAATZA' })
-  @ApiQuery({ name: 'module', required: true, enum: DashboardModule, description: 'Mandatory module name' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'warehouseId', required: false, type: String })
+  @ApiQuery({ name: 'module', required: true, enum: DashboardModule })
   @ApiResponse({
     status: 200,
-    description: 'Dashboard widgets retrieved successfully',
-  })
-  @ApiResponse({
-    status: 400,
-    description: 'Bad Request (e.g. missing warehouseId for LITE module)',
+    description: 'HAATZA dashboard widgets retrieved successfully',
   })
   async getHaatzaDashboard(@Query() dto: GetHaatzaDashboardDto) {
     return this.dashboardService.getHaatzaDashboard(dto);
@@ -35,13 +30,9 @@ export class DashboardController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Upsert single or bulk Dashboard Widgets',
-    description: 'Insert or update one or multiple dashboard widgets. Unique sequential widget IDs (WID001, WID002...) are generated automatically if not provided.',
+    description: 'Insert or update one or multiple dashboard widgets.',
   })
   @ApiBody({ description: 'Single widget object or array of widget objects' })
-  @ApiResponse({
-    status: 200,
-    description: 'Dashboard widget(s) upserted successfully',
-  })
   async upsertWidgets(@Body() body: any) {
     return this.dashboardService.upsertWidgets(body);
   }
