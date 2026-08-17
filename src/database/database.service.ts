@@ -353,6 +353,7 @@ export class DatabaseService
           END IF;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
+        -- Safe column additions for dashboard table
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS priority integer;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_id text;
@@ -365,7 +366,6 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
-        -- Ensure "Item" is the real column and "product" is a generated alias column
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
         DO $$ BEGIN
           ALTER TABLE public.dashboard ADD COLUMN product jsonb GENERATED ALWAYS AS ("Item") STORED;
