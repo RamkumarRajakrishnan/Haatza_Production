@@ -165,7 +165,7 @@ export class DashboardService {
           Item: productArray,
         };
       } else {
-        // shop_by_category, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
+        // shopbycategory, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
