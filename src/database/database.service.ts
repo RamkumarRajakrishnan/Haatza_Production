@@ -20,11 +20,18 @@ export class DatabaseService
     const pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX) || 15,
-      min: Number(process.env.DATABASE_POOL_MIN) || 3,
-      idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS) || 30000,
+      min: Number(process.env.DATABASE_POOL_MIN) || 2,
+      idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS) || 10000,
       connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
       ssl: { rejectUnauthorized: false },
     });
+
+    pool.on('error', (err: any) => {
+      this.logger.warn(`⚠️ PostgreSQL pool background client error: ${err.message}`);
+    });
+
     const adapter = new PrismaPg(pool);
     super({ adapter });
     this.pool = pool;
@@ -42,8 +49,14 @@ export class DatabaseService
       const result = await this.pool.query(text, params);
       return result.rowCount || 0;
     } catch (err: any) {
-      this.logger.error(`Pool query failed: ${err.message}`);
-      return 0;
+      this.logger.warn(`Pool query initial attempt failed (${err.message}). Retrying query...`);
+      try {
+        const retryResult = await this.pool.query(text, params);
+        return retryResult.rowCount || 0;
+      } catch (retryErr: any) {
+        this.logger.error(`Pool query retry failed: ${retryErr.message}`);
+        return 0;
+      }
     }
   }
 
