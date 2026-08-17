@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DatabaseService } from '../../database/database.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
@@ -35,29 +35,70 @@ export class DashboardService {
   /** Helper to safely parse and normalize product / item field to guaranteed array format */
   private formatProductArray(rawItem: any): any[] {
     if (!rawItem) return [];
-    if (Array.isArray(rawItem)) return rawItem;
+
+    let parsed = rawItem;
     if (typeof rawItem === 'string') {
       const trimmed = rawItem.trim();
       if (!trimmed) return [];
       try {
-        const parsed = JSON.parse(trimmed);
-        return Array.isArray(parsed) ? parsed : [parsed];
+        parsed = JSON.parse(trimmed);
       } catch {
         return [trimmed];
       }
     }
-    return [rawItem];
+
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      for (const k of Object.keys(parsed)) {
+        if (Array.isArray(parsed[k])) {
+          return this.formatProductArray(parsed[k]);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed)) {
+      const unwrapped: any[] = [];
+      for (const el of parsed) {
+        if (typeof el === 'object' && el !== null) {
+          if (Array.isArray(el.items)) {
+            unwrapped.push(...this.formatProductArray(el.items));
+          } else if (el.Lite_Shopbycategory || el.shopbycategory) {
+            unwrapped.push(...this.formatProductArray(el.Lite_Shopbycategory || el.shopbycategory));
+          } else {
+            unwrapped.push(el);
+          }
+        } else {
+          unwrapped.push(el);
+        }
+      }
+      return unwrapped;
+    }
+
+    return [parsed];
   }
 
   /**
    * Get Dashboard Widgets dynamically for ANY widget type in the database.
-   * Works for both HAATZA and LITE modules without static restrictions.
+   * - HAATZA module: categoryId is COMPULSORY, warehouseId is OPTIONAL.
+   * - LITE module: categoryId is COMPULSORY, warehouseId is COMPULSORY.
    */
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
     const { categoryId, warehouseId } = dto;
-    const targetModule = dto.module
-      ? (String(dto.module).toUpperCase() as DashboardModule)
-      : DashboardModule.HAATZA;
+
+    if (!dto.module) {
+      throw new BadRequestException('module is mandatory (HAATZA or LITE).');
+    }
+
+    const targetModule = String(dto.module).toUpperCase() as DashboardModule;
+
+    // VALIDATION: categoryId is COMPULSORY for both HAATZA and LITE modules
+    if (!categoryId?.trim()) {
+      throw new BadRequestException(`categoryId is mandatory for ${targetModule} module.`);
+    }
+
+    // VALIDATION: warehouseId is COMPULSORY for LITE module
+    if (targetModule === DashboardModule.LITE && !warehouseId?.trim()) {
+      throw new BadRequestException('warehouseId is mandatory for LITE module.');
+    }
 
     const whereCondition: any = { module: targetModule };
     if (categoryId?.trim()) whereCondition.categoryId = categoryId.trim();
@@ -255,14 +296,35 @@ export class DashboardService {
   }
 
   /**
-   * Bulk or single upsert of dashboard widgets
+   * Bulk or single upsert of dashboard widgets.
+   * Automatically generates sequential unique widget IDs (WID001, WID002, WID003...) if not provided.
    */
   async upsertWidgets(widgetsPayload: any) {
     const list = Array.isArray(widgetsPayload) ? widgetsPayload : [widgetsPayload];
     const results: any[] = [];
 
+    // Query max numerical suffix from existing 'WIDxxx' widget IDs
+    const existingWidRecords = await this.db.dashboard.findMany({
+      where: { widgetId: { startsWith: 'WID' } },
+      select: { widgetId: true },
+    });
+    let maxWidNum = 0;
+    existingWidRecords.forEach((rec) => {
+      const match = rec.widgetId.match(/^WID(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxWidNum) {
+          maxWidNum = num;
+        }
+      }
+    });
+
     for (const w of list) {
-      const widgetId = w.widgetId || crypto.randomUUID();
+      let widgetId = w.widgetId || w.widget_id;
+      if (!widgetId?.trim()) {
+        maxWidNum++;
+        widgetId = `WID${String(maxWidNum).padStart(3, '0')}`;
+      }
       const rawItem = w.items ?? w.Items ?? w.item ?? w.Item ?? w.product ?? w.widgetProducts ?? null;
       const parsedItemArray = this.formatProductArray(rawItem);
 
