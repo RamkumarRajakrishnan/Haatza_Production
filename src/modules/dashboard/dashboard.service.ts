@@ -35,18 +35,45 @@ export class DashboardService {
   /** Helper to safely parse and normalize product / item field to guaranteed array format */
   private formatProductArray(rawItem: any): any[] {
     if (!rawItem) return [];
-    if (Array.isArray(rawItem)) return rawItem;
+
+    let parsed = rawItem;
     if (typeof rawItem === 'string') {
       const trimmed = rawItem.trim();
       if (!trimmed) return [];
       try {
-        const parsed = JSON.parse(trimmed);
-        return Array.isArray(parsed) ? parsed : [parsed];
+        parsed = JSON.parse(trimmed);
       } catch {
         return [trimmed];
       }
     }
-    return [rawItem];
+
+    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
+      for (const k of Object.keys(parsed)) {
+        if (Array.isArray(parsed[k])) {
+          return this.formatProductArray(parsed[k]);
+        }
+      }
+    }
+
+    if (Array.isArray(parsed)) {
+      const unwrapped: any[] = [];
+      for (const el of parsed) {
+        if (typeof el === 'object' && el !== null) {
+          if (Array.isArray(el.items)) {
+            unwrapped.push(...this.formatProductArray(el.items));
+          } else if (el.Lite_Shopbycategory || el.shopbycategory) {
+            unwrapped.push(...this.formatProductArray(el.Lite_Shopbycategory || el.shopbycategory));
+          } else {
+            unwrapped.push(el);
+          }
+        } else {
+          unwrapped.push(el);
+        }
+      }
+      return unwrapped;
+    }
+
+    return [parsed];
   }
 
   /**
