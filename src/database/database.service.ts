@@ -341,16 +341,15 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
 
-        -- Safe column migrations for dashboard table: keep ONLY "Item" column
+        -- Safe column migrations for dashboard table: drop product, subtitle, image, redirect_link, price, discount
         DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard' AND column_name='Items') THEN
-            UPDATE public.dashboard SET "Item" = "Items" WHERE ("Item" IS NULL OR "Item"::text = 'null') AND "Items" IS NOT NULL;
-            ALTER TABLE public.dashboard DROP COLUMN "Items";
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard' AND column_name='product') THEN
-            UPDATE public.dashboard SET "Item" = product WHERE ("Item" IS NULL OR "Item"::text = 'null') AND product IS NOT NULL;
-            ALTER TABLE public.dashboard DROP COLUMN product;
-          END IF;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS subtitle;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS image;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS redirect_link;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS price;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS discount;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS "Items";
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         -- Safe column additions for dashboard table
@@ -358,20 +357,12 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS title text;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS subtitle text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS status text DEFAULT 'ACTIVE';
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sequence integer;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS image text;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS redirect_link text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
-        DO $$ BEGIN
-          ALTER TABLE public.dashboard ADD COLUMN product jsonb GENERATED ALWAYS AS ("Item") STORED;
-        EXCEPTION WHEN OTHERS THEN NULL; END $$;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS price double precision;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS discount double precision;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS main_category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sub_category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS warehouse_id text;

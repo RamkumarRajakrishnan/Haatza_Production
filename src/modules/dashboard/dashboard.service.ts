@@ -115,7 +115,8 @@ export class DashboardService {
       const widgetType = item.widgetType;
       if (!widgetType) return;
 
-      const mediaUrl = this.formatImageUrl(item.image);
+      const itemAny = item as any;
+      const mediaUrl = this.formatImageUrl(itemAny.image);
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
@@ -142,7 +143,7 @@ export class DashboardService {
           // Styled Offer Card Sections — widgetsequence, titleimage, theme, see_more, items
           header.widgetsequence = item.sequence || 0;
           header.titleimage = this.formatImageUrl(item.titleImage);
-          header.theme = item.subtitle || '';
+          header.theme = itemAny.subtitle || '';
           header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
           header.items = [];
         } else if (lowerKey === 'seasonal_picks') {
@@ -183,7 +184,7 @@ export class DashboardService {
             } else {
               catEntry.subcategory.push({
                 Image: mediaUrl,
-                redirect_link: item.redirectLink || '',
+                redirect_link: itemAny.redirectLink || '',
                 maincategory_id: item.mainCategoryId || '',
                 subcategory_id: item.subCategoryId || '',
               });
@@ -192,7 +193,7 @@ export class DashboardService {
         } else {
           catEntry.subcategory.push({
             Image: mediaUrl,
-            redirect_link: item.redirectLink || '',
+            redirect_link: itemAny.redirectLink || '',
             maincategory_id: item.mainCategoryId || '',
             subcategory_id: item.subCategoryId || '',
           });
@@ -211,7 +212,7 @@ export class DashboardService {
               Image: mediaUrl,
               categoryId: item.categoryId || '',
               categoryName: item.categoryName || '',
-              redrict_link: item.redirectLink || '',
+              redrict_link: itemAny.redirectLink || '',
               maincategory_id: item.mainCategoryId || '',
               subcategory_id: item.subCategoryId || '',
               Item: productArray,
@@ -227,15 +228,15 @@ export class DashboardService {
         row = {
           image: isVideo ? '' : mediaUrl,
           Title: item.title || '',
-          'Sub title': item.subtitle || '',
-          'External Link': item.redirectLink || '',
+          'Sub title': itemAny.subtitle || '',
+          'External Link': itemAny.redirectLink || '',
         };
       } else if (
         ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
       ) {
         row = {
           banner_image: mediaUrl,
-          Redrict_link: item.redirectLink || '',
+          Redrict_link: itemAny.redirectLink || '',
           category_id: item.categoryId || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
@@ -246,7 +247,7 @@ export class DashboardService {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
           categoryName: item.categoryName || '',
-          redrict_link: item.redirectLink || '',
+          redrict_link: itemAny.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
@@ -331,23 +332,11 @@ export class DashboardService {
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
         title: w.title ?? w.Title ?? null,
-        subtitle: w.subtitle ?? w.theme ?? w['Sub title'] ?? null,
         status: w.status || 'ACTIVE',
         sequence: Number(w.sequence) || 1,
-        image: w.image ?? w.Image ?? w.banner_image ?? w.backgroundImage ?? null,
-        redirectLink:
-          w.redirectLink ??
-          w.redirect_link ??
-          w.Redrict_link ??
-          w.redrict_link ??
-          w.page ??
-          w['External Link'] ??
-          null,
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         item: parsedItemArray,
-        price: w.price ? Number(w.price) : null,
-        discount: w.discount ? Number(w.discount) : null,
         mainCategoryId:
           w.mainCategoryId ??
           w.maincategory_id ??
