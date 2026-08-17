@@ -135,13 +135,16 @@ export class DashboardService {
           groupedData[widgetKey].items.push(catEntry);
         }
 
-        catEntry.subcategory.push({
+        const subObj: any = {
           Image: mediaUrl,
           redirect_link: item.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
-        });
+        };
+        if (productArray.length > 0) {
+          subObj.Item = productArray;
+        }
+        catEntry.subcategory.push(subObj);
         return;
       }
 
@@ -151,7 +154,6 @@ export class DashboardService {
           Title: item.title || '',
           'Sub title': item.subtitle || '',
           'External Link': item.redirectLink || '',
-          Item: productArray,
         };
       } else if (
         ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
@@ -162,7 +164,6 @@ export class DashboardService {
           category_id: item.categoryId || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
         };
       } else {
         // shopbycategory, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
@@ -173,8 +174,11 @@ export class DashboardService {
           redrict_link: item.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
         };
+      }
+
+      if (productArray.length > 0) {
+        row.Item = productArray;
       }
 
       groupedData[widgetKey].items.push(row);
