@@ -724,7 +724,7 @@ model Dashboard {
   categoryId       String?          @map("category_id")
   categoryName     String?          @map("category_name")
   priority         Int?             @map("priority")
-  item             Json?            @map("Items")
+  item             Json?            @map("Item")
   price            Float?           @map("price")
   discount         Float?           @map("discount")
   mainCategoryId   String?          @map("main_category_id")
