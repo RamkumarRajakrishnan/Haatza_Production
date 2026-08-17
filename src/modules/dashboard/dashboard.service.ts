@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
 import { DatabaseService } from '../../database/database.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
@@ -8,7 +8,7 @@ import { DashboardModule } from '@prisma/client';
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
-  constructor(private readonly db: DatabaseService) { }
+  constructor(private readonly db: DatabaseService) {}
 
   /** Safe image/media URL formatter */
   private formatImageUrl(url: string | null | undefined): string {
@@ -78,13 +78,23 @@ export class DashboardService {
 
   /**
    * Get Dashboard Widgets dynamically for ANY widget type in the database.
-   * Works for both HAATZA and LITE modules without static restrictions.
+   * Works for both HAATZA and LITE modules.
+   * - HAATZA module: warehouse_id is OPTIONAL.
+   * - LITE module: warehouse_id is COMPULSORY / MANDATORY.
    */
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
     const { categoryId, warehouseId } = dto;
-    const targetModule = dto.module
-      ? (String(dto.module).toUpperCase() as DashboardModule)
-      : DashboardModule.HAATZA;
+
+    if (!dto.module) {
+      throw new BadRequestException('module is mandatory (HAATZA or LITE).');
+    }
+
+    const targetModule = String(dto.module).toUpperCase() as DashboardModule;
+
+    // VALIDATION: For LITE module, warehouse_id is COMPULSORY / MANDATORY
+    if (targetModule === DashboardModule.LITE && !warehouseId?.trim()) {
+      throw new BadRequestException('warehouseId is mandatory for LITE module.');
+    }
 
     const whereCondition: any = { module: targetModule };
     if (categoryId?.trim()) whereCondition.categoryId = categoryId.trim();
@@ -282,14 +292,36 @@ export class DashboardService {
   }
 
   /**
-   * Bulk or single upsert of dashboard widgets
+   * Bulk or single upsert of dashboard widgets.
+   * Automatically generates sequential unique widget IDs (WID001, WID002, WID003...) if not provided.
    */
   async upsertWidgets(widgetsPayload: any) {
     const list = Array.isArray(widgetsPayload) ? widgetsPayload : [widgetsPayload];
     const results: any[] = [];
 
+    // Query max numerical suffix from existing 'WIDxxx' widget IDs
+    const existingWidRecords = await this.db.dashboard.findMany({
+      where: { widgetId: { startsWith: 'WID' } },
+      select: { widgetId: true },
+    });
+    let maxWidNum = 0;
+    existingWidRecords.forEach((rec) => {
+      const match = rec.widgetId.match(/^WID(\d+)$/i);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        if (!isNaN(num) && num > maxWidNum) {
+          maxWidNum = num;
+        }
+      }
+    });
+
     for (const w of list) {
-      const widgetId = w.widgetId || crypto.randomUUID();
+      let widgetId = w.widgetId || w.widget_id;
+      if (!widgetId?.trim()) {
+        maxWidNum++;
+        widgetId = `WID${String(maxWidNum).padStart(3, '0')}`;
+      }
+
       const rawItem = w.items ?? w.Items ?? w.item ?? w.Item ?? w.product ?? w.widgetProducts ?? null;
       const parsedItemArray = this.formatProductArray(rawItem);
 

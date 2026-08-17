@@ -5,13 +5,15 @@ import { DashboardModule } from '@prisma/client';
 export class GetHaatzaDashboardDto {
   @ApiPropertyOptional({
     description: 'Optional Category ID to filter dashboard widgets',
+    example: 'cate001',
   })
   @IsOptional()
   @IsString()
   categoryId?: string;
 
   @ApiPropertyOptional({
-    description: 'Optional Warehouse ID to filter dashboard widgets',
+    description: 'Warehouse ID (Mandatory for LITE module, optional for HAATZA module)',
+    example: 'wh_001',
   })
   @IsOptional()
   @IsString()
@@ -20,8 +22,9 @@ export class GetHaatzaDashboardDto {
   @ApiProperty({
     description: 'Mandatory Module to filter dashboard widgets (HAATZA or LITE)',
     enum: DashboardModule,
+    example: DashboardModule.HAATZA,
   })
-  @IsNotEmpty()
-  @IsEnum(DashboardModule)
+  @IsNotEmpty({ message: 'module is mandatory (HAATZA or LITE).' })
+  @IsEnum(DashboardModule, { message: 'module must be either HAATZA or LITE.' })
   module: DashboardModule;
 }
