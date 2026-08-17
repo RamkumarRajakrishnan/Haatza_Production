@@ -122,6 +122,29 @@ export class DashboardService {
       let row: any;
       const productArray = this.formatProductArray(item.item);
 
+      // If DB column "Item" has stored JSON item objects, use them directly
+      if (productArray.length > 0) {
+        for (const storedItem of productArray) {
+          if (typeof storedItem === 'object' && storedItem !== null && (storedItem.Image || storedItem.banner_image || storedItem.image || storedItem.categoryId || storedItem.category_id)) {
+            groupedData[widgetKey].items.push(storedItem);
+          } else {
+            // Product array inside item
+            row = {
+              Image: mediaUrl,
+              categoryId: item.categoryId || '',
+              categoryName: item.categoryName || '',
+              redrict_link: item.redirectLink || '',
+              maincategory_id: item.mainCategoryId || '',
+              subcategory_id: item.subCategoryId || '',
+              Item: productArray,
+            };
+            groupedData[widgetKey].items.push(row);
+            break;
+          }
+        }
+        return;
+      }
+
       if (lowerKey === 'seasonal_picks') {
         let catEntry = groupedData[widgetKey].items.find(
           (c: any) => c.categoryId === (item.categoryId || ''),
@@ -135,16 +158,12 @@ export class DashboardService {
           groupedData[widgetKey].items.push(catEntry);
         }
 
-        const subObj: any = {
+        catEntry.subcategory.push({
           Image: mediaUrl,
           redirect_link: item.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-        };
-        if (productArray.length > 0) {
-          subObj.Item = productArray;
-        }
-        catEntry.subcategory.push(subObj);
+        });
         return;
       }
 
@@ -175,10 +194,6 @@ export class DashboardService {
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
         };
-      }
-
-      if (productArray.length > 0) {
-        row.Item = productArray;
       }
 
       groupedData[widgetKey].items.push(row);
