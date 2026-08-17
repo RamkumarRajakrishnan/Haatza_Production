@@ -365,7 +365,11 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
+        -- Ensure "Item" is the real column and "product" is a generated alias column
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
+        DO $$ BEGIN
+          ALTER TABLE public.dashboard ADD COLUMN product jsonb GENERATED ALWAYS AS ("Item") STORED;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS price double precision;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS discount double precision;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS main_category_id text;
