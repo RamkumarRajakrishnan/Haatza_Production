@@ -84,43 +84,22 @@ export class DashboardService {
       // Determine output widget group key name
       let widgetKey = rawKey;
       if (lowerKey === 'shopbycategory' || lowerKey === 'shop_by_category') {
-        widgetKey = 'Lite_Shopbycategory';
+        widgetKey = targetModule === DashboardModule.LITE ? 'Lite_Shopbycategory' : 'Shopbycategory';
       }
 
-      // Initialize group header matching EXACT widget specification breakdown
+      // Initialize group header with full metadata (widgetsequence, title, titleimage, theme, see_more)
       if (!groupedData[widgetKey]) {
-        const header: any = {};
-
-        if (['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)) {
-          // Banner Widgets — ONLY items key (no widgetsequence, title, theme, see_more headers)
-          header.items = [];
-        } else if (lowerKey === 'special_offers') {
-          // Special Offers — ONLY items key
-          header.items = [];
-        } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
-          // Styled Offer Card Sections — widgetsequence, titleimage, theme, see_more, items
-          header.widgetsequence = item.sequence || 0;
-          header.titleimage = this.formatImageUrl(item.titleImage);
-          header.theme = item.subtitle || '';
-          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
-          header.items = [];
-        } else if (lowerKey === 'seasonal_picks') {
-          // Seasonal Picks — widgetsequence, see_more, items
-          header.widgetsequence = item.sequence || 0;
-          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
-          header.items = [];
-        } else {
-          // Lite_Shopbycategory, trending_now, best_sellers, deals_zone, best_rated, must_have, top_categories
-          header.widgetsequence = item.sequence || 0;
-          header.title = item.title || '';
-          header.items = [];
-        }
-
-        groupedData[widgetKey] = header;
+        groupedData[widgetKey] = {
+          widgetsequence: item.sequence || 0,
+          title: item.title || '',
+          titleimage: this.formatImageUrl(item.titleImage) || '',
+          theme: item.subtitle || '',
+          see_more: true,
+          items: [],
+        };
       }
 
       let row: any;
-      const productArray = this.formatProductArray(item.item);
 
       if (lowerKey === 'seasonal_picks') {
         let catEntry = groupedData[widgetKey].items.find(
@@ -137,10 +116,10 @@ export class DashboardService {
 
         catEntry.subcategory.push({
           Image: mediaUrl,
+          productId: '',
           redirect_link: item.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
         });
         return;
       }
@@ -148,66 +127,37 @@ export class DashboardService {
       if (lowerKey === 'special_offers') {
         row = {
           image: isVideo ? '' : mediaUrl,
+          video: isVideo ? mediaUrl : '',
           Title: item.title || '',
           'Sub title': item.subtitle || '',
+          product_id: '',
           'External Link': item.redirectLink || '',
-          Item: productArray,
         };
       } else if (
         ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
       ) {
         row = {
           banner_image: mediaUrl,
-          Redrict_link: item.redirectLink || '',
+          redirect_link: item.redirectLink || '',
           category_id: item.categoryId || '',
+          product_id: '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
         };
       } else {
         // shopbycategory, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
         row = {
           Image: mediaUrl,
           categoryId: item.categoryId || '',
+          productId: '',
           categoryName: item.categoryName || '',
-          redrict_link: item.redirectLink || '',
+          redirect_link: item.redirectLink || '',
           maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          Item: productArray,
         };
       }
 
       groupedData[widgetKey].items.push(row);
-    });
-
-    // STRICT ENFORCEMENT: Clean header fields for each section right before returning
-    Object.keys(groupedData).forEach((key) => {
-      const lowerKey = key.toLowerCase();
-      const group = groupedData[key];
-
-      if (
-        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(lowerKey)
-      ) {
-        // Banner Sections: Keep ONLY items key (Remove widgetsequence, title, titleimage, theme, see_more)
-        delete group.widgetsequence;
-        delete group.title;
-        delete group.titleimage;
-        delete group.theme;
-        delete group.see_more;
-      } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
-        // Styled Sections: Keep widgetsequence, titleimage, theme, see_more, items (Remove title)
-        delete group.title;
-      } else if (lowerKey === 'seasonal_picks') {
-        // Seasonal Picks: Keep widgetsequence, see_more, items (Remove title, titleimage, theme)
-        delete group.title;
-        delete group.titleimage;
-        delete group.theme;
-      } else {
-        // Standard Card Sections: Keep widgetsequence, title, items (Remove titleimage, theme, see_more)
-        delete group.titleimage;
-        delete group.theme;
-        delete group.see_more;
-      }
     });
 
     return {
