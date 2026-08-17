@@ -341,18 +341,7 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
 
-        -- Safe column migrations and additions for dashboard and dashboard_category
-        DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard' AND column_name='Items') THEN
-            UPDATE public.dashboard SET "Item" = "Items" WHERE ("Item" IS NULL OR "Item"::text = 'null') AND "Items" IS NOT NULL;
-            ALTER TABLE public.dashboard DROP COLUMN "Items";
-          END IF;
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='dashboard' AND column_name='product') THEN
-            UPDATE public.dashboard SET "Item" = product WHERE ("Item" IS NULL OR "Item"::text = 'null') AND product IS NOT NULL;
-            ALTER TABLE public.dashboard DROP COLUMN product;
-          END IF;
-        EXCEPTION WHEN OTHERS THEN NULL; END $$;
-
+        -- Safe column additions for dashboard and dashboard_category
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS priority integer;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_id text;
@@ -366,6 +355,8 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product jsonb;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Items" jsonb;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS price double precision;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS discount double precision;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS main_category_id text;
