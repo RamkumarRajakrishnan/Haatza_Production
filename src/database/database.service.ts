@@ -328,6 +328,35 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
 
+        -- Safe column additions for dashboard and dashboard_category
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS priority integer;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS title text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS subtitle text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS status text DEFAULT 'ACTIVE';
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sequence integer;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS image text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS redirect_link text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product jsonb;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Items" jsonb;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS price double precision;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS discount double precision;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS main_category_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sub_category_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS warehouse_id text;
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS title_image text;
+
+        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_colour text;
+        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_image text;
+        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS category_textcolour text;
+        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_background text;
+        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
+
         CREATE TABLE IF NOT EXISTS public.user_devices (
           device_id text PRIMARY KEY,
           user_id text NOT NULL,
