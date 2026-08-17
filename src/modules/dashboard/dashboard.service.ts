@@ -8,7 +8,7 @@ import { DashboardModule } from '@prisma/client';
 export class DashboardService {
   private readonly logger = new Logger(DashboardService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   /** Safe image/media URL formatter */
   private formatImageUrl(url: string | null | undefined): string {
@@ -30,6 +30,23 @@ export class DashboardService {
       return `${base.replace(/\/$/, '')}${path}`;
     }
     return `https://static.wixstatic.com/media/${trimmed}`;
+  }
+
+  /** Helper to safely parse and normalize product / item field to guaranteed array format */
+  private formatProductArray(rawItem: any): any[] {
+    if (!rawItem) return [];
+    if (Array.isArray(rawItem)) return rawItem;
+    if (typeof rawItem === 'string') {
+      const trimmed = rawItem.trim();
+      if (!trimmed) return [];
+      try {
+        const parsed = JSON.parse(trimmed);
+        return Array.isArray(parsed) ? parsed : [parsed];
+      } catch {
+        return [trimmed];
+      }
+    }
+    return [rawItem];
   }
 
   /**
@@ -102,36 +119,8 @@ export class DashboardService {
         groupedData[widgetKey] = header;
       }
 
-      // Check if custom Items JSON array is stored directly on the database row
-      let storedItems: any[] = [];
-      if (item.item) {
-        if (Array.isArray(item.item)) {
-          storedItems = item.item;
-        } else if (typeof item.item === 'string') {
-          try {
-            const parsed = JSON.parse(item.item);
-            storedItems = Array.isArray(parsed) ? parsed : [parsed];
-          } catch {
-            storedItems = [];
-          }
-        } else if (typeof item.item === 'object') {
-          storedItems = [item.item];
-        }
-      }
-
-      if (storedItems.length > 0) {
-        // Use custom items stored in database column
-        if (lowerKey === 'seasonal_picks') {
-          groupedData[widgetKey].items.push(...storedItems);
-        } else {
-          storedItems.forEach((subItem: any) => {
-            groupedData[widgetKey].items.push(subItem);
-          });
-        }
-        return;
-      }
-
       let row: any;
+      const productArray = this.formatProductArray(item.item);
 
       if (lowerKey === 'seasonal_picks') {
         let catEntry = groupedData[widgetKey].items.find(
@@ -149,8 +138,9 @@ export class DashboardService {
         catEntry.subcategory.push({
           Image: mediaUrl,
           redirect_link: item.redirectLink || '',
-          mailcategory_id: item.mainCategoryId || '',
+          maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
+          Item: productArray,
         });
         return;
       }
@@ -161,6 +151,7 @@ export class DashboardService {
           Title: item.title || '',
           'Sub title': item.subtitle || '',
           'External Link': item.redirectLink || '',
+          Item: productArray,
         };
       } else if (
         ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
@@ -169,8 +160,9 @@ export class DashboardService {
           banner_image: mediaUrl,
           Redrict_link: item.redirectLink || '',
           category_id: item.categoryId || '',
-          mailcategory_id: item.mainCategoryId || '',
+          maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
+          Item: productArray,
         };
       } else {
         // shop_by_category, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
@@ -179,14 +171,9 @@ export class DashboardService {
           categoryId: item.categoryId || '',
           categoryName: item.categoryName || '',
           redrict_link: item.redirectLink || '',
-          mailcategory_id: item.mainCategoryId || '',
+          maincategory_id: item.mainCategoryId || '',
           subcategory_id: item.subCategoryId || '',
-          product: {
-            title: item.title || '',
-            price: item.price || 0,
-            discount: item.discount || 0,
-            image: mediaUrl,
-          },
+          Item: productArray,
         };
       }
 
@@ -243,21 +230,7 @@ export class DashboardService {
     for (const w of list) {
       const widgetId = w.widgetId || crypto.randomUUID();
       const rawItem = w.items ?? w.Items ?? w.item ?? w.Item ?? w.product ?? w.widgetProducts ?? null;
-      let parsedItemArray: any = null;
-      if (rawItem) {
-        if (Array.isArray(rawItem)) {
-          parsedItemArray = rawItem;
-        } else if (typeof rawItem === 'string') {
-          try {
-            const parsed = JSON.parse(rawItem);
-            parsedItemArray = Array.isArray(parsed) ? parsed : [parsed];
-          } catch {
-            parsedItemArray = [rawItem];
-          }
-        } else {
-          parsedItemArray = [rawItem];
-        }
-      }
+      const parsedItemArray = this.formatProductArray(rawItem);
 
       const data: any = {
         widgetType: w.widgetType || 'hero_banner',
@@ -276,7 +249,6 @@ export class DashboardService {
           null,
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
-        priority: w.priority ? Number(w.priority) : null,
         item: parsedItemArray,
         price: w.price ? Number(w.price) : null,
         discount: w.discount ? Number(w.discount) : null,

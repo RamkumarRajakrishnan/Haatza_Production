@@ -9,4 +9,4 @@ import { SellerProductModule } from '../seller-product/seller-product.module';
   providers: [ProductService],
   exports: [ProductService],
 })
-export class ProductModule {}
+export class ProductModule { }
