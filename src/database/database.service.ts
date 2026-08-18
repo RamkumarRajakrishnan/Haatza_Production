@@ -354,7 +354,7 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
 
-        -- Safe column migrations for dashboard table: drop product, subtitle, image, redirect_link, price, discount
+        -- Safe column migrations for dashboard table: drop unwanted columns
         DO $$ BEGIN
           ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product;
           ALTER TABLE public.dashboard DROP COLUMN IF EXISTS subtitle;
@@ -363,10 +363,14 @@ export class DatabaseService
           ALTER TABLE public.dashboard DROP COLUMN IF EXISTS price;
           ALTER TABLE public.dashboard DROP COLUMN IF EXISTS discount;
           ALTER TABLE public.dashboard DROP COLUMN IF EXISTS "Items";
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS priority;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product_id;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS main_category_id;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS sub_category_id;
+          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS title_image;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         -- Safe column additions for dashboard table
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS priority integer;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS title text;
@@ -374,13 +378,9 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sequence integer;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS category_name text;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS product_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS main_category_id text;
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS sub_category_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS warehouse_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
-        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS title_image text;
 
         ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_colour text;
         ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_image text;
