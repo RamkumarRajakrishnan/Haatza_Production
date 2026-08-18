@@ -62,9 +62,32 @@ export class DatabaseService
 
   async onModuleInit() {
     // Non-blocking background database connection so Cloud Run boots instantly
-    this.connectWithRetry().catch((err) => {
+    this.connectWithRetry().then(() => {
+      this.dropUnusedDashboardColumns();
+    }).catch((err) => {
       this.logger.error('Background DB connection failed:', err);
     });
+  }
+
+  private async dropUnusedDashboardColumns(): Promise<void> {
+    try {
+      this.logger.log('Cleaning up deleted columns on dashboard table if present...');
+      await this.pool.query(`
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS subtitle;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS priority;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS main_category_id;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS sub_category_id;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS title_image;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS image;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS redirect_link;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS price;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS discount;
+        ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product;
+      `);
+      this.logger.log('✅ Dashboard table column cleanup completed.');
+    } catch (err: any) {
+      this.logger.warn(`Dashboard column cleanup warning: ${err.message}`);
+    }
   }
 
   private async connectWithRetry(retries = 3, delayMs = 2000): Promise<void> {
