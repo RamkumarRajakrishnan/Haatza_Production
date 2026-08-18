@@ -147,7 +147,7 @@ export class DashboardService {
         '';
 
       const itemAny = item as any;
-      const mediaUrl = this.formatImageUrl(itemAny.image);
+      const mediaUrl = this.formatImageUrl(itemAny.Image);
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
