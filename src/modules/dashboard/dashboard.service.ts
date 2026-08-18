@@ -104,35 +104,20 @@ export class DashboardService {
     if (categoryId?.trim()) whereCondition.categoryId = categoryId.trim();
     if (warehouseId?.trim()) whereCondition.warehouseId = warehouseId.trim();
 
-    let items: any[] = [];
-    try {
-      items = await this.db.dashboard.findMany({
-        where: whereCondition,
-        orderBy: { sequence: 'asc' },
-        select: {
-          id: true,
-          widgetType: true,
-          widgetId: true,
-          title: true,
-          status: true,
-          sequence: true,
-          categoryId: true,
-          categoryName: true,
-          item: true,
-          warehouseId: true,
-          module: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-      });
-    } catch (err: any) {
-      this.logger.warn(`Prisma findMany query failed (${err.message}). Using direct raw SQL query fallback...`);
-      const rawRes = await (this.db as any).pool.query(
-        `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" FROM public.dashboard WHERE module = $1 ${categoryId?.trim() ? 'AND category_id = $2' : ''} ORDER BY sequence ASC`,
-        categoryId?.trim() ? [targetModule, categoryId.trim()] : [targetModule]
-      );
-      items = rawRes.rows || [];
+    const queryParams: any[] = [targetModule];
+    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" FROM public.dashboard WHERE module = $1`;
+
+    if (categoryId?.trim()) {
+      queryParams.push(categoryId.trim());
+      sql += ` AND category_id = $${queryParams.length}`;
     }
+    if (warehouseId?.trim()) {
+      queryParams.push(warehouseId.trim());
+      sql += ` AND warehouse_id = $${queryParams.length}`;
+    }
+    sql += ` ORDER BY sequence ASC`;
+
+    const items = await this.db.queryRawDashboard(sql, queryParams);
 
     const resultWidgets: Array<{
       widgetType: string;

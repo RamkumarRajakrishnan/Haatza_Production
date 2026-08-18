@@ -41,6 +41,16 @@ export class DatabaseService
     );
   }
 
+  async queryRawDashboard(text: string, params: any[] = []): Promise<any[]> {
+    try {
+      const result = await this.pool.query(text, params);
+      return result.rows || [];
+    } catch (err: any) {
+      this.logger.error(`queryRawDashboard query failed: ${err.message}`);
+      return [];
+    }
+  }
+
   async executePoolQuery(text: string, params: any[] = []): Promise<number> {
     if (!this.isConnected) {
       return 0;
