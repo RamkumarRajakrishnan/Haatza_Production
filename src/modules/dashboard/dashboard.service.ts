@@ -109,189 +109,119 @@ export class DashboardService {
       orderBy: { sequence: 'asc' },
     });
 
-    const groupedData: Record<string, any> = {};
+    const resultWidgets: Array<{
+      widgetType: string;
+      widget_Id: string;
+      sequence: number;
+      title: string;
+      item: any[];
+    }> = [];
 
     items.forEach((item) => {
       const widgetType = item.widgetType;
       if (!widgetType) return;
+
+      const widget_Id = item.widgetId || (item as any).widget_id || item.id;
+      const sequence = item.sequence ?? 0;
+      const rawProductArray = this.formatProductArray(item.item);
+      const itemFieldAny = item.item as any;
+      const title =
+        item.title ||
+        (Array.isArray(itemFieldAny) && itemFieldAny[0]?.title) ||
+        (Array.isArray(itemFieldAny) && itemFieldAny[0]?.Title) ||
+        '';
 
       const itemAny = item as any;
       const mediaUrl = this.formatImageUrl(itemAny.image);
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
-      const rawKey = widgetType;
       const lowerKey = widgetType.toLowerCase();
 
-      // Determine output widget group key name
-      let widgetKey = rawKey;
-      if (lowerKey === 'shopbycategory' || lowerKey === 'shop_by_category') {
-        widgetKey = 'Lite_Shopbycategory';
-      }
-
-      // Initialize group header matching EXACT widget specification breakdown
-      if (!groupedData[widgetKey]) {
-        const header: any = {};
-
-        if (['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)) {
-          // Banner Widgets — ONLY items key (no widgetsequence, title, theme, see_more headers)
-          header.items = [];
-        } else if (lowerKey === 'special_offers') {
-          // Special Offers — ONLY items key
-          header.items = [];
-        } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
-          // Styled Offer Card Sections — widgetsequence, titleimage, theme, see_more, items
-          header.widgetsequence = item.sequence || 0;
-          header.titleimage = this.formatImageUrl(item.titleImage);
-          header.theme = itemAny.subtitle || '';
-          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
-          header.items = [];
-        } else if (lowerKey === 'seasonal_picks') {
-          // Seasonal Picks — widgetsequence, see_more, items
-          header.widgetsequence = item.sequence || 0;
-          header.see_more = item.status === 'ACTIVE' || item.status === 'TRUE' || true;
-          header.items = [];
-        } else {
-          // Lite_Shopbycategory, trending_now, best_sellers, deals_zone, best_rated, must_have, top_categories
-          header.widgetsequence = item.sequence || 0;
-          header.title = item.title || '';
-          header.items = [];
-        }
-
-        groupedData[widgetKey] = header;
-      }
-
-      let row: any;
-      const productArray = this.formatProductArray(item.item);
+      let formattedItems: any[] = [];
 
       if (lowerKey === 'seasonal_picks') {
-        let catEntry = groupedData[widgetKey].items.find(
-          (c: any) => c.categoryId === (item.categoryId || ''),
-        );
-        if (!catEntry) {
-          catEntry = {
-            categoryId: item.categoryId || '',
-            categoryName: item.categoryName || '',
-            subcategory: [],
-          };
-          groupedData[widgetKey].items.push(catEntry);
-        }
+        const catEntry: any = {
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || '',
+          subcategory: [],
+        };
 
-        if (productArray.length > 0) {
-          for (const storedItem of productArray) {
-            if (typeof storedItem === 'object' && storedItem !== null && (storedItem.Image || storedItem.redirect_link || storedItem.subcategory_id)) {
+        if (rawProductArray.length > 0) {
+          for (const storedItem of rawProductArray) {
+            if (typeof storedItem === 'object' && storedItem !== null) {
               catEntry.subcategory.push(storedItem);
             } else {
               catEntry.subcategory.push({
                 Image: mediaUrl,
-                redirect_link: itemAny.redirectLink || '',
-                maincategory_id: item.mainCategoryId || '',
-                subcategory_id: item.subCategoryId || '',
               });
             }
           }
         } else {
           catEntry.subcategory.push({
             Image: mediaUrl,
-            redirect_link: itemAny.redirectLink || '',
-            maincategory_id: item.mainCategoryId || '',
-            subcategory_id: item.subCategoryId || '',
           });
         }
-        return;
-      }
-
-      // If DB column "Item" has stored JSON item objects, use them directly
-      if (productArray.length > 0) {
-        for (const storedItem of productArray) {
-          if (typeof storedItem === 'object' && storedItem !== null && (storedItem.Image || storedItem.banner_image || storedItem.image || storedItem.categoryId || storedItem.category_id)) {
-            groupedData[widgetKey].items.push(storedItem);
+        formattedItems = [catEntry];
+      } else if (rawProductArray.length > 0) {
+        for (const storedItem of rawProductArray) {
+          if (typeof storedItem === 'object' && storedItem !== null) {
+            formattedItems.push(storedItem);
           } else {
-            // Product array inside item
-            row = {
+            formattedItems.push({
               Image: mediaUrl,
               categoryId: item.categoryId || '',
               categoryName: item.categoryName || '',
-              redrict_link: itemAny.redirectLink || '',
-              maincategory_id: item.mainCategoryId || '',
-              subcategory_id: item.subCategoryId || '',
-              Item: productArray,
-            };
-            groupedData[widgetKey].items.push(row);
+              Item: rawProductArray,
+            });
             break;
           }
         }
-        return;
-      }
-
-      if (lowerKey === 'special_offers') {
-        row = {
-          image: isVideo ? '' : mediaUrl,
-          Title: item.title || '',
-          'Sub title': itemAny.subtitle || '',
-          'External Link': itemAny.redirectLink || '',
-        };
-      } else if (
-        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(lowerKey)
-      ) {
-        row = {
-          banner_image: mediaUrl,
-          Redrict_link: itemAny.redirectLink || '',
-          category_id: item.categoryId || '',
-          maincategory_id: item.mainCategoryId || '',
-          subcategory_id: item.subCategoryId || '',
-        };
       } else {
-        // shopbycategory, trending_now, best_sellers, deals_zone, featured_products, super_sales, haatza_special, best_rated, must_have, top_categories
-        row = {
-          Image: mediaUrl,
-          categoryId: item.categoryId || '',
-          categoryName: item.categoryName || '',
-          redrict_link: itemAny.redirectLink || '',
-          maincategory_id: item.mainCategoryId || '',
-          subcategory_id: item.subCategoryId || '',
-        };
+        if (lowerKey === 'special_offers') {
+          formattedItems.push({
+            image: isVideo ? '' : mediaUrl,
+            Title: item.title || '',
+          });
+        } else if (
+          ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(
+            lowerKey,
+          )
+        ) {
+          formattedItems.push({
+            banner_image: mediaUrl,
+            category_id: item.categoryId || '',
+          });
+        } else {
+          formattedItems.push({
+            Image: mediaUrl,
+            categoryId: item.categoryId || '',
+            categoryName: item.categoryName || '',
+          });
+        }
       }
 
-      groupedData[widgetKey].items.push(row);
+      resultWidgets.push({
+        widgetType:
+          lowerKey === 'shopbycategory' || lowerKey === 'shop_by_category'
+            ? 'Lite_Shopbycategory'
+            : widgetType,
+        widget_Id,
+        sequence,
+        title,
+        item: formattedItems,
+      });
     });
 
-    // STRICT ENFORCEMENT: Clean header fields for each section right before returning
-    Object.keys(groupedData).forEach((key) => {
-      const lowerKey = key.toLowerCase();
-      const group = groupedData[key];
-
-      if (
-        ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer', 'special_offers'].includes(lowerKey)
-      ) {
-        // Banner Sections: Keep ONLY items key (Remove widgetsequence, title, titleimage, theme, see_more)
-        delete group.widgetsequence;
-        delete group.title;
-        delete group.titleimage;
-        delete group.theme;
-        delete group.see_more;
-      } else if (['super_sales', 'featured_products', 'haatza_special'].includes(lowerKey)) {
-        // Styled Sections: Keep widgetsequence, titleimage, theme, see_more, items (Remove title)
-        delete group.title;
-      } else if (lowerKey === 'seasonal_picks') {
-        // Seasonal Picks: Keep widgetsequence, see_more, items (Remove title, titleimage, theme)
-        delete group.title;
-        delete group.titleimage;
-        delete group.theme;
-      } else {
-        // Standard Card Sections: Keep widgetsequence, title, items (Remove titleimage, theme, see_more)
-        delete group.titleimage;
-        delete group.theme;
-        delete group.see_more;
-      }
-    });
+    // Ensure strict sequence ordering (1, 2, 3...)
+    resultWidgets.sort((a, b) => a.sequence - b.sequence);
 
     return {
       status: 'success',
       message: {
         warehouseId: warehouseId || '',
         module: targetModule,
-        data: groupedData,
+        data: resultWidgets,
       },
     };
   }
@@ -321,7 +251,7 @@ export class DashboardService {
     });
 
     for (const w of list) {
-      let widgetId = w.widgetId || w.widget_id;
+      let widgetId = w.widgetId || w.widget_id || w.widget_Id;
       if (!widgetId?.trim()) {
         maxWidNum++;
         widgetId = `WID${String(maxWidNum).padStart(3, '0')}`;
@@ -330,22 +260,15 @@ export class DashboardService {
       const parsedItemArray = this.formatProductArray(rawItem);
 
       const data: any = {
-        widgetType: w.widgetType || 'hero_banner',
+        widgetType: w.widgetType || w.widget_type || 'hero_banner',
         title: w.title ?? w.Title ?? null,
         status: w.status || 'ACTIVE',
         sequence: Number(w.sequence) || 1,
         categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
         categoryName: w.categoryName ?? null,
         item: parsedItemArray,
-        mainCategoryId:
-          w.mainCategoryId ??
-          w.maincategory_id ??
-          w.mailcategory_id ??
-          crypto.randomUUID(),
-        subCategoryId: w.subCategoryId ?? w.subcategory_id ?? crypto.randomUUID(),
         warehouseId: w.warehouseId ?? null,
         module: w.module || 'HAATZA',
-        titleImage: w.titleImage ?? w.titleimage ?? null,
       };
 
       const record = await this.db.dashboard.upsert({
@@ -360,6 +283,38 @@ export class DashboardService {
       success: true,
       message: `Successfully upserted ${results.length} dashboard widget(s)`,
       data: results,
+    };
+  }
+
+  /**
+   * Delete widget by widgetId or database ID cleanly from current DB.
+   */
+  async deleteWidget(idOrWidgetId: string) {
+    if (!idOrWidgetId?.trim()) {
+      throw new BadRequestException('Widget identifier (id or widgetId) is required.');
+    }
+
+    const trimmedId = idOrWidgetId.trim();
+
+    // Check if record exists by widgetId or id
+    const existing = await this.db.dashboard.findFirst({
+      where: {
+        OR: [{ widgetId: trimmedId }, { id: trimmedId }],
+      },
+    });
+
+    if (!existing) {
+      throw new BadRequestException(`Widget with id/widgetId '${trimmedId}' not found.`);
+    }
+
+    await this.db.dashboard.delete({
+      where: { id: existing.id },
+    });
+
+    return {
+      status: 'success',
+      message: `Widget '${trimmedId}' successfully deleted from database.`,
+      data: { id: existing.id, widgetId: existing.widgetId },
     };
   }
 }

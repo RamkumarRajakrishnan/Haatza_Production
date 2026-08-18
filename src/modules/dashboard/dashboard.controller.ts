@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { DashboardService } from './dashboard.service';
 import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
@@ -35,5 +35,15 @@ export class DashboardController {
   @ApiBody({ description: 'Single widget object or array of widget objects' })
   async upsertWidgets(@Body() body: any) {
     return this.dashboardService.upsertWidgets(body);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Delete Dashboard Widget by ID or widgetId',
+    description: 'Deletes a dashboard widget permanently from the database using id or widgetId.',
+  })
+  async deleteWidget(@Param('id') id: string) {
+    return this.dashboardService.deleteWidget(id);
   }
 }

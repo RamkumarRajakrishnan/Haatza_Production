@@ -720,13 +720,9 @@ model Dashboard {
   sequence         Int?             @map("sequence")
   categoryId       String?          @map("category_id")
   categoryName     String?          @map("category_name")
-  priority         Int?             @map("priority")
   item             Json?            @map("Item")
-  mainCategoryId   String?          @map("main_category_id")
-  subCategoryId    String?          @map("sub_category_id")
   warehouseId      String?          @map("warehouse_id")
   module           DashboardModule? @default(HAATZA) @map("module")
-  titleImage       String?          @map("title_image")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
