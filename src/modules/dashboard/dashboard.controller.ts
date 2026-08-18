@@ -26,6 +26,12 @@ export class DashboardController {
     return this.dashboardService.getHaatzaDashboard(dto);
   }
 
+  @Get('ping')
+  @HttpCode(HttpStatus.OK)
+  ping() {
+    return { status: 'ok', version: 'v2-raw-sql-active' };
+  }
+
   @Post(['upsert', ''])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
