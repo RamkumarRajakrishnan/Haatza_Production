@@ -1,5 +1,7 @@
 FROM node:20-alpine
 
+RUN apk add --no-cache openssl ca-certificates libc6-compat
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -7,11 +9,9 @@ COPY prisma ./prisma/
 
 RUN npm ci
 
-# Force fresh build: 2026-08-18T18:20:00
-ENV REBUILD_TIME=20260818182000
-COPY . .
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
-RUN rm -rf dist node_modules/.prisma/client node_modules/@prisma/client
+COPY . .
+
 RUN npx prisma generate
 RUN npm run build
 
