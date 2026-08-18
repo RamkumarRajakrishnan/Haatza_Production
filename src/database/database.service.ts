@@ -354,21 +354,52 @@ export class DatabaseService
           updated_at timestamp DEFAULT now()
         );
 
-        -- Safe column migrations for dashboard table: drop unwanted columns
-        DO $$ BEGIN
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS subtitle;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS image;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS redirect_link;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS price;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS discount;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS "Items";
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS priority;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS product_id;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS main_category_id;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS sub_category_id;
-          ALTER TABLE public.dashboard DROP COLUMN IF EXISTS title_image;
-        EXCEPTION WHEN OTHERS THEN NULL; END $$;
+        -- Automatic ID Generation (DASH_001, DASH_002...) for dashboard.id
+        CREATE SEQUENCE IF NOT EXISTS public.seq_dashboard_id START WITH 1 INCREMENT BY 1 NO MAXVALUE NO MINVALUE CACHE 1;
+
+        CREATE OR REPLACE FUNCTION public.fn_next_dashboard_id()
+        RETURNS text AS $fn$
+        BEGIN
+          RETURN 'DASH_' || lpad(nextval('public.seq_dashboard_id')::text, 3, '0');
+        END;
+        $fn$ LANGUAGE plpgsql;
+
+        -- Ensure column default is set to fn_next_dashboard_id()
+        ALTER TABLE public.dashboard ALTER COLUMN id SET DEFAULT public.fn_next_dashboard_id();
+
+        -- BEFORE INSERT Trigger to guarantee DASH_xxx assignment if ID is NULL or empty
+        CREATE OR REPLACE FUNCTION public.fn_trg_dashboard_auto_id()
+        RETURNS TRIGGER AS $trg$
+        BEGIN
+          IF NEW.id IS NULL OR trim(NEW.id) = '' THEN
+            NEW.id := public.fn_next_dashboard_id();
+          END IF;
+          RETURN NEW;
+        END;
+        $trg$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS trg_dashboard_auto_id ON public.dashboard;
+        CREATE TRIGGER trg_dashboard_auto_id
+        BEFORE INSERT ON public.dashboard
+        FOR EACH ROW
+        EXECUTE FUNCTION public.fn_trg_dashboard_auto_id();
+
+        -- Synchronize Sequence with existing max numeric DASH_xxx IDs
+        DO $$
+        DECLARE
+          v_max_id int;
+        BEGIN
+          SELECT COALESCE(MAX(
+            CASE 
+              WHEN id ~ '^DASH_[0-9]+$' THEN NULLIF(regexp_replace(id, '^DASH_', ''), '')::int
+              ELSE 0
+            END
+          ), 0) INTO v_max_id FROM public.dashboard;
+
+          IF v_max_id > 0 THEN
+            PERFORM setval('public.seq_dashboard_id', v_max_id);
+          END IF;
+        END $$;
 
         -- Safe column additions for dashboard table
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS widget_type text;

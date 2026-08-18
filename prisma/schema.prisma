@@ -712,7 +712,7 @@ enum DashboardModule {
 }
 
 model Dashboard {
-  id               String           @id @default(uuid()) @map("id")
+  id               String           @id @map("id")
   widgetType       String?          @map("widget_type")
   widgetId         String           @unique @map("widget_id")
   title            String?          @map("title")
