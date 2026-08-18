@@ -107,6 +107,21 @@ export class DashboardService {
     const items = await this.db.dashboard.findMany({
       where: whereCondition,
       orderBy: { sequence: 'asc' },
+      select: {
+        id: true,
+        widgetType: true,
+        widgetId: true,
+        title: true,
+        status: true,
+        sequence: true,
+        categoryId: true,
+        categoryName: true,
+        item: true,
+        warehouseId: true,
+        module: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
 
     const resultWidgets: Array<{
