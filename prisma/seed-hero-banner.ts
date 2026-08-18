@@ -20,7 +20,6 @@ const WIDGET_DATA = {
   widgetType: 'top_categories',
   widgetId: crypto.randomUUID(), // Clean UUID, no prefix
   title: 'Top Categories',
-  subtitle: 'Browse Popular Categories',
   status: 'ACTIVE',
   sequence: 17,
   image: 'https://storage.googleapis.com/haatza-media-bucket/products/4244b4e9-cef1-492a-9193-00dd48ba18d1.webp',

@@ -723,7 +723,6 @@ model Dashboard {
   item             Json?            @map("Item")
   warehouseId      String?          @map("warehouse_id")
   module           DashboardModule? @default(HAATZA) @map("module")
-  subtitle         String?          @map("subtitle") @ignore
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
 
