@@ -7,8 +7,9 @@ COPY prisma ./prisma/
 
 RUN npm ci
 
+# Force fresh build: 2026-08-18T16:00:00
+ENV REBUILD_TIME=20260818160000
 COPY . .
-
 ENV PRISMA_ENGINES_CHECKSUM_IGNORE_MISSING=1
 RUN npx prisma generate
 RUN npm run build
