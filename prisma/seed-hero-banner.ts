@@ -38,8 +38,8 @@ async function seedDashboardWidget() {
 
   const record = await prisma.dashboard.upsert({
     where: { widgetId: WIDGET_DATA.widgetId },
-    update: WIDGET_DATA,
-    create: WIDGET_DATA,
+    update: { widgetType: WIDGET_DATA.widgetType, title: WIDGET_DATA.title, status: WIDGET_DATA.status, sequence: WIDGET_DATA.sequence, categoryId: WIDGET_DATA.categoryId, module: WIDGET_DATA.module },
+    create: { widgetId: WIDGET_DATA.widgetId, widgetType: WIDGET_DATA.widgetType, title: WIDGET_DATA.title, status: WIDGET_DATA.status, sequence: WIDGET_DATA.sequence, categoryId: WIDGET_DATA.categoryId, module: WIDGET_DATA.module },
   });
 
   console.log('✅ Dashboard Widget successfully saved to database!');
