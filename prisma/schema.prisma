@@ -21,10 +21,7 @@ model User {
   city                String?            @map("city")
   state               String?            @map("state")
   country             String?            @map("country")
-  sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
-  role                UserRole           @default(BUYER) @map("role")
   roleId              String?            @map("role_id")
-  status              UserStatus         @default(ACTIVE) @map("status")
   emailVerifiedAt     DateTime?          @map("email_verified_at")
   phoneVerifiedAt     DateTime?          @map("phone_verified_at")
   lastLoginAt         DateTime?          @map("last_login_at")
@@ -33,17 +30,20 @@ model User {
   lockedUntil         DateTime?          @map("locked_until")
   createdAt           DateTime           @default(now()) @map("created_at")
   updatedAt           DateTime           @updatedAt @map("updated_at")
+  status              UserStatus         @default(ACTIVE) @map("status")
   isBuyer             Boolean            @default(true) @map("is_buyer")
+  sellerOnboardStatus UserOnboardStatus  @default(PENDING) @map("sellerOnboard_status")
+  role                UserRole           @default(BUYER) @map("role")
   isSeller            Boolean            @default(false) @map("is_seller")
   isEmployee          Boolean            @default(false) @map("is_employee")
   buyer               Buyer?
   otps                OtpVerification[]
   seller              Seller?
-  sessions            UserSession[]
-  userRole            Role?              @relation(fields: [roleId], references: [id])
   loginHistories      UserLoginHistory[]
   userPageRoles       UserPageRole[]
   userRoles           UserRoleMapping[]
+  sessions            UserSession[]
+  userRole            Role?              @relation(fields: [roleId], references: [id])
 
   @@index([roleId])
   @@index([sellerOnboardStatus])
@@ -101,32 +101,32 @@ model RolePermission {
 }
 
 model UserSession {
-  id               String    @id @default(uuid()) @map("session_id")
-  userId           String    @map("user_id")
-  refreshTokenHash String    @unique @map("refresh_token_hash")
-  refreshToken     String?   @map("refresh_token")
-  deviceId         String?   @map("device_id")
-  deviceName       String?   @map("device_name")
-  platform         String?   @map("platform")
-  osVersion        String?   @map("os_version")
-  appVersion       String?   @map("app_version")
-  pushToken        String?   @map("push_token")
-  ipAddress        String?   @map("ip_address")
-  userAgent        String?   @map("user_agent")
-  deviceType       String?   @map("device_type")
-  identifier       String?   @map("identifier")
-  isActive         Boolean   @default(true) @map("is_active")
-  lastActivityAt   DateTime  @default(now()) @map("last_activity_at")
-  expiresAt        DateTime  @map("expires_at")
-  createdAt        DateTime  @default(now()) @map("created_at")
-  updatedAt        DateTime  @updatedAt @map("updated_at")
-
-  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id               String   @id @default(uuid()) @map("session_id")
+  userId           String   @map("user_id")
+  deviceId         String?  @map("device_id")
+  ipAddress        String?  @map("ip_address")
+  userAgent        String?  @map("user_agent")
+  isActive         Boolean  @default(true) @map("is_active")
+  lastActivityAt   DateTime @default(now()) @map("last_activity_at")
+  expiresAt        DateTime @map("expires_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+  refreshTokenHash String   @unique @map("refresh_token_hash")
+  deviceName       String?  @map("device_name")
+  platform         String?  @map("platform")
+  osVersion        String?  @map("os_version")
+  appVersion       String?  @map("app_version")
+  pushToken        String?  @map("push_token")
+  deviceType       String?  @map("device_type")
+  identifier       String?  @map("identifier")
+  refreshToken     String?  @map("refresh_token")
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([deviceId])
   @@index([refreshTokenHash])
   @@index([isActive, expiresAt])
+  @@index([userId], map: "idx_user_sessions_user_id")
   @@map("user_sessions")
 }
 
@@ -134,10 +134,7 @@ model OtpVerification {
   id             String            @id @default(uuid()) @map("otp_id")
   userId         String?           @map("user_id")
   identifier     String            @map("identifier")
-  identifierType OtpIdentifierType @default(PHONE) @map("identifier_type")
   otpHash        String            @map("otp_hash")
-  purpose        OtpPurpose        @default(LOGIN) @map("purpose")
-  channel        OtpChannel        @default(SMS) @map("channel")
   isVerified     Boolean           @default(false) @map("is_verified")
   expiresAt      DateTime          @map("expires_at")
   verifiedAt     DateTime?         @map("verified_at")
@@ -146,6 +143,9 @@ model OtpVerification {
   blockedUntil   DateTime?         @map("blocked_until")
   createdAt      DateTime          @default(now()) @map("created_at")
   updatedAt      DateTime          @default(now()) @updatedAt @map("updated_at")
+  identifierType OtpIdentifierType @default(PHONE) @map("identifier_type")
+  purpose        OtpPurpose        @default(LOGIN) @map("purpose")
+  channel        OtpChannel        @default(SMS) @map("channel")
   user           User?             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([identifier])
@@ -177,6 +177,575 @@ model Buyer {
   user      User     @relation(fields: [userId], references: [id])
 
   @@map("buyers")
+}
+
+model ContactEnquiry {
+  id        String               @id @default(uuid())
+  firstName String               @map("first_name") @db.VarChar(100)
+  phone     String               @db.VarChar(10)
+  email     String?              @db.VarChar(255)
+  city      String               @db.VarChar(100)
+  message   String?
+  status    ContactEnquiryStatus @default(NEW)
+  createdAt DateTime             @default(now()) @map("created_at")
+  updatedAt DateTime             @updatedAt @map("updated_at")
+
+  @@index([phone])
+  @@index([email])
+  @@index([status])
+  @@index([createdAt])
+  @@map("contact_enquiries")
+}
+
+model Category {
+  id        String     @id @default(uuid()) @map("category_id")
+  name      String     @map("name")
+  slug      String     @unique @map("slug")
+  parentId  String?    @map("parent_id")
+  fields    Json?      @map("fields")
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id])
+  children  Category[] @relation("SubCategories")
+  products  Product[]
+
+  @@map("categories")
+}
+
+model Product {
+  id                 String    @id @default(uuid()) @map("product_id")
+  sellerId           String    @map("seller_id")
+  categoryId         String?   @map("category_id")
+  title              String    @map("title")
+  description        String?   @map("description")
+  price              Float     @map("price")
+  sku                String    @unique @map("sku")
+  inventory          Int       @default(0) @map("inventory")
+  mediaUrls          String[]  @map("media_urls")
+  videoUrls          String[]  @map("video_urls")
+  influencerBranding Boolean   @default(false) @map("influencer_branding")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+  category           Category? @relation(fields: [categoryId], references: [id])
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(uuid()) @map("order_id")
+  sellerId        String   @map("seller_id")
+  buyerId         String?  @map("buyer_id")
+  status          String   @default("PENDING") @map("status")
+  totalAmount     Float    @map("total_amount")
+  shippingAmount  Float    @default(0.0) @map("shipping_amount")
+  deliveryAddress Json?    @map("delivery_address")
+  awbNumber       String?  @map("awb_number")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("orders")
+}
+
+model SellerOrder {
+  id                       String    @id @default(uuid()) @map("id")
+  sellerId                 String    @map("seller_id")
+  orderId                  Int       @map("order_id")
+  trackingId               String?   @map("tracking_id")
+  status                   String?   @map("status")
+  items                    String?   @map("items")
+  totalAmount              Float?    @map("total_amount")
+  customerName             String?   @map("customer_name")
+  customerAddress          String?   @map("customer_address")
+  createdDate              DateTime  @default(now()) @map("created_date")
+  paymentStatus            String?   @map("payment_status")
+  productId                String?   @map("product_id")
+  storageType              String?   @map("storage_type")
+  sellerPaymentStatus      String?   @map("seller_payment_status")
+  itemPrice                Float?    @map("item_price")
+  buyerEmail               String?   @map("buyer_email")
+  customerPhone            String?   @map("customer_phone")
+  estimatedDelivery        DateTime? @map("estimated_delivery")
+  productOption            Json?     @map("product_option")
+  deliveredDate            DateTime? @map("delivered_date")
+  invoiceNumber            String?   @map("invoice_number")
+  returnAndExchangeDate    DateTime? @map("return_and_exchange_date")
+  invoiceFile              String?   @map("invoice_file")
+  refundStatus             Boolean?  @default(false) @map("refund_status")
+  reason                   String?   @map("reason")
+  message                  String?   @map("message")
+  deliveryPartner          String?   @map("delivery_partner")
+  deliveryPincode          String?   @map("delivery_pincode")
+  addressLine1             String?   @map("address_line1")
+  city                     String?   @map("city")
+  state                    String?   @map("state")
+  country                  String?   @map("country")
+  razorpayOrderId          String?   @map("razorpay_order_id")
+  shipping                 Boolean?  @default(false) @map("shipping")
+  productReturn            String?   @map("product_return")
+  returnOrderId            String?   @map("return_order_id")
+  exchangeOrderId          String?   @map("exchange_order_id")
+  returnDate               DateTime? @map("return_date")
+  exchangeDate             DateTime? @map("exchange_date")
+  returnExchangeImages     Json?     @map("return_exchange_images")
+  mrp                      Float?    @map("mrp")
+  paymentMode              String?   @map("payment_mode")
+  haatzaFreeDelivery       Boolean?  @default(false) @map("haatza_free_delivery")
+  productImage             String?   @map("product_image")
+  upiDeliveryFee           Float?    @map("upi_delivery_fee")
+  couponCode               String?   @map("coupon_code")
+  couponDiscount           Float?    @map("coupon_discount")
+  deliveryCharge           Boolean?  @default(false) @map("delivery_charge")
+  paymentMethod            String?   @map("payment_method")
+  quantity                 Int?      @map("quantity")
+  codDeliveryFee           Float?    @map("cod_delivery_fee")
+  returnExchangeTrackingId String?   @map("return_exchange_tracking_id")
+  returnOrderTrackingId    String?   @map("return_order_tracking_id")
+  pickupAddress            String?   @map("pickup_address")
+  usedWalletAmount         Float?    @map("used_wallet_amount")
+  createdAt                DateTime  @default(now()) @map("created_at")
+  updatedAt                DateTime  @updatedAt @map("updated_at")
+  deletedAt                DateTime? @map("deleted_at")
+
+  @@index([sellerId])
+  @@index([orderId])
+  @@index([customerName])
+  @@index([buyerEmail])
+  @@index([trackingId])
+  @@index([status])
+  @@index([paymentStatus])
+  @@index([sellerPaymentStatus])
+  @@index([refundStatus])
+  @@index([createdDate])
+  @@index([deletedAt])
+  @@map("seller_orders")
+}
+
+model OrderReturn {
+  id         String   @id @default(uuid()) @map("return_id")
+  orderId    String   @map("order_id")
+  sellerId   String   @map("seller_id")
+  reason     String   @map("reason")
+  status     String   @default("REQUESTED") @map("status")
+  isExchange Boolean  @default(false) @map("is_exchange")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("order_returns")
+}
+
+model Claim {
+  id          String   @id @default(uuid()) @map("claim_id")
+  sellerId    String   @map("seller_id")
+  orderId     String?  @map("order_id")
+  subject     String   @map("subject")
+  description String   @map("description")
+  status      String   @default("OPEN") @map("status")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("claims")
+}
+
+model Wallet {
+  id           String              @id @default(uuid()) @map("wallet_id")
+  sellerId     String              @unique @map("seller_id")
+  balance      Float               @default(0.0) @map("balance")
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  transactions WalletTransaction[]
+
+  @@map("wallets")
+}
+
+model WalletTransaction {
+  id          String   @id @default(uuid()) @map("transaction_id")
+  walletId    String   @map("wallet_id")
+  amount      Float    @map("amount")
+  type        String   @map("type")
+  description String?  @map("description")
+  createdAt   DateTime @default(now()) @map("created_at")
+  wallet      Wallet   @relation(fields: [walletId], references: [id])
+
+  @@index([walletId])
+  @@map("wallet_transactions")
+}
+
+model Invoice {
+  id        String   @id @default(uuid()) @map("invoice_id")
+  sellerId  String   @map("seller_id")
+  invoiceNo String   @unique @map("invoice_no")
+  amount    Float    @map("amount")
+  taxAmount Float    @default(0.0) @map("tax_amount")
+  pdfUrl    String?  @map("pdf_url")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId])
+  @@map("invoices")
+}
+
+model Campaign {
+  id         String   @id @default(uuid()) @map("campaign_id")
+  sellerId   String   @map("seller_id")
+  name       String   @map("name")
+  budget     Float    @map("budget")
+  status     String   @default("ACTIVE") @map("status")
+  productIds String[] @map("product_ids")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("campaigns")
+}
+
+model Notification {
+  id        String   @id @default(uuid()) @map("notification_id")
+  sellerId  String   @map("seller_id")
+  title     String   @map("title")
+  message   String   @map("message")
+  isRead    Boolean  @default(false) @map("is_read")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId])
+  @@map("notifications")
+}
+
+model SupportTicket {
+  id          String   @id @default(uuid()) @map("ticket_id")
+  sellerId    String   @map("seller_id")
+  subject     String   @map("subject")
+  description String   @map("description")
+  status      String   @default("OPEN") @map("status")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("support_tickets")
+}
+
+model SubscriptionPlan {
+  id        String   @id @default(uuid()) @map("plan_id")
+  name      String   @map("name")
+  price     Float    @map("price")
+  duration  String   @map("duration")
+  features  Json?    @map("features")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("subscription_plans")
+}
+
+model SellerSubscription {
+  id        String   @id @default(uuid()) @map("subscription_id")
+  sellerId  String   @unique @map("seller_id")
+  planId    String   @map("plan_id")
+  status    String   @default("ACTIVE") @map("status")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("seller_subscriptions")
+}
+
+model Referral {
+  id            String   @id @default(uuid()) @map("referral_id")
+  referrerId    String   @map("referrer_id")
+  referredEmail String   @map("referred_email")
+  referralCode  String   @map("referral_code")
+  status        String   @default("PENDING") @map("status")
+  rewardAmount  Float    @default(0.0) @map("reward_amount")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@index([referrerId])
+  @@map("referrals")
+}
+
+model HaatzUpVideo {
+  id         String   @id @default(uuid()) @map("video_id")
+  sellerId   String   @map("seller_id")
+  videoUrl   String   @map("video_url")
+  hashtags   String[] @map("hashtags")
+  productIds String[] @map("product_ids")
+  viewsCount Int      @default(0) @map("views_count")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId])
+  @@map("haatzup_videos")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid()) @map("warehouse_id")
+  sellerId  String   @map("seller_id")
+  name      String   @map("name")
+  address   String   @map("address")
+  pincode   String   @map("pincode")
+  city      String   @map("city")
+  state     String   @map("state")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId])
+  @@map("warehouses")
+}
+
+model SellerProduct {
+  id                     String    @id @default(uuid()) @map("id")
+  mainMedia              String?   @map("main_media")
+  oneRsStore             Boolean?  @default(false) @map("one_rs_store")
+  productImages          Json?     @map("product_images")
+  name                   String    @map("name")
+  searchKeywords         Json?     @map("search_keywords")
+  subCategory            String?   @map("sub_category")
+  subCategoryId          String?   @map("sub_category_id")
+  brand                  String?   @map("brand")
+  inventory              Int?      @map("inventory")
+  variantPrice           Json?     @map("variant_price")
+  productId              String?   @map("product_id")
+  newVariantPrice        Float?    @map("new_variant_price")
+  mrp                    Float?    @map("mrp")
+  onsalePrice            Float?    @map("onsale_price")
+  cod                    Boolean?  @map("cod")
+  upi                    Boolean?  @map("upi")
+  price                  Float?    @map("price")
+  discount               Json?     @map("discount")
+  status                 String?   @map("status")
+  deliveryCharges        Boolean?  @map("delivery_charges")
+  mainCategory           String?   @map("main_category")
+  sellerId               String?   @map("seller_id")
+  shippingWeight         Float?    @map("shipping_weight")
+  collections            Json?     @map("collections")
+  sellerPincode          String?   @map("seller_pincode")
+  createdDate            DateTime? @map("created_date")
+  updatedDate            DateTime? @map("updated_date")
+  productOptions         Json?     @map("product_options")
+  additionalInfoSections Json?     @map("additional_info_sections")
+  activeAd               Boolean?  @map("active_ad")
+  averageCpc             Float?    @map("average_cpc")
+  priorityScore          String?   @map("priority_score")
+  campaignId             String?   @map("campaign_id")
+  reach                  Int?      @default(0) @map("reach")
+  impression             Int?      @default(0) @map("impression")
+  clicks                 Int?      @default(0) @map("clicks")
+  sales                  Int?      @default(0) @map("sales")
+  revenue                Float?    @default(0) @map("revenue")
+  categoryName           Json?     @map("category_name")
+  sku                    String?   @map("sku")
+  productType            String?   @map("product_type")
+  manageVariants         Boolean?  @map("manage_variants")
+  ribbon                 String?   @map("ribbon")
+  trackInventory         Boolean?  @map("track_inventory")
+  influencerBranding     Boolean?  @map("influencer_branding")
+  haatzaVerified         Boolean?  @map("haatza_verified")
+  promotionPhotos        Json?     @map("promotion_photos")
+  paymentType            String?   @map("payment_type")
+  productReturn          String?   @map("product_return")
+  sizeChart              String?   @map("size_chart")
+  description            String?   @map("description")
+  gstSeller              Boolean?  @map("gst_seller")
+  upiPaymentDiscount     Float?    @map("upi_payment_discount")
+  manageListingProducts  String?   @map("manage_listing_products")
+  sellAndEarnCommission  Float?    @map("sell_and_earn_commission")
+  sellAndEarn            Boolean?  @map("sell_and_earn")
+  importedAt             DateTime? @default(now()) @map("imported_at")
+  createdAt              DateTime? @default(now()) @map("created_at")
+  updatedAt              DateTime? @default(now()) @updatedAt @map("updated_at")
+  media                  Json?     @map("media")
+
+  @@index([sellerId])
+  @@index([sku])
+  @@index([status])
+  @@index([brand])
+  @@index([subCategory])
+  @@index([createdDate])
+  @@index([updatedDate])
+  @@index([brand], map: "idx_seller_products_brand")
+  @@index([createdDate], map: "idx_seller_products_created_date")
+  @@index([sellerId], map: "idx_seller_products_seller_id")
+  @@index([sku], map: "idx_seller_products_sku")
+  @@index([status], map: "idx_seller_products_status")
+  @@index([subCategory], map: "idx_seller_products_sub_category")
+  @@index([updatedDate], map: "idx_seller_products_updated_date")
+  @@map("seller_products")
+}
+
+model ListingOption {
+  id          String    @id @default(uuid()) @map("id")
+  name        String?   @map("name")
+  description String?   @map("description")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  listings    Listing[]
+
+  @@map("listing_options")
+}
+
+model Listing {
+  id                    String         @id @default(uuid()) @map("id")
+  elementType           String         @map("element_type")
+  categoryName          String         @map("category_name")
+  title                 String         @map("title")
+  choices               String?        @map("choices")
+  sequence              Int            @default(0) @map("sequence")
+  placeholderText       String?        @map("placeholder_text")
+  required              Boolean        @default(false) @map("required")
+  categoryId            String?        @map("category_id")
+  status                String?        @map("status")
+  createdBy             String?        @map("created_by")
+  type                  String?        @map("type")
+  listingItemId         String?        @map("listing_item_id")
+  detailListingOptionId String?        @map("detail_listing_option_id")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
+  detailListingOption   ListingOption? @relation(fields: [detailListingOptionId], references: [id])
+  listingItem           Listing?       @relation("ListingSelfRelation", fields: [listingItemId], references: [id])
+  parentListings        Listing[]      @relation("ListingSelfRelation")
+
+  @@index([categoryId])
+  @@index([sequence])
+  @@index([status])
+  @@index([type])
+  @@map("listings")
+}
+
+model UserLoginHistory {
+  id            String      @id @default(uuid()) @map("login_id")
+  userId        String?     @map("user_id")
+  identifier    String      @map("identifier")
+  failureReason String?     @map("failure_reason")
+  ipAddress     String?     @map("ip_address")
+  userAgent     String?     @map("user_agent")
+  deviceName    String?     @map("device_name")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  status        LoginStatus @map("status")
+  user          User?       @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([identifier])
+  @@map("user_login_histories")
+}
+
+model Dashboard {
+  id           String           @id @map("id")
+  widgetType   String?          @map("widget_type")
+  widgetId     String           @unique @map("widget_id")
+  title        String?          @map("title")
+  status       String?          @default("ACTIVE") @map("status")
+  sequence     Int?             @map("sequence")
+  categoryId   String?          @map("category_id")
+  categoryName String?          @map("category_name")
+  warehouseId  String?          @map("warehouse_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  module       DashboardModule? @default(HAATZA) @map("module")
+  item         Json?            @map("Item")
+
+  @@index([widgetId])
+  @@index([widgetType])
+  @@index([module])
+  @@map("dashboard")
+}
+
+model DashboardCategory {
+  id                 String           @id @default(uuid()) @map("id")
+  categoryId         String           @unique @map("category_id")
+  categoryName       String           @map("category_name")
+  image              String?          @map("image")
+  status             String?          @default("ACTIVE") @map("status")
+  appbarColour       String?          @map("appbar_colour")
+  appbarImage        String?          @map("appbar_image")
+  categoryTextcolour String?          @map("category_textcolour")
+  appbarBackground   String?          @map("appbar_background")
+  module             DashboardModule? @default(HAATZA) @map("module")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+
+  @@index([categoryId])
+  @@index([module])
+  @@map("dashboard_category")
+}
+
+model PageMaster {
+  id              String           @id @default(uuid()) @map("id")
+  pageCode        String           @unique @map("page_code")
+  pageName        String           @map("page_name")
+  route           String           @map("route")
+  description     String?          @map("description")
+  isActive        Boolean          @default(true) @map("is_active")
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+  rolePageMasters RolePageMaster[]
+
+  @@map("page_master")
+}
+
+model RoleMaster {
+  id              String            @id @default(uuid()) @map("id")
+  roleName        String            @unique @map("role_name")
+  roleCode        String            @unique @map("role_code")
+  isActive        Boolean           @default(true) @map("is_active")
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  description     String?           @map("description")
+  rolePageMasters RolePageMaster[]
+  userPageRoles   UserPageRole[]
+  userRoles       UserRoleMapping[]
+
+  @@map("role_master")
+}
+
+model RolePageMaster {
+  id        String      @id @default(uuid()) @map("id")
+  roleId    String      @map("role_id")
+  pageCode  String      @map("page_code")
+  pageName  String      @map("page_name")
+  route     String      @map("route")
+  canView   Boolean     @default(false) @map("can_view")
+  canCreate Boolean     @default(false) @map("can_create")
+  canEdit   Boolean     @default(false) @map("can_edit")
+  canDelete Boolean     @default(false) @map("can_delete")
+  pageId    String?     @map("page_id")
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
+  page      PageMaster? @relation(fields: [pageId], references: [id], onDelete: Restrict)
+  role      RoleMaster  @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, pageCode])
+  @@index([roleId])
+  @@index([pageId])
+  @@index([roleId], map: "idx_role_page_master_role_id")
+  @@map("role_page_master")
+}
+
+model UserPageRole {
+  id     String     @id @default(uuid()) @map("id")
+  userId String     @map("user_id")
+  roleId String     @map("role_id")
+  role   RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_page_role")
+}
+
+model UserRoleMapping {
+  id         String     @id @default(uuid()) @map("id")
+  userId     String     @map("user_id")
+  roleId     String     @map("role_id")
+  isActive   Boolean    @default(true) @map("is_active")
+  assignedAt DateTime   @default(now()) @map("assigned_at")
+  assignedBy String?    @map("assigned_by")
+  createdAt  DateTime   @default(now()) @map("created_at")
+  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at")
+  role       RoleMaster @relation(fields: [roleId], references: [id])
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_role")
 }
 
 enum UserRole {
@@ -267,571 +836,7 @@ enum ContactEnquiryStatus {
   CLOSED
 }
 
-model ContactEnquiry {
-  id        String               @id @default(uuid())
-  firstName String               @map("first_name") @db.VarChar(100)
-  phone     String               @db.VarChar(10)
-  email     String?              @db.VarChar(255)
-  city      String               @db.VarChar(100)
-  message   String?              @db.Text
-  status    ContactEnquiryStatus @default(NEW)
-  createdAt DateTime             @default(now()) @map("created_at")
-  updatedAt DateTime             @updatedAt @map("updated_at")
-
-  @@index([phone])
-  @@index([email])
-  @@index([status])
-  @@index([createdAt])
-  @@map("contact_enquiries")
-}
-
-model Category {
-  id          String     @id @default(uuid()) @map("category_id")
-  name        String     @map("name")
-  slug        String     @unique @map("slug")
-  parentId    String?    @map("parent_id")
-  parent      Category?  @relation("SubCategories", fields: [parentId], references: [id])
-  children    Category[] @relation("SubCategories")
-  fields      Json?      @map("fields")
-  createdAt   DateTime   @default(now()) @map("created_at")
-  updatedAt   DateTime   @updatedAt @map("updated_at")
-  products    Product[]
-
-  @@map("categories")
-}
-
-model Product {
-  id                  String     @id @default(uuid()) @map("product_id")
-  sellerId            String     @map("seller_id")
-  categoryId          String?    @map("category_id")
-  category            Category?  @relation(fields: [categoryId], references: [id])
-  title               String     @map("title")
-  description         String?    @map("description")
-  price               Float      @map("price")
-  sku                 String     @unique @map("sku")
-  inventory           Int        @default(0) @map("inventory")
-  mediaUrls           String[]   @map("media_urls")
-  videoUrls           String[]   @map("video_urls")
-  influencerBranding Boolean    @default(false) @map("influencer_branding")
-  createdAt           DateTime   @default(now()) @map("created_at")
-  updatedAt           DateTime   @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@index([categoryId])
-  @@map("products")
-}
-
-model Order {
-  id             String      @id @default(uuid()) @map("order_id")
-  sellerId       String      @map("seller_id")
-  buyerId        String?     @map("buyer_id")
-  status         String      @default("PENDING") @map("status")
-  totalAmount    Float       @map("total_amount")
-  shippingAmount Float       @default(0.0) @map("shipping_amount")
-  deliveryAddress Json?      @map("delivery_address")
-  awbNumber      String?     @map("awb_number")
-  createdAt      DateTime    @default(now()) @map("created_at")
-  updatedAt      DateTime    @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@map("orders")
-}
-
-model SellerOrder {
-  id                           String    @id @default(uuid()) @map("id")
-  sellerId                     String    @map("seller_id")
-  orderId                      Int       @map("order_id")
-  trackingId                   String?   @map("tracking_id")
-  status                       String?   @map("status")
-  items                        String?   @map("items")
-  totalAmount                  Float?    @map("total_amount")
-  customerName                 String?   @map("customer_name")
-  customerAddress              String?   @map("customer_address")
-  createdDate                  DateTime  @default(now()) @map("created_date")
-  paymentStatus                String?   @map("payment_status")
-  productId                    String?   @map("product_id")
-  storageType                  String?   @map("storage_type")
-  sellerPaymentStatus          String?   @map("seller_payment_status")
-  itemPrice                    Float?    @map("item_price")
-  buyerEmail                   String?   @map("buyer_email")
-  customerPhone                String?   @map("customer_phone")
-  estimatedDelivery            DateTime? @map("estimated_delivery")
-  productOption                Json?     @map("product_option")
-  deliveredDate                DateTime? @map("delivered_date")
-  invoiceNumber                String?   @map("invoice_number")
-  returnAndExchangeDate        DateTime? @map("return_and_exchange_date")
-  invoiceFile                  String?   @map("invoice_file")
-  refundStatus                 Boolean?  @default(false) @map("refund_status")
-  reason                       String?   @map("reason")
-  message                      String?   @map("message")
-  deliveryPartner              String?   @map("delivery_partner")
-  deliveryPincode              String?   @map("delivery_pincode")
-  addressLine1                 String?   @map("address_line1")
-  city                         String?   @map("city")
-  state                        String?   @map("state")
-  country                      String?   @map("country")
-  razorpayOrderId              String?   @map("razorpay_order_id")
-  shipping                     Boolean?  @default(false) @map("shipping")
-  productReturn                String?   @map("product_return")
-  returnOrderId                String?   @map("return_order_id")
-  exchangeOrderId              String?   @map("exchange_order_id")
-  returnDate                   DateTime? @map("return_date")
-  exchangeDate                 DateTime? @map("exchange_date")
-  returnExchangeImages         Json?     @map("return_exchange_images")
-  mrp                          Float?    @map("mrp")
-  paymentMode                  String?   @map("payment_mode")
-  haatzaFreeDelivery           Boolean?  @default(false) @map("haatza_free_delivery")
-  productImage                 String?   @map("product_image")
-  upiDeliveryFee               Float?    @map("upi_delivery_fee")
-  couponCode                   String?   @map("coupon_code")
-  couponDiscount               Float?    @map("coupon_discount")
-  deliveryCharge               Boolean?  @default(false) @map("delivery_charge")
-  paymentMethod                String?   @map("payment_method")
-  quantity                     Int?      @map("quantity")
-  codDeliveryFee               Float?    @map("cod_delivery_fee")
-  returnExchangeTrackingId     String?   @map("return_exchange_tracking_id")
-  returnOrderTrackingId        String?   @map("return_order_tracking_id")
-  pickupAddress                String?   @map("pickup_address")
-  usedWalletAmount             Float?    @map("used_wallet_amount")
-  createdAt                    DateTime  @default(now()) @map("created_at")
-  updatedAt                    DateTime  @updatedAt @map("updated_at")
-  deletedAt                    DateTime? @map("deleted_at")
-
-  @@index([sellerId])
-  @@index([orderId])
-  @@index([customerName])
-  @@index([buyerEmail])
-  @@index([trackingId])
-  @@index([status])
-  @@index([paymentStatus])
-  @@index([sellerPaymentStatus])
-  @@index([refundStatus])
-  @@index([createdDate])
-  @@index([deletedAt])
-  @@map("seller_orders")
-}
-
-model OrderReturn {
-  id          String   @id @default(uuid()) @map("return_id")
-  orderId     String   @map("order_id")
-  sellerId    String   @map("seller_id")
-  reason      String   @map("reason")
-  status      String   @default("REQUESTED") @map("status")
-  isExchange  Boolean  @default(false) @map("is_exchange")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@map("order_returns")
-}
-
-model Claim {
-  id          String   @id @default(uuid()) @map("claim_id")
-  sellerId    String   @map("seller_id")
-  orderId     String?  @map("order_id")
-  subject     String   @map("subject")
-  description String   @map("description")
-  status      String   @default("OPEN") @map("status")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@map("claims")
-}
-
-model Wallet {
-  id           String              @id @default(uuid()) @map("wallet_id")
-  sellerId     String              @unique @map("seller_id")
-  balance      Float               @default(0.0) @map("balance")
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
-  transactions WalletTransaction[]
-
-  @@map("wallets")
-}
-
-model WalletTransaction {
-  id          String   @id @default(uuid()) @map("transaction_id")
-  walletId    String   @map("wallet_id")
-  wallet      Wallet   @relation(fields: [walletId], references: [id])
-  amount      Float    @map("amount")
-  type        String   @map("type")
-  description String?  @map("description")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@index([walletId])
-  @@map("wallet_transactions")
-}
-
-model Invoice {
-  id          String   @id @default(uuid()) @map("invoice_id")
-  sellerId    String   @map("seller_id")
-  invoiceNo   String   @unique @map("invoice_no")
-  amount      Float    @map("amount")
-  taxAmount   Float    @default(0.0) @map("tax_amount")
-  pdfUrl      String?  @map("pdf_url")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@index([sellerId])
-  @@map("invoices")
-}
-
-model Campaign {
-  id          String   @id @default(uuid()) @map("campaign_id")
-  sellerId    String   @map("seller_id")
-  name        String   @map("name")
-  budget      Float    @map("budget")
-  status      String   @default("ACTIVE") @map("status")
-  productIds  String[] @map("product_ids")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@map("campaigns")
-}
-
-model Notification {
-  id        String   @id @default(uuid()) @map("notification_id")
-  sellerId  String   @map("seller_id")
-  title     String   @map("title")
-  message   String   @map("message")
-  isRead    Boolean  @default(false) @map("is_read")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([sellerId])
-  @@map("notifications")
-}
-
-model SupportTicket {
-  id          String   @id @default(uuid()) @map("ticket_id")
-  sellerId    String   @map("seller_id")
-  subject     String   @map("subject")
-  description String   @map("description")
-  status      String   @default("OPEN") @map("status")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@map("support_tickets")
-}
-
-model SubscriptionPlan {
-  id          String   @id @default(uuid()) @map("plan_id")
-  name        String   @map("name")
-  price       Float    @map("price")
-  duration    String   @map("duration")
-  features    Json?    @map("features")
-  createdAt   DateTime @default(now()) @map("created_at")
-
-  @@map("subscription_plans")
-}
-
-model SellerSubscription {
-  id        String   @id @default(uuid()) @map("subscription_id")
-  sellerId  String   @unique @map("seller_id")
-  planId    String   @map("plan_id")
-  status    String   @default("ACTIVE") @map("status")
-  expiresAt DateTime @map("expires_at")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@map("seller_subscriptions")
-}
-
-model Referral {
-  id            String   @id @default(uuid()) @map("referral_id")
-  referrerId    String   @map("referrer_id")
-  referredEmail String   @map("referred_email")
-  referralCode  String   @map("referral_code")
-  status        String   @default("PENDING") @map("status")
-  rewardAmount  Float    @default(0.0) @map("reward_amount")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@index([referrerId])
-  @@map("referrals")
-}
-
-model HaatzUpVideo {
-  id         String   @id @default(uuid()) @map("video_id")
-  sellerId   String   @map("seller_id")
-  videoUrl   String   @map("video_url")
-  hashtags   String[] @map("hashtags")
-  productIds String[] @map("product_ids")
-  viewsCount Int      @default(0) @map("views_count")
-  createdAt  DateTime @default(now()) @map("created_at")
-
-  @@index([sellerId])
-  @@map("haatzup_videos")
-}
-
-model Warehouse {
-  id        String   @id @default(uuid()) @map("warehouse_id")
-  sellerId  String   @map("seller_id")
-  name      String   @map("name")
-  address   String   @map("address")
-  pincode   String   @map("pincode")
-  city      String   @map("city")
-  state     String   @map("state")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([sellerId])
-  @@map("warehouses")
-}
-
-model SellerProduct {
-  id                    String    @id @default(uuid()) @map("id")
-  mainMedia             String?   @map("main_media")
-  media                 Json?     @map("media")
-  oneRsStore            Boolean?  @default(false) @map("one_rs_store")
-  productImages         Json?     @map("product_images")
-  name                  String    @map("name")
-  searchKeywords        Json?     @map("search_keywords")
-  subCategory           String?   @map("sub_category")
-  subCategoryId         String?   @map("sub_category_id")
-  brand                 String?   @map("brand")
-  inventory             Int?      @map("inventory")
-  variantPrice          Json?     @map("variant_price")
-  productId             String?   @map("product_id")
-  newVariantPrice       Float?    @map("new_variant_price")
-  mrp                   Float?    @map("mrp")
-  onsalePrice           Float?    @map("onsale_price")
-  cod                   Boolean?  @map("cod")
-  upi                   Boolean?  @map("upi")
-  price                 Float?    @map("price")
-  discount              Json?     @map("discount")
-  status                String?   @map("status")
-  deliveryCharges       Boolean?  @map("delivery_charges")
-  mainCategory          String?   @map("main_category")
-  sellerId              String?   @map("seller_id")
-  shippingWeight        Float?    @map("shipping_weight")
-  collections           Json?     @map("collections")
-  sellerPincode         String?   @map("seller_pincode")
-  createdDate           DateTime? @map("created_date")
-  updatedDate           DateTime? @map("updated_date")
-  productOptions        Json?     @map("product_options")
-  additionalInfoSections Json?    @map("additional_info_sections")
-  activeAd              Boolean?  @map("active_ad")
-  averageCpc            Float?    @map("average_cpc")
-  priorityScore         String?   @map("priority_score")
-  campaignId            String?   @map("campaign_id")
-  reach                 Int?      @default(0) @map("reach")
-  impression            Int?      @default(0) @map("impression")
-  clicks                Int?      @default(0) @map("clicks")
-  sales                 Int?      @default(0) @map("sales")
-  revenue               Float?    @default(0.0) @map("revenue")
-  categoryName          Json?     @map("category_name")
-  sku                   String?   @map("sku")
-  productType           String?   @map("product_type")
-  manageVariants        Boolean?  @map("manage_variants")
-  ribbon                String?   @map("ribbon")
-  trackInventory        Boolean?  @map("track_inventory")
-  influencerBranding    Boolean?  @map("influencer_branding")
-  haatzaVerified        Boolean?  @map("haatza_verified")
-  promotionPhotos       Json?     @map("promotion_photos")
-  paymentType           String?   @map("payment_type")
-  productReturn         String?   @map("product_return")
-  sizeChart             String?   @map("size_chart")
-  description           String?   @map("description")
-  gstSeller             Boolean?  @map("gst_seller")
-  upiPaymentDiscount    Float?    @map("upi_payment_discount")
-  manageListingProducts String?   @map("manage_listing_products")
-  sellAndEarnCommission Float?    @map("sell_and_earn_commission")
-  sellAndEarn           Boolean?  @map("sell_and_earn")
-  importedAt            DateTime? @default(now()) @map("imported_at")
-  createdAt             DateTime? @default(now()) @map("created_at")
-  updatedAt             DateTime? @default(now()) @updatedAt @map("updated_at")
-
-  @@index([sellerId])
-  @@index([sku])
-  @@index([status])
-  @@index([brand])
-  @@index([subCategory])
-  @@index([createdDate])
-  @@index([updatedDate])
-  @@map("seller_products")
-}
-
-model ListingOption {
-  id          String    @id @default(uuid()) @map("id")
-  name        String?   @map("name")
-  description String?   @map("description")
-  listings    Listing[]
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
-
-  @@map("listing_options")
-}
-
-model Listing {
-  id                    String         @id @default(uuid()) @map("id")
-  elementType           String         @map("element_type")
-  categoryName          String         @map("category_name")
-  title                 String         @map("title")
-  choices               String?        @map("choices")
-  sequence              Int            @default(0) @map("sequence")
-  placeholderText       String?        @map("placeholder_text")
-  required              Boolean        @default(false) @map("required")
-  categoryId            String?        @map("category_id")
-  status                String?        @map("status")
-  createdBy             String?        @map("created_by")
-  type                  String?        @map("type")
-  listingItemId         String?        @map("listing_item_id")
-  listingItem           Listing?       @relation("ListingSelfRelation", fields: [listingItemId], references: [id])
-  parentListings        Listing[]      @relation("ListingSelfRelation")
-  detailListingOptionId String?        @map("detail_listing_option_id")
-  detailListingOption   ListingOption? @relation(fields: [detailListingOptionId], references: [id])
-  createdAt             DateTime       @default(now()) @map("created_at")
-  updatedAt             DateTime       @updatedAt @map("updated_at")
-
-  @@index([categoryId])
-  @@index([sequence])
-  @@index([status])
-  @@index([type])
-  @@map("listings")
-}
-
-model UserLoginHistory {
-  id            String      @id @default(uuid()) @map("login_id")
-  userId        String?     @map("user_id")
-  identifier    String      @map("identifier")
-  status        LoginStatus @map("status")
-  failureReason String?     @map("failure_reason")
-  ipAddress     String?     @map("ip_address")
-  userAgent     String?     @map("user_agent")
-  deviceName    String?     @map("device_name")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  user          User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  @@index([userId])
-  @@index([identifier])
-  @@map("user_login_histories")
-}
-
 enum DashboardModule {
   LITE
   HAATZA
 }
-
-model Dashboard {
-  id               String           @id @map("id")
-  widgetType       String?          @map("widget_type")
-  widgetId         String           @unique @map("widget_id")
-  title            String?          @map("title")
-  status           String?          @default("ACTIVE") @map("status")
-  sequence         Int?             @map("sequence")
-  categoryId       String?          @map("category_id")
-  categoryName     String?          @map("category_name")
-  item             Json?            @map("Item")
-  warehouseId      String?          @map("warehouse_id")
-  module           DashboardModule? @default(HAATZA) @map("module")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
-
-  @@index([widgetId])
-  @@index([widgetType])
-  @@index([module])
-  @@map("dashboard")
-}
-
-model DashboardCategory {
-  id                 String           @id @default(uuid()) @map("id")
-  categoryId         String           @unique @map("category_id")
-  categoryName       String           @map("category_name")
-  image              String?          @map("image")
-  status             String?          @default("ACTIVE") @map("status")
-  appbarColour       String?          @map("appbar_colour")
-  appbarImage        String?          @map("appbar_image")
-  categoryTextcolour String?          @map("category_textcolour")
-  appbarBackground   String?          @map("appbar_background")
-  module             DashboardModule? @default(HAATZA) @map("module")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-
-  @@index([categoryId])
-  @@index([module])
-  @@map("dashboard_category")
-}
-
-model PageMaster {
-  id              String           @id @default(uuid()) @map("id")
-  pageCode        String           @unique @map("page_code")
-  pageName        String           @map("page_name")
-  route           String           @map("route")
-  description     String?          @map("description")
-  isActive        Boolean          @default(true) @map("is_active")
-  createdAt       DateTime         @default(now()) @map("created_at")
-  updatedAt       DateTime         @updatedAt @map("updated_at")
-  rolePageMasters RolePageMaster[]
-
-  @@map("page_master")
-}
-
-model RoleMaster {
-  id              String            @id @default(uuid()) @map("id")
-  roleName        String            @unique @map("role_name")
-  roleCode        String            @unique @map("role_code")
-  description     String?           @map("description")
-  isActive        Boolean           @default(true) @map("is_active")
-  createdAt       DateTime          @default(now()) @map("created_at")
-  updatedAt       DateTime          @updatedAt @map("updated_at")
-  rolePageMasters RolePageMaster[]
-  userPageRoles   UserPageRole[]
-  userRoles       UserRoleMapping[]
-
-  @@map("role_master")
-}
-
-model RolePageMaster {
-  id        String      @id @default(uuid()) @map("id")
-  roleId    String      @map("role_id")
-  pageId    String?     @map("page_id")
-  pageCode  String      @map("page_code")
-  pageName  String      @map("page_name")
-  route     String      @map("route")
-  canView   Boolean     @default(false) @map("can_view")
-  canCreate Boolean     @default(false) @map("can_create")
-  canEdit   Boolean     @default(false) @map("can_edit")
-  canDelete Boolean     @default(false) @map("can_delete")
-  createdAt DateTime    @default(now()) @map("created_at")
-  updatedAt DateTime    @default(now()) @updatedAt @map("updated_at")
-  role      RoleMaster  @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  page      PageMaster? @relation(fields: [pageId], references: [id], onDelete: Restrict)
-
-  @@unique([roleId, pageCode])
-  @@index([roleId])
-  @@index([pageId])
-  @@map("role_page_master")
-}
-
-model UserPageRole {
-  id     String     @id @default(uuid()) @map("id")
-  userId String     @map("user_id")
-  roleId String     @map("role_id")
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role   RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-  @@map("user_page_role")
-}
-
-model UserRoleMapping {
-  id         String     @id @default(uuid()) @map("id")
-  userId     String     @map("user_id")
-  roleId     String     @map("role_id")
-  isActive   Boolean    @default(true) @map("is_active")
-  assignedAt DateTime   @default(now()) @map("assigned_at")
-  assignedBy String?    @map("assigned_by")
-  createdAt  DateTime   @default(now()) @map("created_at")
-  updatedAt  DateTime   @default(now()) @updatedAt @map("updated_at")
-  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role       RoleMaster @relation(fields: [roleId], references: [id], onDelete: Restrict)
-
-  @@unique([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-  @@map("user_role")
-}
-
-
-
