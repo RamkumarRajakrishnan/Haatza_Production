@@ -716,6 +716,7 @@ model Dashboard {
   widgetType       String?          @map("widget_type")
   widgetId         String           @unique @map("widget_id")
   title            String?          @map("title")
+  subtitle         String?          @map("subtitle")
   status           String?          @default("ACTIVE") @map("status")
   sequence         Int?             @map("sequence")
   categoryId       String?          @map("category_id")
