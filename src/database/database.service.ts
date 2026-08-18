@@ -43,11 +43,22 @@ export class DatabaseService
 
   async queryRawDashboard(text: string, params: any[] = []): Promise<any[]> {
     try {
-      const result = await this.pool.query(text, params);
-      return result.rows || [];
+      if (this.pool) {
+        const result = await this.pool.query(text, params);
+        if (result && Array.isArray(result.rows)) {
+          return result.rows;
+        }
+      }
     } catch (err: any) {
-      this.logger.error(`queryRawDashboard query failed: ${err.message}`);
-      return [];
+      this.logger.warn(`queryRawDashboard pool query warning: ${err.message}. Retrying via Prisma raw query...`);
+    }
+
+    try {
+      const prismaRes: any = await this.$queryRawUnsafe(text, ...params);
+      return Array.isArray(prismaRes) ? prismaRes : [];
+    } catch (prismaErr: any) {
+      this.logger.error(`queryRawDashboard fallback failed: ${prismaErr.message}`);
+      throw prismaErr;
     }
   }
 

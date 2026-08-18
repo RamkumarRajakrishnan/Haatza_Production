@@ -105,15 +105,15 @@ export class DashboardService {
     if (warehouseId?.trim()) whereCondition.warehouseId = warehouseId.trim();
 
     const queryParams: any[] = [targetModule];
-    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" FROM public.dashboard WHERE module = $1`;
+    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" FROM public.dashboard WHERE module::text = $1`;
 
     if (categoryId?.trim()) {
       queryParams.push(categoryId.trim());
-      sql += ` AND category_id = $${queryParams.length}`;
+      sql += ` AND LOWER(TRIM(category_id)) = LOWER(TRIM($${queryParams.length}))`;
     }
     if (warehouseId?.trim()) {
       queryParams.push(warehouseId.trim());
-      sql += ` AND warehouse_id = $${queryParams.length}`;
+      sql += ` AND LOWER(TRIM(warehouse_id)) = LOWER(TRIM($${queryParams.length}))`;
     }
     sql += ` ORDER BY sequence ASC`;
 

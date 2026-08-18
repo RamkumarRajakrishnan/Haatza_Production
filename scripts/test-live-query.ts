@@ -14,7 +14,7 @@ async function testLiveDashboardQuery() {
   try {
     const res = await service.getHaatzaDashboard({
       module: 'HAATZA' as any,
-      categoryId: 'cate001',
+      categoryId: 'cate002',
     });
     console.log('SUCCESS_LIVE_TEST_RESULT:', JSON.stringify(res, null, 2));
   } catch (err: any) {
