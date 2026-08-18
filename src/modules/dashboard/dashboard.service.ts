@@ -280,11 +280,47 @@ export class DashboardService {
         module: w.module || 'HAATZA',
       };
 
-      const record = await this.db.dashboard.upsert({
-        where: { widgetId },
-        update: data,
-        create: { ...data, widgetId },
-      });
+      const existingRec = await this.db.queryRawDashboard(
+        `SELECT id FROM public.dashboard WHERE widget_id = $1 LIMIT 1`,
+        [widgetId]
+      );
+
+      let record: any;
+      if (existingRec && existingRec.length > 0) {
+        const updateRes = await this.db.queryRawDashboard(
+          `UPDATE public.dashboard SET widget_type = $1, title = $2, status = $3, sequence = $4, category_id = $5, category_name = $6, "Item" = $7, warehouse_id = $8, module = $9, updated_at = NOW() WHERE widget_id = $10 RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt"`,
+          [
+            data.widgetType,
+            data.title,
+            data.status,
+            data.sequence,
+            data.categoryId,
+            data.categoryName,
+            JSON.stringify(data.item),
+            data.warehouseId,
+            data.module,
+            widgetId,
+          ]
+        );
+        record = updateRes[0];
+      } else {
+        const insertRes = await this.db.queryRawDashboard(
+          `INSERT INTO public.dashboard (widget_type, title, status, sequence, category_id, category_name, "Item", warehouse_id, module, widget_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt"`,
+          [
+            data.widgetType,
+            data.title,
+            data.status,
+            data.sequence,
+            data.categoryId,
+            data.categoryName,
+            JSON.stringify(data.item),
+            data.warehouseId,
+            data.module,
+            widgetId,
+          ]
+        );
+        record = insertRes[0];
+      }
       results.push(record);
     }
 
@@ -305,24 +341,22 @@ export class DashboardService {
 
     const trimmedId = idOrWidgetId.trim();
 
-    // Check if record exists by widgetId or id
-    const existing = await this.db.dashboard.findFirst({
-      where: {
-        OR: [{ widgetId: trimmedId }, { id: trimmedId }],
-      },
-      select: {
-        id: true,
-        widgetId: true,
-      },
-    });
+    // Check if record exists by widgetId or id via raw SQL
+    const records = await this.db.queryRawDashboard(
+      `SELECT id, widget_id AS "widgetId" FROM public.dashboard WHERE widget_id = $1 OR id = $1 LIMIT 1`,
+      [trimmedId]
+    );
+
+    const existing = records[0];
 
     if (!existing) {
       throw new BadRequestException(`Widget with id/widgetId '${trimmedId}' not found.`);
     }
 
-    await this.db.dashboard.delete({
-      where: { id: existing.id },
-    });
+    await this.db.executePoolQuery(
+      `DELETE FROM public.dashboard WHERE id = $1`,
+      [existing.id]
+    );
 
     return {
       status: 'success',
