@@ -316,6 +316,10 @@ export class DashboardService {
       where: {
         OR: [{ widgetId: trimmedId }, { id: trimmedId }],
       },
+      select: {
+        id: true,
+        widgetId: true,
+      },
     });
 
     if (!existing) {
