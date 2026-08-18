@@ -245,10 +245,9 @@ export class DashboardService {
     const results: any[] = [];
 
     // Query max numerical suffix from existing 'WIDxxx' widget IDs
-    const existingWidRecords = await this.db.dashboard.findMany({
-      where: { widgetId: { startsWith: 'WID' } },
-      select: { widgetId: true },
-    });
+    const existingWidRecords = await this.db.queryRawDashboard(
+      `SELECT widget_id AS "widgetId" FROM public.dashboard WHERE widget_id LIKE 'WID%'`
+    );
     let maxWidNum = 0;
     existingWidRecords.forEach((rec) => {
       const match = rec.widgetId.match(/^WID(\d+)$/i);
