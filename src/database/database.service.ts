@@ -17,6 +17,12 @@ export class DatabaseService
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is missing.');
     }
+    const isSslDisabled =
+      connectionString.includes('sslmode=disable') ||
+      connectionString.includes('sslmode=false') ||
+      connectionString.includes('sslmode=prefer') ||
+      process.env.DATABASE_SSL === 'false';
+
     const pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX) || 15,
@@ -25,7 +31,7 @@ export class DatabaseService
       connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
-      ssl: { rejectUnauthorized: false },
+      ...(isSslDisabled ? {} : { ssl: { rejectUnauthorized: false } }),
     });
 
     pool.on('error', (err: any) => {
