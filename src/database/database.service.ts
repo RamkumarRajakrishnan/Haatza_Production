@@ -465,20 +465,7 @@ export class DatabaseService
           expires_at timestamp
         );
 
-        CREATE TABLE IF NOT EXISTS public.dashboard_category (
-          id text PRIMARY KEY,
-          category_id text UNIQUE NOT NULL,
-          category_name text NOT NULL,
-          image text,
-          status text DEFAULT 'ACTIVE',
-          appbar_colour text,
-          appbar_image text,
-          category_textcolour text,
-          appbar_background text,
-          module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule",
-          created_at timestamp DEFAULT now(),
-          updated_at timestamp DEFAULT now()
-        );
+
 
         -- Automatic ID Generation (DASH_001, DASH_002...) for dashboard.id
         CREATE SEQUENCE IF NOT EXISTS public.seq_dashboard_id START WITH 1 INCREMENT BY 1 NO MAXVALUE NO MINVALUE CACHE 1;
@@ -540,11 +527,7 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS expires_at timestamp;
 
-        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_colour text;
-        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_image text;
-        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS category_textcolour text;
-        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_background text;
-        ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
+
 
         CREATE TABLE IF NOT EXISTS public.user_devices (
           device_id text PRIMARY KEY,

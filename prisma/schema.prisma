@@ -647,24 +647,6 @@ model Dashboard {
   @@map("dashboard")
 }
 
-model DashboardCategory {
-  id                 String           @id @default(uuid()) @map("id")
-  categoryId         String           @unique @map("category_id")
-  categoryName       String           @map("category_name")
-  image              String?          @map("image")
-  status             String?          @default("ACTIVE") @map("status")
-  appbarColour       String?          @map("appbar_colour")
-  appbarImage        String?          @map("appbar_image")
-  categoryTextcolour String?          @map("category_textcolour")
-  appbarBackground   String?          @map("appbar_background")
-  module             DashboardModule? @default(HAATZA) @map("module")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-
-  @@index([categoryId])
-  @@index([module])
-  @@map("dashboard_category")
-}
 
 model PageMaster {
   id              String           @id @default(uuid()) @map("id")
