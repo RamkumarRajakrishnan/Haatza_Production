@@ -22,7 +22,7 @@ import {
 import { CategoryModule } from '@prisma/client';
 
 @ApiTags('Category Master')
-@Controller(['', 'category', 'categories'])
+@Controller(['category', 'categories', 'api/v1'])
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
