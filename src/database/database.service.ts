@@ -461,7 +461,8 @@ export class DatabaseService
           warehouse_id text,
           module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule",
           created_at timestamp DEFAULT now(),
-          updated_at timestamp DEFAULT now()
+          updated_at timestamp DEFAULT now(),
+          expires_at timestamp
         );
 
         CREATE TABLE IF NOT EXISTS public.dashboard_category (
@@ -537,6 +538,7 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS "Item" jsonb;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS warehouse_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
+        ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS expires_at timestamp;
 
         ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_colour text;
         ALTER TABLE public.dashboard_category ADD COLUMN IF NOT EXISTS appbar_image text;

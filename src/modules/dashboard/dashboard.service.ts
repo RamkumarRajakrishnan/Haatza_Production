@@ -102,10 +102,11 @@ export class DashboardService {
     }
 
     const queryParams: any[] = [targetModule];
-    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" 
+    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt" 
                FROM public.dashboard 
                WHERE module::text = $1
-                 AND (LOWER(TRIM(status)) = 'active' OR status IS NULL OR status = 'TRUE' OR status = 'true')`;
+                 AND (LOWER(TRIM(status)) = 'active' OR status IS NULL OR status = 'TRUE' OR status = 'true')
+                 AND (expires_at IS NULL OR expires_at > NOW())`;
 
     if (categoryId) {
       queryParams.push(categoryId);
@@ -268,6 +269,15 @@ export class DashboardService {
       const rawItem = w.items ?? w.Items ?? w.item ?? w.Item ?? w.product ?? w.widgetProducts ?? null;
       const parsedItemArray = this.formatProductArray(rawItem);
 
+      let expiresAtDate: Date | null = null;
+      const rawExpires = w.expiresAt ?? w.expires_at ?? w.ExpireAt ?? w.expire_at;
+      if (rawExpires) {
+        expiresAtDate = new Date(rawExpires);
+      } else {
+        // Default to 10 days after creation if not provided
+        expiresAtDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      }
+
       const data: any = {
         widgetType: w.widgetType || w.widget_type || 'hero_banner',
         title: w.title ?? w.Title ?? null,
@@ -278,6 +288,7 @@ export class DashboardService {
         item: parsedItemArray,
         warehouseId: w.warehouseId ?? null,
         module: w.module || 'HAATZA',
+        expiresAt: expiresAtDate,
       };
 
       const existingRec = await this.db.queryRawDashboard(
@@ -288,7 +299,7 @@ export class DashboardService {
       let record: any;
       if (existingRec && existingRec.length > 0) {
         const updateRes = await this.db.queryRawDashboard(
-          `UPDATE public.dashboard SET widget_type = $1, title = $2, status = $3, sequence = $4, category_id = $5, category_name = $6, "Item" = $7, warehouse_id = $8, module = $9, updated_at = NOW() WHERE widget_id = $10 RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt"`,
+          `UPDATE public.dashboard SET widget_type = $1, title = $2, status = $3, sequence = $4, category_id = $5, category_name = $6, "Item" = $7, warehouse_id = $8, module = $9, expires_at = $10, updated_at = NOW() WHERE widget_id = $11 RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt"`,
           [
             data.widgetType,
             data.title,
@@ -299,13 +310,14 @@ export class DashboardService {
             JSON.stringify(data.item),
             data.warehouseId,
             data.module,
+            data.expiresAt,
             widgetId,
           ]
         );
         record = updateRes[0];
       } else {
         const insertRes = await this.db.queryRawDashboard(
-          `INSERT INTO public.dashboard (widget_type, title, status, sequence, category_id, category_name, "Item", warehouse_id, module, widget_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt"`,
+          `INSERT INTO public.dashboard (widget_type, title, status, sequence, category_id, category_name, "Item", warehouse_id, module, expires_at, widget_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt"`,
           [
             data.widgetType,
             data.title,
@@ -316,6 +328,7 @@ export class DashboardService {
             JSON.stringify(data.item),
             data.warehouseId,
             data.module,
+            data.expiresAt,
             widgetId,
           ]
         );

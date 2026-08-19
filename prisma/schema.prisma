@@ -637,6 +637,7 @@ model Dashboard {
   warehouseId  String?          @map("warehouse_id")
   createdAt    DateTime         @default(now()) @map("created_at")
   updatedAt    DateTime         @updatedAt @map("updated_at")
+  expiresAt    DateTime?        @map("expires_at")
   module       DashboardModule? @default(HAATZA) @map("module")
   item         Json?            @map("Item")
 
