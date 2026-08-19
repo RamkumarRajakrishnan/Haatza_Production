@@ -1,7 +1,7 @@
 import { Injectable, Logger, BadRequestException } from '@nestjs/common';
 import * as crypto from 'crypto';
-import { DatabaseService } from '../../database/database.service';
-import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
+import { DatabaseService } from '../../../database/database.service';
+import { GetHaatzaDashboardDto } from '../dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
 
 @Injectable()
