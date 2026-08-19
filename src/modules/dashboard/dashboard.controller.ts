@@ -12,17 +12,33 @@ export class DashboardController {
   @Get(['', 'haatza', 'widgets', 'v2', 'get-data', 'data'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Dashboard Page Widgets',
-    description: 'Retrieves grouped dashboard widgets filtered by categoryId, optional warehouseId, and module (HAATZA or LITE).',
+    summary: 'Get Dashboard Page Widgets (GET)',
+    description: 'Retrieves grouped dashboard widgets filtered by category/categoryId, optional warehouseId, and module (HAATZA or LITE).',
   })
+  @ApiQuery({ name: 'category', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
   @ApiQuery({ name: 'warehouseId', required: false, type: String })
   @ApiQuery({ name: 'module', required: true, enum: DashboardModule })
   @ApiResponse({
     status: 200,
-    description: 'HAATZA dashboard widgets retrieved successfully',
+    description: 'Dashboard widgets retrieved successfully',
   })
-  async getHaatzaDashboard(@Query() dto: GetHaatzaDashboardDto) {
+  async getHaatzaDashboardGet(@Query() dto: GetHaatzaDashboardDto) {
+    return this.dashboardService.getHaatzaDashboard(dto);
+  }
+
+  @Post(['get_dashboard', 'fetch', 'get-data'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Dashboard Page Widgets (POST get_dashboard)',
+    description: 'Retrieves grouped dashboard widgets via POST body for HAATZA and LITE applications.',
+  })
+  @ApiBody({ type: GetHaatzaDashboardDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Dashboard widgets retrieved successfully',
+  })
+  async getHaatzaDashboardPost(@Body() dto: GetHaatzaDashboardDto) {
     return this.dashboardService.getHaatzaDashboard(dto);
   }
 
@@ -32,7 +48,7 @@ export class DashboardController {
     return { status: 'ok', version: 'v2-raw-sql-active' };
   }
 
-  @Post(['upsert', ''])
+  @Post(['upsert', 'save'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Upsert single or bulk Dashboard Widgets',

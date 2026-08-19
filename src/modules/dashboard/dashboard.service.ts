@@ -82,7 +82,8 @@ export class DashboardService {
    * - LITE module: categoryId is COMPULSORY, warehouseId is COMPULSORY.
    */
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
-    const { categoryId, warehouseId } = dto;
+    const categoryId = dto.category?.trim() || dto.categoryId?.trim();
+    const warehouseId = dto.warehouseId?.trim();
 
     if (!dto.module) {
       throw new BadRequestException('module is mandatory (HAATZA or LITE).');
@@ -90,29 +91,28 @@ export class DashboardService {
 
     const targetModule = String(dto.module).toUpperCase() as DashboardModule;
 
-    // VALIDATION: categoryId is COMPULSORY for both HAATZA and LITE modules
-    if (!categoryId?.trim()) {
-      throw new BadRequestException(`categoryId is mandatory for ${targetModule} module.`);
+    // VALIDATION: category/categoryId is COMPULSORY for both HAATZA and LITE modules
+    if (!categoryId) {
+      throw new BadRequestException(`category (or categoryId) is mandatory for ${targetModule} module.`);
     }
 
     // VALIDATION: warehouseId is COMPULSORY for LITE module
-    if (targetModule === DashboardModule.LITE && !warehouseId?.trim()) {
+    if (targetModule === DashboardModule.LITE && !warehouseId) {
       throw new BadRequestException('warehouseId is mandatory for LITE module.');
     }
 
-    const whereCondition: any = { module: targetModule };
-    if (categoryId?.trim()) whereCondition.categoryId = categoryId.trim();
-    if (warehouseId?.trim()) whereCondition.warehouseId = warehouseId.trim();
-
     const queryParams: any[] = [targetModule];
-    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" FROM public.dashboard WHERE module::text = $1`;
+    let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt" 
+               FROM public.dashboard 
+               WHERE module::text = $1
+                 AND (LOWER(TRIM(status)) = 'active' OR status IS NULL OR status = 'TRUE' OR status = 'true')`;
 
-    if (categoryId?.trim()) {
-      queryParams.push(categoryId.trim());
+    if (categoryId) {
+      queryParams.push(categoryId);
       sql += ` AND LOWER(TRIM(category_id)) = LOWER(TRIM($${queryParams.length}))`;
     }
-    if (warehouseId?.trim()) {
-      queryParams.push(warehouseId.trim());
+    if (warehouseId) {
+      queryParams.push(warehouseId);
       sql += ` AND LOWER(TRIM(warehouse_id)) = LOWER(TRIM($${queryParams.length}))`;
     }
     sql += ` ORDER BY sequence ASC`;

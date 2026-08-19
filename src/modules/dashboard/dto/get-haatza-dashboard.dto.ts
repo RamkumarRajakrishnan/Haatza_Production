@@ -4,7 +4,15 @@ import { DashboardModule } from '@prisma/client';
 
 export class GetHaatzaDashboardDto {
   @ApiPropertyOptional({
-    description: 'Category ID (Compulsory for both HAATZA and LITE modules)',
+    description: 'Category ID or Code (Compulsory for both HAATZA and LITE modules)',
+    example: 'cate001',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({
+    description: 'Category ID alias (same as category)',
     example: 'cate001',
   })
   @IsOptional()
