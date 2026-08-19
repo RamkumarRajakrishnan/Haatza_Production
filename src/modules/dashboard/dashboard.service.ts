@@ -110,11 +110,11 @@ export class DashboardService {
 
     if (categoryId) {
       queryParams.push(categoryId);
-      sql += ` AND LOWER(TRIM(category_id)) = LOWER(TRIM($${queryParams.length}))`;
+      sql += ` AND (LOWER(TRIM(category_id)) = LOWER(TRIM($${queryParams.length})) OR LOWER(TRIM(category_id)) = 'all')`;
     }
     if (warehouseId) {
       queryParams.push(warehouseId);
-      sql += ` AND LOWER(TRIM(warehouse_id)) = LOWER(TRIM($${queryParams.length}))`;
+      sql += ` AND (LOWER(TRIM(warehouse_id)) = LOWER(TRIM($${queryParams.length})) OR warehouse_id IS NULL OR TRIM(warehouse_id) = '' OR LOWER(TRIM(warehouse_id)) = 'all')`;
     }
     sql += ` ORDER BY sequence ASC`;
 
