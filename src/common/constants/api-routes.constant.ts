@@ -54,6 +54,16 @@ export const API_ROUTES = {
     INFLUENCER_PRODUCTS: '/api/v1/sellerIBProducts',
     UPDATE_INFLUENCER_BRANDING: '/api/v1/updateInfluencerBranding',
   },
+  CATEGORY_MASTER: {
+    CREATE_CATEGORY: '/api/v1/create_category',
+    GET_CATEGORY: '/api/v1/get_category',
+    GET_CATEGORIES: '/api/v1/get_categories',
+    UPDATE_CATEGORY: '/api/v1/update_category',
+    UPDATE_CATEGORY_STATUS: '/api/v1/update_category_status',
+    GET_CATEGORY_HIERARCHY: '/api/v1/get_category_hierarchy',
+    GET_CHILD_CATEGORIES: '/api/v1/get_child_categories',
+    DELETE_CATEGORY: '/api/v1/delete_category',
+  },
   PAYMENTS: {
     SELLER_PAYMENTS: '/api/v1/sellerpayments',
     CHECK_WALLET_BALANCE: '/api/v1/checkWalletBalance',

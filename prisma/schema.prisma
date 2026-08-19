@@ -841,3 +841,47 @@ enum DashboardModule {
   LITE
   HAATZA
 }
+
+enum CategoryType {
+  MAIN_CATEGORY
+  CATEGORY
+  SUBCATEGORY
+}
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CategoryModule {
+  HAATZA
+  LITE
+  ALL
+}
+
+model CategoryMaster {
+  id               String         @id @default(uuid()) @map("id")
+  categoryId       String         @unique @map("category_id")
+  categoryName     String         @map("category_name")
+  parentCategoryId String?        @map("parent_category_id")
+  categoryType     CategoryType   @default(CATEGORY) @map("category_type")
+  categoryImage    String?        @map("category_image")
+  description      String?        @map("description")
+  sequence         Int            @default(0) @map("sequence")
+  status           CategoryStatus @default(ACTIVE) @map("status")
+  module           CategoryModule @default(HAATZA) @map("module")
+  createdBy        String?        @map("created_by")
+  updatedBy        String?        @map("updated_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
+
+  parent   CategoryMaster?  @relation("CategoryHierarchy", fields: [parentCategoryId], references: [categoryId], onDelete: Cascade)
+  children CategoryMaster[] @relation("CategoryHierarchy")
+
+  @@unique([categoryName, parentCategoryId, module])
+  @@index([parentCategoryId])
+  @@index([module])
+  @@index([status])
+  @@index([sequence])
+  @@map("category_master")
+}

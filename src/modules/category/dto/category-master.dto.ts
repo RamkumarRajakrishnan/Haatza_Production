@@ -1,0 +1,241 @@
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsEnum,
+  IsInt,
+  Min,
+} from 'class-validator';
+import { Type, Transform } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { CategoryType, CategoryStatus, CategoryModule } from '@prisma/client';
+
+export class CreateCategoryDto {
+  @ApiProperty({
+    description: 'Target module for category (HAATZA, LITE, or ALL)',
+    enum: CategoryModule,
+    example: CategoryModule.HAATZA,
+  })
+  @IsNotEmpty({ message: 'module is mandatory (HAATZA, LITE, or ALL).' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  @IsEnum(CategoryModule, {
+    message: 'module must be HAATZA, LITE, or ALL.',
+  })
+  module: CategoryModule;
+
+  @ApiProperty({
+    description: 'Required Category Name',
+    example: 'Mobiles',
+  })
+  @IsNotEmpty({ message: 'categoryName is required.' })
+  @IsString()
+  categoryName: string;
+
+  @ApiPropertyOptional({
+    description: 'Parent Category ID (null for MAIN_CATEGORY)',
+    example: 'CAT001',
+  })
+  @IsOptional()
+  @IsString()
+  parentCategoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Type of category (MAIN_CATEGORY, CATEGORY, SUBCATEGORY)',
+    enum: CategoryType,
+    example: CategoryType.CATEGORY,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  @IsEnum(CategoryType, {
+    message: 'categoryType must be MAIN_CATEGORY, CATEGORY, or SUBCATEGORY.',
+  })
+  categoryType?: CategoryType;
+
+  @ApiPropertyOptional({
+    description: 'Category Image URL or Path',
+    example: 'https://cdn.haatza.com/categories/mobiles.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  categoryImage?: string;
+
+  @ApiPropertyOptional({
+    description: 'Category description',
+    example: 'Mobile phones and smart accessories',
+  })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Display sequence integer ordering',
+    example: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sequence?: number;
+
+  @ApiPropertyOptional({
+    description: 'Status (ACTIVE or INACTIVE)',
+    enum: CategoryStatus,
+    example: CategoryStatus.ACTIVE,
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  @IsEnum(CategoryStatus, {
+    message: 'status must be ACTIVE or INACTIVE.',
+  })
+  status?: CategoryStatus;
+
+  @ApiPropertyOptional({
+    description: 'Creator User Reference',
+  })
+  @IsOptional()
+  @IsString()
+  createdBy?: string;
+}
+
+export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
+  @ApiPropertyOptional({
+    description: 'Updater User Reference',
+  })
+  @IsOptional()
+  @IsString()
+  updatedBy?: string;
+}
+
+export class UpdateCategoryStatusDto {
+  @ApiPropertyOptional({
+    description: 'Category ID (optional if passed in URL parameter)',
+    example: 'CAT002',
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiProperty({
+    description: 'Target Status (ACTIVE or INACTIVE)',
+    enum: CategoryStatus,
+    example: CategoryStatus.INACTIVE,
+  })
+  @IsNotEmpty({ message: 'status is required (ACTIVE or INACTIVE).' })
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  @IsEnum(CategoryStatus, {
+    message: 'status must be ACTIVE or INACTIVE.',
+  })
+  status: CategoryStatus;
+
+  @ApiPropertyOptional({
+    description: 'Updater User Reference',
+  })
+  @IsOptional()
+  @IsString()
+  updatedBy?: string;
+}
+
+export class QueryCategoryDto {
+  @ApiPropertyOptional({
+    description: 'Filter by Category ID or custom ID',
+  })
+  @IsOptional()
+  @IsString()
+  category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias filter by categoryId',
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by Module (HAATZA, LITE, or ALL)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  module?: CategoryModule;
+
+  @ApiPropertyOptional({
+    description: 'Filter by Parent Category ID',
+  })
+  @IsOptional()
+  @IsString()
+  parent_category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias filter by parentCategoryId',
+  })
+  @IsOptional()
+  @IsString()
+  parentCategoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by status (ACTIVE or INACTIVE)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  status?: CategoryStatus;
+
+  @ApiPropertyOptional({
+    description: 'Filter by Category Type',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  categoryType?: CategoryType;
+
+  @ApiPropertyOptional({
+    description: 'Search string for category name',
+  })
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({
+    description: 'Include inactive categories (Admin query flag)',
+  })
+  @IsOptional()
+  includeInactive?: boolean | string;
+}
+
+export class GetChildCategoriesDto {
+  @ApiPropertyOptional({
+    description: 'Parent Category ID',
+    example: 'CAT001',
+  })
+  @IsOptional()
+  @IsString()
+  parent_category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias for Parent Category ID',
+    example: 'CAT001',
+  })
+  @IsOptional()
+  @IsString()
+  parentCategoryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Filter by Module (HAATZA, LITE, or ALL)',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
+  )
+  module?: CategoryModule;
+}
