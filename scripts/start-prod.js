@@ -6,6 +6,27 @@ const rootDir = path.resolve(__dirname, '..');
 
 // Auto-sync database tables (public.users, etc.) on container startup if DATABASE_URL is set
 if (process.env.DATABASE_URL) {
+  let dbUrl = process.env.DATABASE_URL;
+
+  // Replace invalid/legacy sslmode=no-verify with sslmode=disable
+  if (dbUrl.includes('sslmode=no-verify')) {
+    dbUrl = dbUrl.replace(/sslmode=no-verify/g, 'sslmode=disable');
+  }
+
+  // If SSL is disabled or not explicitly enabled, ensure sslmode=disable parameter is set
+  if (process.env.DATABASE_SSL === 'false' || process.env.DATABASE_SSL !== 'true') {
+    if (dbUrl.includes('sslmode=')) {
+      if (!dbUrl.includes('sslmode=disable')) {
+        dbUrl = dbUrl.replace(/sslmode=[^&]+/g, 'sslmode=disable');
+      }
+    } else {
+      const sep = dbUrl.includes('?') ? '&' : '?';
+      dbUrl = `${dbUrl}${sep}sslmode=disable`;
+    }
+  }
+
+  process.env.DATABASE_URL = dbUrl;
+
   try {
     console.log('Generating Prisma Client & Synchronizing PostgreSQL schema...');
     execSync('npx prisma generate', { stdio: 'inherit', cwd: rootDir });

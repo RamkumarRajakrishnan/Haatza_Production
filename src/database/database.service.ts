@@ -12,11 +12,67 @@ export class DatabaseService
   private connectionString: string;
   private isConnected = false;
 
+  private createPool(connectionString: string, useSsl: boolean): Pool {
+    const poolOptions: any = {
+      connectionString,
+      max: Number(process.env.DATABASE_POOL_MAX) || 15,
+      min: Number(process.env.DATABASE_POOL_MIN) || 2,
+      idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS) || 10000,
+      connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+    };
+
+    if (useSsl) {
+      poolOptions.ssl = { rejectUnauthorized: false };
+    } else {
+      poolOptions.ssl = false;
+    }
+
+    const pool = new Pool(poolOptions);
+    pool.on('error', (err: any) => {
+      this.logger.warn(`⚠️ PostgreSQL pool background client error: ${err.message}`);
+    });
+
+    return pool;
+  }
+
   constructor() {
-    const connectionString = process.env.DATABASE_URL;
+    let connectionString = process.env.DATABASE_URL;
     if (!connectionString) {
       throw new Error('DATABASE_URL environment variable is missing.');
     }
+
+    // Clean up invalid or legacy sslmode parameter if present
+    if (connectionString.includes('sslmode=no-verify')) {
+      connectionString = connectionString.replace(/sslmode=no-verify/g, 'sslmode=disable');
+      process.env.DATABASE_URL = connectionString;
+    }
+
+    const explicitDisable =
+      process.env.DATABASE_SSL === 'false' ||
+      connectionString.includes('sslmode=disable') ||
+      process.env.PGSSLMODE === 'disable';
+
+    const explicitEnable =
+      process.env.DATABASE_SSL === 'true' ||
+      connectionString.includes('sslmode=require') ||
+      connectionString.includes('sslmode=verify-ca') ||
+      connectionString.includes('sslmode=verify-full');
+
+    // Default SSL to false unless explicitly enabled, because servers without SSL reject TLS handshakes
+    const useSsl = explicitDisable ? false : explicitEnable ? true : false;
+
+    if (!useSsl) {
+      if (connectionString.includes('sslmode=')) {
+        connectionString = connectionString.replace(/sslmode=[^&]+/g, 'sslmode=disable');
+      } else {
+        const sep = connectionString.includes('?') ? '&' : '?';
+        connectionString = `${connectionString}${sep}sslmode=disable`;
+      }
+      process.env.DATABASE_URL = connectionString;
+    }
+
     const pool = new Pool({
       connectionString,
       max: Number(process.env.DATABASE_POOL_MAX) || 15,
@@ -25,7 +81,7 @@ export class DatabaseService
       connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
       keepAlive: true,
       keepAliveInitialDelayMillis: 10000,
-      ssl: { rejectUnauthorized: false },
+      ssl: useSsl ? { rejectUnauthorized: false } : false,
     });
 
     pool.on('error', (err: any) => {
@@ -37,8 +93,41 @@ export class DatabaseService
     this.pool = pool;
     this.connectionString = connectionString;
     this.logger.log(
-      `Initializing DatabaseService with target: ${connectionString.replace(/:[^:@]+@/, ':****@')}`,
+      `Initializing DatabaseService with target: ${connectionString.replace(/:[^:@]+@/, ':****@')} (SSL: ${useSsl})`,
     );
+  }
+
+  private fallbackToNonSslPool(): void {
+    if (this.connectionString) {
+      if (this.connectionString.includes('sslmode=')) {
+        this.connectionString = this.connectionString.replace(/sslmode=[^&]+/g, 'sslmode=disable');
+      } else {
+        const sep = this.connectionString.includes('?') ? '&' : '?';
+        this.connectionString = `${this.connectionString}${sep}sslmode=disable`;
+      }
+      process.env.DATABASE_URL = this.connectionString;
+    }
+    this.logger.warn('Switching PostgreSQL pool to non-SSL mode (sslmode=disable)...');
+    try {
+      if (this.pool) {
+        this.pool.end().catch(() => {});
+      }
+    } catch {}
+
+    this.pool = new Pool({
+      connectionString: this.connectionString,
+      max: Number(process.env.DATABASE_POOL_MAX) || 15,
+      min: Number(process.env.DATABASE_POOL_MIN) || 2,
+      idleTimeoutMillis: Number(process.env.DATABASE_POOL_IDLE_TIMEOUT_MS) || 10000,
+      connectionTimeoutMillis: Number(process.env.DATABASE_POOL_CONNECTION_TIMEOUT_MS) || 10000,
+      keepAlive: true,
+      keepAliveInitialDelayMillis: 10000,
+      ssl: false,
+    });
+
+    this.pool.on('error', (err: any) => {
+      this.logger.warn(`⚠️ PostgreSQL non-SSL pool error: ${err.message}`);
+    });
   }
 
   async queryRawDashboard(text: string, params: any[] = []): Promise<any[]> {
@@ -50,7 +139,18 @@ export class DatabaseService
         }
       }
     } catch (err: any) {
-      this.logger.warn(`queryRawDashboard pool query warning: ${err.message}. Retrying via Prisma raw query...`);
+      this.logger.warn(`queryRawDashboard pool query warning: ${err.message}`);
+      if (err.message && (err.message.includes('does not support SSL') || err.message.includes('TLS'))) {
+        this.fallbackToNonSslPool();
+        try {
+          const retryRes = await this.pool.query(text, params);
+          if (retryRes && Array.isArray(retryRes.rows)) {
+            return retryRes.rows;
+          }
+        } catch (retryErr: any) {
+          this.logger.warn(`queryRawDashboard non-SSL retry warning: ${retryErr.message}`);
+        }
+      }
     }
 
     try {
@@ -121,6 +221,10 @@ export class DatabaseService
         return;
       } catch (err: any) {
         this.isConnected = false;
+        if (err.message && (err.message.includes('does not support SSL') || err.message.includes('TLS'))) {
+          this.logger.warn(`SSL connection rejected by server: ${err.message}. Retrying with non-SSL pool...`);
+          this.fallbackToNonSslPool();
+        }
         this.logger.warn(
           `⚠️ Database connection attempt ${attempt}/${retries} failed: ${err.message}. Retrying in ${delayMs}ms...`,
         );
