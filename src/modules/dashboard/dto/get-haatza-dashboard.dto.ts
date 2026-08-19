@@ -1,4 +1,5 @@
 import { IsNotEmpty, IsOptional, IsString, IsEnum } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { DashboardModule } from '@prisma/client';
 
@@ -28,11 +29,12 @@ export class GetHaatzaDashboardDto {
   warehouseId?: string;
 
   @ApiProperty({
-    description: 'Mandatory Module to filter dashboard widgets (HAATZA or LITE)',
+    description: 'Mandatory Module to filter dashboard widgets (HAATZA or LITE, case-insensitive)',
     enum: DashboardModule,
     example: DashboardModule.HAATZA,
   })
   @IsNotEmpty({ message: 'module is mandatory (HAATZA or LITE).' })
+  @Transform(({ value }) => (typeof value === 'string' ? (value.toUpperCase().trim() as any) : value))
   @IsEnum(DashboardModule, { message: 'module must be either HAATZA or LITE.' })
   module: DashboardModule;
 }
