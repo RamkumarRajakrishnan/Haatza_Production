@@ -125,6 +125,7 @@ export class DashboardService {
       widget_Id: string;
       sequence: number;
       title: string;
+      expiresAt?: Date | string | null;
       item: any[];
     }> = [];
 
@@ -220,6 +221,7 @@ export class DashboardService {
         widget_Id,
         sequence,
         title,
+        expiresAt: item.expiresAt || null,
         item: formattedItems,
       });
     });
