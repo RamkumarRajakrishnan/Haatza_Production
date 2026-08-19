@@ -1,7 +1,6 @@
 import { Controller, Get, Post, Put, Body, Param, Query, UseInterceptors, UploadedFiles } from '@nestjs/common';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { ProductService } from './product.service';
-import { StorageService } from '../seller-product/storage.service';
 
 import { ApiTags } from '@nestjs/swagger';
 
@@ -10,7 +9,6 @@ import { ApiTags } from '@nestjs/swagger';
 export class ProductController {
   constructor(
     private readonly productService: ProductService,
-    private readonly storageService: StorageService,
   ) { }
 
   /**
@@ -131,7 +129,7 @@ export class ProductController {
   @Post('uploadVideo')
   @UseInterceptors(FilesInterceptor('files'))
   uploadMedia(@UploadedFiles() files: any[]) {
-    return this.storageService.uploadFiles(files);
+    return this.productService.uploadMedia(files);
   }
 
   @Get('category')

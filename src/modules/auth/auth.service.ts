@@ -26,7 +26,7 @@ import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
 import { CheckUserResponseDto, IdentifierType } from './dto/check-user-response.dto';
 import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
-import { SmsService } from '../sms/sms.service';
+import { SmsService } from '../../integrations/sms/sms.service';
 import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 
 @Injectable()

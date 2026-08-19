@@ -21,7 +21,7 @@ import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
 import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 import { SelectRoleDto } from './dto/select-role.dto';
 import { SwitchRoleDto } from './dto/switch-role.dto';
-import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Auth')
 @Controller('auth')

@@ -7,7 +7,7 @@ import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
 import { DatabaseService } from '../../database/database.service';
 import { Platform } from './dto/check-user.dto';
-import { SmsService } from '../sms/sms.service';
+import { SmsService } from '../../integrations/sms/sms.service';
 
 describe('AuthService', () => {
   let service: AuthService;

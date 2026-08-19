@@ -17,8 +17,8 @@ import {
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 import { DOMAIN_CONFIG } from '../../config/domain.config';
-import { ImageCompressorService } from './image-compressor.service';
-import { VideoCompressorService } from './video-compressor.service';
+import { ImageCompressorService } from '../../integrations/media-processing/image-compressor.service';
+import { VideoCompressorService } from '../../integrations/media-processing/video-compressor.service';
 
 export interface UploadFileOptions {
   file: {

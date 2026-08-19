@@ -18,7 +18,7 @@ import {
 } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { AuthService } from '../auth/auth.service';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { CheckUserQueryDto } from './dto/check-user-query.dto';
 import {
   CheckUserErrorResponseDto,

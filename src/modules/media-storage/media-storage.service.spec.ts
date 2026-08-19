@@ -1,8 +1,8 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { MediaStorageService } from './media-storage.service';
-import { ImageCompressorService } from './image-compressor.service';
-import { VideoCompressorService } from './video-compressor.service';
+import { ImageCompressorService } from '../../integrations/media-processing/image-compressor.service';
+import { VideoCompressorService } from '../../integrations/media-processing/video-compressor.service';
 
 describe('MediaStorageService', () => {
   let service: MediaStorageService;

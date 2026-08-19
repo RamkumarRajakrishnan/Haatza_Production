@@ -245,5 +245,22 @@ export class ProductService {
     const cat = await this.db.category.findUnique({ where: { id: categoryId } });
     return cat?.fields || [];
   }
+
+  async uploadMedia(files: any[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided for upload.');
+    }
+
+    const mediaItems: Array<{ type: string; key?: string; url: string }> = [];
+    for (const file of files) {
+      const uploaded = await this.mediaStorage.upload({ file });
+      mediaItems.push({
+        type: uploaded.type === 'video' ? 'video' : 'image',
+        key: uploaded.key,
+        url: uploaded.url || this.mediaStorage.getPublicUrl(uploaded.key),
+      });
+    }
+    return mediaItems;
+  }
 }
 

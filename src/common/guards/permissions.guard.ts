@@ -1,7 +1,7 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PERMISSIONS_KEY } from '../decorators/permissions.decorator';
-import { DatabaseService } from '../../../database/database.service';
+import { DatabaseService } from '../../database/database.service';
 
 interface RequestWithUser {
   user?: {

@@ -23,7 +23,7 @@ import {
   ApiConsumes,
   ApiBody,
 } from '@nestjs/swagger';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { SellerOrderService } from './seller-order.service';
 import { CreateSellerOrderDto } from './dto/create-seller-order.dto';
 import { UpdateSellerOrderDto } from './dto/update-seller-order.dto';

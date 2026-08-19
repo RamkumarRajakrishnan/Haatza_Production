@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { MediaStorageService } from '../media-storage/media-storage.service';
-import { CreateSellerProductDto, UpdateSellerProductDto, FilterSellerProductDto } from './dto/seller-product.dto';
+import { CreateSellerProductDto, UpdateSellerProductDto, FilterSellerProductDto, MediaType } from './dto/seller-product.dto';
 
 @Injectable()
 export class SellerProductService {
@@ -516,5 +516,22 @@ export class SellerProductService {
     }
 
     return result;
+  }
+
+  async uploadMedia(files: any[]) {
+    if (!files || files.length === 0) {
+      throw new BadRequestException('No files provided for upload.');
+    }
+
+    const mediaItems: Array<{ type: MediaType; key?: string; url: string }> = [];
+    for (const file of files) {
+      const uploaded = await this.mediaStorage.upload({ file });
+      mediaItems.push({
+        type: uploaded.type === 'video' ? MediaType.VIDEO : MediaType.IMAGE,
+        key: uploaded.key,
+        url: uploaded.url || this.mediaStorage.getPublicUrl(uploaded.key),
+      });
+    }
+    return mediaItems;
   }
 }

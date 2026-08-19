@@ -6,11 +6,11 @@ import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { AuthRepository } from './auth.repository';
-import { JwtStrategy } from './strategies/jwt.strategy';
-import { RolesGuard } from './guards/roles.guard';
-import { PermissionsGuard } from './guards/permissions.guard';
+import { JwtStrategy } from '../../common/strategies/jwt.strategy';
+import { RolesGuard } from '../../common/guards/roles.guard';
+import { PermissionsGuard } from '../../common/guards/permissions.guard';
 
-import { SmsModule } from '../sms/sms.module';
+import { SmsModule } from '../../integrations/sms/sms.module';
 
 import { OtpCleanupService } from './otp-cleanup.service';
 

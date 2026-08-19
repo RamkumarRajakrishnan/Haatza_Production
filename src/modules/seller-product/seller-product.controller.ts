@@ -18,7 +18,6 @@ import {
 import { ApiTags, ApiOperation, ApiResponse, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { SellerProductService } from './seller-product.service';
-import { StorageService } from './storage.service';
 import {
   CreateSellerProductDto,
   UpdateSellerProductDto,
@@ -30,7 +29,6 @@ import {
 export class SellerProductController {
   constructor(
     private readonly sellerProductService: SellerProductService,
-    private readonly storageService: StorageService,
   ) {}
 
   @Post()
@@ -135,6 +133,6 @@ export class SellerProductController {
     },
   })
   async uploadMedia(@UploadedFiles() files: any[]) {
-    return this.storageService.uploadFiles(files);
+    return this.sellerProductService.uploadMedia(files);
   }
 }

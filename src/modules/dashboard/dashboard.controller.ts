@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Delete, Param, Body, Query, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
-import { DashboardService } from '../services/dashboard.service';
-import { GetHaatzaDashboardDto } from '../dto/get-haatza-dashboard.dto';
+import { DashboardService } from './dashboard.service';
+import { GetHaatzaDashboardDto } from './dto/get-haatza-dashboard.dto';
 import { DashboardModule } from '@prisma/client';
 
 @ApiTags('Dashboard')
