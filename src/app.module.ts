@@ -9,30 +9,12 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 
 import { DatabaseModule } from './database/database.module';
+import { MediaStorageModule } from './modules/media-storage/media-storage.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { UserModule } from './modules/user/user.module';
 import { HealthModule } from './modules/health/health.module';
-import { ContactModule } from './modules/contact/contact.module';
-import { SellerModule } from './modules/seller/seller.module';
-import { ProductModule } from './modules/product/product.module';
 import { CategoryModule } from './modules/category/category.module';
-import { CartModule } from './modules/cart/cart.module';
-import { PaymentModule } from './modules/payment/payment.module';
-import { AnalyticsModule } from './modules/analytics/analytics.module';
-import { SupportModule } from './modules/support/support.module';
-import { OrderModule } from './modules/order/order.module';
-import { CampaignModule } from './modules/campaign/campaign.module';
-import { ShippingModule } from './modules/shipping/shipping.module';
-import { SubscriptionModule } from './modules/subscription/subscription.module';
-import { HaatzUpModule } from './modules/haatzup/haatzup.module';
-import { WarehouseModule } from './modules/warehouse/warehouse.module';
-import { SellerProductModule } from './modules/seller-product/seller-product.module';
-import { MediaStorageModule } from './modules/media-storage/media-storage.module';
 import { AdminModule } from './modules/admin/admin.module';
-import { NotificationModule } from './modules/notification/notification.module';
-import { AddressModule } from './modules/address/address.module';
-import { CouponModule } from './modules/coupon/coupon.module';
-import { InventoryModule } from './modules/inventory/inventory.module';
 import { SmsModule } from './integrations/sms/sms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AppbarCategoriesModule } from './modules/appbar-categories/appbar-categories.module';
@@ -81,26 +63,8 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     AuthModule,
     UserModule,
     HealthModule,
-    ContactModule,
-    SellerModule,
-    ProductModule,
     CategoryModule,
-    CartModule,
-    PaymentModule,
-    AnalyticsModule,
-    SupportModule,
-    OrderModule,
-    CampaignModule,
-    ShippingModule,
-    SubscriptionModule,
-    HaatzUpModule,
-    WarehouseModule,
-    SellerProductModule,
     AdminModule,
-    NotificationModule,
-    AddressModule,
-    CouponModule,
-    InventoryModule,
     SmsModule,
     DashboardModule,
     AppbarCategoriesModule,
