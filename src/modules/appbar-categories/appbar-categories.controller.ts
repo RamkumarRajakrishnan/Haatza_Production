@@ -14,11 +14,11 @@ import { AppbarCategoriesService } from './appbar-categories.service';
 import { GetAppbarCategoriesDto } from './dto/get-appbar-categories.dto';
 
 @ApiTags('Appbar Categories')
-@Controller(['appbar-categories', 'appbar_categories', 'appbar-category'])
+@Controller(['appbar-categories', 'api/appbar-categories', 'api/v1/appbar-categories', 'appbar_categories'])
 export class AppbarCategoriesController {
   constructor(private readonly appbarCategoriesService: AppbarCategoriesService) {}
 
-  @Post(['', 'appbar-categories', 'appbar_categories'])
+  @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Appbar Categories (POST - Recommended)',
@@ -52,7 +52,7 @@ export class AppbarCategoriesController {
     }
   }
 
-  @Get(['', 'appbar-categories', 'appbar_categories'])
+  @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Appbar Categories (GET)',

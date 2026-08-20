@@ -62,10 +62,16 @@ export class AppbarCategoriesService {
    * Main Appbar Categories Fetch API Handler supporting HAATZA and LITE modules.
    */
   async getAppbarCategories(dto: GetAppbarCategoriesDto) {
-    const rawModule = dto.module?.trim()?.toLowerCase();
+    if (!dto.module || typeof dto.module !== 'string' || !dto.module.trim()) {
+      throw new BadRequestException('Module is required');
+    }
 
-    if (!rawModule || (rawModule !== 'haatza' && rawModule !== 'lite')) {
-      throw new BadRequestException('Invalid module. Allowed values are haatza and lite');
+    const rawModule = dto.module.trim().toLowerCase();
+
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException(
+        'Invalid module. Allowed values are haatza and lite',
+      );
     }
 
     // ----------------------------------------------------
@@ -115,10 +121,18 @@ export class AppbarCategoriesService {
     // ----------------------------------------------------
     // LITE MODULE LOGIC
     // ----------------------------------------------------
-    if (dto.latitude === undefined || dto.latitude === null) {
+    const hasLat = dto.latitude !== undefined && dto.latitude !== null && dto.latitude !== ('' as any);
+    const hasLon = dto.longitude !== undefined && dto.longitude !== null && dto.longitude !== ('' as any);
+
+    if (!hasLat && !hasLon) {
+      throw new BadRequestException(
+        'Latitude and longitude are required for lite module',
+      );
+    }
+    if (!hasLat) {
       throw new BadRequestException('Latitude is required for lite module');
     }
-    if (dto.longitude === undefined || dto.longitude === null) {
+    if (!hasLon) {
       throw new BadRequestException('Longitude is required for lite module');
     }
 
