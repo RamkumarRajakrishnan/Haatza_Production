@@ -110,9 +110,9 @@ export class DatabaseService
     this.logger.warn('Switching PostgreSQL pool to non-SSL mode (sslmode=disable)...');
     try {
       if (this.pool) {
-        this.pool.end().catch(() => {});
+        this.pool.end().catch(() => { });
       }
-    } catch {}
+    } catch { }
 
     this.pool = new Pool({
       connectionString: this.connectionString,
@@ -183,11 +183,14 @@ export class DatabaseService
 
   async onModuleInit() {
     // Non-blocking background database connection so Cloud Run boots instantly
-    this.connectWithRetry().then(() => {
-      this.dropUnusedDashboardColumns();
-    }).catch((err) => {
-      this.logger.error('Background DB connection failed:', err);
-    });
+    this.connectWithRetry()
+      .then(async () => {
+        await this.ensureCoreTablesExist();
+        await this.dropUnusedDashboardColumns();
+      })
+      .catch((err) => {
+        this.logger.error('Background DB connection failed:', err);
+      });
   }
 
   private async dropUnusedDashboardColumns(): Promise<void> {
@@ -914,23 +917,6 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_module_status ON public.appbar_categories(module, status);
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_wh_mod_stat ON public.appbar_categories(warehouse_id, module, status);
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_expire_date ON public.appbar_categories(expire_date);
-
-        -- Seed initial sample data if empty for instant testing
-        INSERT INTO public.warehouse_master (warehouse_id, warehouse_name, latitude, longitude, service_radius_km, status, operating_start_time, operating_end_time, estimated_delivery_time_minutes)
-        SELECT 'WH00001', 'Central Lite Warehouse', 12.8450000, 77.6600000, 15.0, 'ACTIVE', '00:00:00', '23:59:59', 10
-        WHERE NOT EXISTS (SELECT 1 FROM public.warehouse_master WHERE warehouse_id = 'WH00001');
-
-        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
-        SELECT 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c', 'Groceries', 'WH00001', 'https://example.com/groceries.png', 'ACTIVE', '#992746', '#000000', false, 'lite'
-        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c');
-
-        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
-        SELECT 'c6d480e9-52c4-7b1c-c14c-de187bb61f3d', 'Furniture', 'WH00001', 'https://example.com/furniture.png', 'ACTIVE', '#A0522D', '#000000', false, 'lite'
-        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'c6d480e9-52c4-7b1c-c14c-de187bb61f3d');
-
-        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
-        SELECT 'haatza-cat-001', 'Haatza Electronics', 'WH00001', 'https://example.com/electronics.png', 'ACTIVE', '#1E90FF', '#FFFFFF', true, 'haatza'
-        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'haatza-cat-001');
 
         -- PostgreSQL Employee-Only Role Validation Trigger (is_employee = true)
         DO $$ BEGIN
