@@ -859,6 +859,79 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_role_page_master_role_id ON public.role_page_master(role_id);
         CREATE INDEX IF NOT EXISTS idx_role_page_master_page_id ON public.role_page_master(page_id);
 
+        -- Warehouse Master Table for Appbar & Location Services
+        CREATE TABLE IF NOT EXISTS public.warehouse_master (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          warehouse_id text UNIQUE NOT NULL,
+          warehouse_name text NOT NULL,
+          warehouse_type text,
+          franchise_code text,
+          owner_name text,
+          contact_phone text,
+          contact_email text,
+          address_line_1 text,
+          address_line_2 text,
+          city text,
+          state text,
+          pincode text,
+          latitude decimal(10, 7) NOT NULL,
+          longitude decimal(10, 7) NOT NULL,
+          service_radius_km decimal(10, 2) NOT NULL DEFAULT 10.0,
+          status text NOT NULL DEFAULT 'ACTIVE',
+          operating_start_time time DEFAULT '07:00:00',
+          operating_end_time time DEFAULT '22:00:00',
+          estimated_delivery_time_minutes integer DEFAULT 10,
+          created_date timestamp DEFAULT now(),
+          updated_date timestamp DEFAULT now(),
+          owner text,
+          account_manager text,
+          manager_phone text
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_warehouse_master_id ON public.warehouse_master(warehouse_id);
+        CREATE INDEX IF NOT EXISTS idx_warehouse_master_status ON public.warehouse_master(status);
+        CREATE INDEX IF NOT EXISTS idx_warehouse_master_location ON public.warehouse_master(latitude, longitude);
+
+        -- Appbar Categories Table
+        CREATE TABLE IF NOT EXISTS public.appbar_categories (
+          id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+          category_id text NOT NULL,
+          category_name text NOT NULL,
+          warehouse_id text,
+          image text,
+          status text NOT NULL DEFAULT 'ACTIVE',
+          expire_date timestamp,
+          appbar_color text,
+          appbar_image text,
+          category_text_color text,
+          appbarbackground boolean DEFAULT false,
+          module text NOT NULL DEFAULT 'lite',
+          created_date timestamp DEFAULT now(),
+          updated_date timestamp DEFAULT now(),
+          owner text
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_appbar_categories_module_status ON public.appbar_categories(module, status);
+        CREATE INDEX IF NOT EXISTS idx_appbar_categories_wh_mod_stat ON public.appbar_categories(warehouse_id, module, status);
+        CREATE INDEX IF NOT EXISTS idx_appbar_categories_expire_date ON public.appbar_categories(expire_date);
+
+        -- Seed initial sample data if empty for instant testing
+        INSERT INTO public.warehouse_master (warehouse_id, warehouse_name, latitude, longitude, service_radius_km, status, operating_start_time, operating_end_time, estimated_delivery_time_minutes)
+        SELECT 'WH00001', 'Central Lite Warehouse', 12.8450000, 77.6600000, 15.0, 'ACTIVE', '00:00:00', '23:59:59', 10
+        WHERE NOT EXISTS (SELECT 1 FROM public.warehouse_master WHERE warehouse_id = 'WH00001');
+
+        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
+        SELECT 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c', 'Groceries', 'WH00001', 'https://example.com/groceries.png', 'ACTIVE', '#992746', '#000000', false, 'lite'
+        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'c6d480e9-52c4-7b1c-c14c-de187bb61f3c');
+
+        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
+        SELECT 'c6d480e9-52c4-7b1c-c14c-de187bb61f3d', 'Furniture', 'WH00001', 'https://example.com/furniture.png', 'ACTIVE', '#A0522D', '#000000', false, 'lite'
+        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'c6d480e9-52c4-7b1c-c14c-de187bb61f3d');
+
+        INSERT INTO public.appbar_categories (category_id, category_name, warehouse_id, image, status, appbar_color, category_text_color, appbarbackground, module)
+        SELECT 'haatza-cat-001', 'Haatza Electronics', 'WH00001', 'https://example.com/electronics.png', 'ACTIVE', '#1E90FF', '#FFFFFF', true, 'haatza'
+        WHERE NOT EXISTS (SELECT 1 FROM public.appbar_categories WHERE category_id = 'haatza-cat-001');
+
         -- PostgreSQL Employee-Only Role Validation Trigger (is_employee = true)
         DO $$ BEGIN
           CREATE OR REPLACE FUNCTION public.fn_validate_employee_role_assignment()

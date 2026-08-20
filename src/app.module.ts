@@ -35,6 +35,7 @@ import { CouponModule } from './modules/coupon/coupon.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
 import { SmsModule } from './integrations/sms/sms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { AppbarCategoriesModule } from './modules/appbar-categories/appbar-categories.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -102,6 +103,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     InventoryModule,
     SmsModule,
     DashboardModule,
+    AppbarCategoriesModule,
   ],
 
   controllers: [AppController],
