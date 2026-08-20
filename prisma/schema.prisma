@@ -179,6 +179,56 @@ model Buyer {
   @@map("buyers")
 }
 
+model Product {
+  id                 String   @id @default(uuid()) @map("product_id")
+  sellerId           String   @map("seller_id")
+  categoryId         String?  @map("category_id")
+  title              String   @map("title")
+  description        String?  @map("description")
+  price              Float    @map("price")
+  sku                String   @unique @map("sku")
+  inventory          Int      @default(0) @map("inventory")
+  mediaUrls          String[] @map("media_urls")
+  videoUrls          String[] @map("video_urls")
+  influencerBranding Boolean  @default(false) @map("influencer_branding")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@index([categoryId])
+  @@map("products")
+}
+
+model Order {
+  id              String   @id @default(uuid()) @map("order_id")
+  sellerId        String   @map("seller_id")
+  buyerId         String?  @map("buyer_id")
+  status          String   @default("PENDING") @map("status")
+  totalAmount     Float    @map("total_amount")
+  shippingAmount  Float    @default(0.0) @map("shipping_amount")
+  deliveryAddress Json?    @map("delivery_address")
+  awbNumber       String?  @map("awb_number")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([sellerId])
+  @@map("orders")
+}
+
+model Warehouse {
+  id        String   @id @default(uuid()) @map("warehouse_id")
+  sellerId  String   @map("seller_id")
+  name      String   @map("name")
+  address   String   @map("address")
+  pincode   String   @map("pincode")
+  city      String   @map("city")
+  state     String   @map("state")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([sellerId])
+  @@map("warehouses")
+}
+
 model PricingPlan {
   id            String               @id @default(uuid()) @db.VarChar(36)
   name          String               @db.VarChar(50)

@@ -18,6 +18,7 @@ import { AdminModule } from './modules/admin/admin.module';
 import { SmsModule } from './integrations/sms/sms.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { AppbarCategoriesModule } from './modules/appbar-categories/appbar-categories.module';
+import { SubscriptionModule } from './modules/subscription/subscription.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -68,6 +69,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     SmsModule,
     DashboardModule,
     AppbarCategoriesModule,
+    SubscriptionModule,
   ],
 
   controllers: [AppController],
