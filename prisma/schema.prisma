@@ -867,3 +867,57 @@ model CategoryMaster {
   @@index([sequence])
   @@map("category_master")
 }
+
+model WarehouseMaster {
+  id                           String   @id @default(uuid()) @map("id")
+  warehouseId                  String   @unique @map("warehouse_id")
+  warehouseName                String   @map("warehouse_name")
+  warehouseType                String?  @map("warehouse_type")
+  franchiseCode                String?  @map("franchise_code")
+  ownerName                    String?  @map("owner_name")
+  contactPhone                 String?  @map("contact_phone")
+  contactEmail                 String?  @map("contact_email")
+  addressLine1                 String?  @map("address_line_1")
+  addressLine2                 String?  @map("address_line_2")
+  city                         String?  @map("city")
+  state                        String?  @map("state")
+  pincode                      String?  @map("pincode")
+  latitude                     Decimal  @map("latitude") @db.Decimal(10, 7)
+  longitude                    Decimal  @map("longitude") @db.Decimal(10, 7)
+  serviceRadiusKm              Decimal  @default(10.0) @map("service_radius_km") @db.Decimal(10, 2)
+  status                       String   @default("ACTIVE") @map("status")
+  operatingStartTime           String?  @default("07:00:00") @map("operating_start_time")
+  operatingEndTime             String?  @default("22:00:00") @map("operating_end_time")
+  estimatedDeliveryTimeMinutes Int?     @default(10) @map("estimated_delivery_time_minutes")
+  createdDate                  DateTime @default(now()) @map("created_date")
+  updatedDate                  DateTime @default(now()) @updatedAt @map("updated_date")
+  owner                        String?  @map("owner")
+  accountManager               String?  @map("account_manager")
+  managerPhone                 String?  @map("manager_phone")
+
+  @@index([status])
+  @@map("warehouse_master")
+}
+
+model AppbarCategory {
+  id                String    @id @default(uuid()) @map("id")
+  categoryId        String    @map("category_id")
+  categoryName      String    @map("category_name")
+  warehouseId       String?   @map("warehouse_id")
+  image             String?   @map("image")
+  status            String    @default("ACTIVE") @map("status")
+  expireDate        DateTime? @map("expire_date")
+  appbarColor       String?   @map("appbar_color")
+  appbarImage       String?   @map("appbar_image")
+  categoryTextColor String?   @map("category_text_color")
+  appbarbackground  Boolean   @default(false) @map("appbarbackground")
+  module            String    @default("lite") @map("module")
+  createdDate       DateTime  @default(now()) @map("created_date")
+  updatedDate       DateTime  @default(now()) @updatedAt @map("updated_date")
+  owner             String?   @map("owner")
+
+  @@index([module, status])
+  @@index([warehouseId, module, status])
+  @@map("appbar_categories")
+}
+
