@@ -43,8 +43,13 @@ async function main() {
         status varchar(20) DEFAULT 'ACTIVE',
         payment_id varchar(100),
         razorpay_order_id varchar(100),
+        auto_renew boolean DEFAULT true,
+        cancelled_at timestamp,
         created_at timestamp DEFAULT now()
       );
+
+      ALTER TABLE public.seller_subscriptions ADD COLUMN IF NOT EXISTS auto_renew boolean DEFAULT true;
+      ALTER TABLE public.seller_subscriptions ADD COLUMN IF NOT EXISTS cancelled_at timestamp;
 
       CREATE TABLE IF NOT EXISTS public.seller_subscription_invoices (
         id varchar(36) PRIMARY KEY,
@@ -73,12 +78,74 @@ async function main() {
         created_at timestamp DEFAULT now()
       );
 
+      CREATE TABLE IF NOT EXISTS public.subscription_coupons (
+        id varchar(36) PRIMARY KEY,
+        code varchar(50) NOT NULL UNIQUE,
+        discount_type varchar(20) NOT NULL,
+        discount_value numeric(12, 2) NOT NULL,
+        min_order_amount numeric(12, 2) DEFAULT 0.00,
+        max_discount_amount numeric(12, 2),
+        start_date timestamp NOT NULL,
+        end_date timestamp NOT NULL,
+        usage_limit integer,
+        usage_count integer DEFAULT 0,
+        status varchar(20) DEFAULT 'ACTIVE',
+        applicable_plan_id varchar(36),
+        description text,
+        created_at timestamp DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS public.seller_wallets (
+        id varchar(36) PRIMARY KEY,
+        seller_id varchar(50) NOT NULL UNIQUE,
+        balance numeric(12, 2) DEFAULT 0.00,
+        currency varchar(10) DEFAULT 'INR',
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS public.wallet_transactions (
+        id varchar(36) PRIMARY KEY,
+        wallet_id varchar(36) NOT NULL,
+        seller_id varchar(50) NOT NULL,
+        amount numeric(12, 2) NOT NULL,
+        type varchar(20) NOT NULL,
+        description varchar(255),
+        reference_id varchar(100),
+        created_at timestamp DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS public.seller_referrals (
+        id varchar(36) PRIMARY KEY,
+        seller_id varchar(50) NOT NULL UNIQUE,
+        referral_code varchar(50) NOT NULL UNIQUE,
+        referral_link varchar(255),
+        points_balance numeric(12, 2) DEFAULT 0.00,
+        total_earned numeric(12, 2) DEFAULT 0.00,
+        created_at timestamp DEFAULT now(),
+        updated_at timestamp DEFAULT now()
+      );
+
+      CREATE TABLE IF NOT EXISTS public.referral_transactions (
+        id varchar(36) PRIMARY KEY,
+        referral_id varchar(36) NOT NULL,
+        seller_id varchar(50) NOT NULL,
+        referred_seller_id varchar(50),
+        points numeric(12, 2) NOT NULL,
+        type varchar(20) NOT NULL,
+        description varchar(255),
+        created_at timestamp DEFAULT now()
+      );
+
       CREATE INDEX IF NOT EXISTS idx_pricing_plans_status ON public.pricing_plans(status);
       CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_seller_id ON public.seller_subscriptions(seller_id);
       CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_plan_id ON public.seller_subscriptions(plan_id);
       CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_status ON public.seller_subscriptions(status);
       CREATE INDEX IF NOT EXISTS idx_seller_subscription_invoices_subscription_id ON public.seller_subscription_invoices(subscription_id);
       CREATE INDEX IF NOT EXISTS idx_seller_subscription_invoices_seller_id ON public.seller_subscription_invoices(seller_id);
+      CREATE INDEX IF NOT EXISTS idx_coupons_code ON public.subscription_coupons(code);
+      CREATE INDEX IF NOT EXISTS idx_seller_wallets_seller_id ON public.seller_wallets(seller_id);
+      CREATE INDEX IF NOT EXISTS idx_seller_referrals_seller_id ON public.seller_referrals(seller_id);
 
       INSERT INTO public.pricing_plans (id, name, price, period_unit, ribbon, benefits, status)
       SELECT 'plan_pro_123', 'Pro', 499.00, 'MONTH', 'Recommended', '["0% Commission", "Priority Support", "Unlimited Listings"]'::jsonb, 'ACTIVE'
@@ -87,10 +154,14 @@ async function main() {
       INSERT INTO public.pricing_plans (id, name, price, period_unit, ribbon, benefits, status)
       SELECT 'plan_growth_123', 'Growth', 299.00, 'MONTH', 'Popular', '["5% Commission", "Standard Support", "Up to 50 Listings"]'::jsonb, 'ACTIVE'
       WHERE NOT EXISTS (SELECT 1 FROM public.pricing_plans WHERE id = 'plan_growth_123');
+
+      INSERT INTO public.subscription_coupons (id, code, discount_type, discount_value, min_order_amount, start_date, end_date, description, status)
+      SELECT 'coupon_001', 'GROW50', 'PERCENTAGE', 50.00, 100.00, NOW() - INTERVAL '1 day', NOW() + INTERVAL '1 year', '50% off on Growth Plan', 'ACTIVE'
+      WHERE NOT EXISTS (SELECT 1 FROM public.subscription_coupons WHERE code = 'GROW50');
     `;
 
     await client.query(ddl);
-    console.log('✅ Tables public.pricing_plans, public.seller_subscriptions, and public.seller_subscription_invoices were successfully created and seeded on DB 8.231.84.94!');
+    console.log('✅ Columns auto_renew, cancelled_at and tables public.subscription_coupons, seller_wallets, seller_referrals created/updated on DB 8.231.84.94!');
     client.release();
   } catch (err: any) {
     console.error('❌ Error executing DDL on database:', err.message);
