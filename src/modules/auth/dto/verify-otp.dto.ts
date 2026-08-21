@@ -38,12 +38,12 @@ export class VerifyOtpDto {
   @ApiPropertyOptional({ enum: OtpPurpose, default: OtpPurpose.LOGIN })
   @Transform(({ value }) => {
     if (typeof value === 'string') {
-      const normalized = value.trim().toUpperCase();
+      const normalized = value.trim().toUpperCase().replace(/[\s\-]/g, '_');
       if (normalized === 'LOGIN') return OtpPurpose.LOGIN;
       if (normalized === 'FORGOT_PASSWORD' || normalized === 'FORGOTPASSWORD') return OtpPurpose.FORGOT_PASSWORD;
       if (normalized === 'REGISTRATION' || normalized === 'REGISTER') return OtpPurpose.REGISTRATION;
-      if (normalized === 'EMAIL_VERIFICATION') return OtpPurpose.EMAIL_VERIFICATION;
-      if (normalized === 'MOBILE_VERIFICATION') return OtpPurpose.MOBILE_VERIFICATION;
+      if (normalized === 'EMAIL_VERIFICATION' || normalized === 'EMAILVERIFICATION') return OtpPurpose.EMAIL_VERIFICATION;
+      if (normalized === 'MOBILE_VERIFICATION' || normalized === 'MOBILEVERIFICATION') return OtpPurpose.MOBILE_VERIFICATION;
       return normalized as OtpPurpose;
     }
     return value;

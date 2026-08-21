@@ -914,7 +914,6 @@ export class AuthService {
       data: {
         otpId: otpRecord.id,
         expiresAt: otpRecord.expiresAt,
-        otp: rawOtp,
       },
     };
   }
@@ -946,17 +945,16 @@ export class AuthService {
       normalizedIdentifier = rawIdentifier.toLowerCase();
     }
 
-    // Resolve case-insensitive OtpPurpose
     let targetPurpose: OtpPurpose = OtpPurpose.LOGIN;
     if (dto.purpose) {
-      const pStr = String(dto.purpose).trim().toUpperCase();
+      const pStr = String(dto.purpose).trim().toUpperCase().replace(/[\s\-]/g, '_');
       if (pStr === 'FORGOT_PASSWORD' || pStr === 'FORGOTPASSWORD') {
         targetPurpose = OtpPurpose.FORGOT_PASSWORD;
       } else if (pStr === 'REGISTRATION' || pStr === 'REGISTER') {
         targetPurpose = OtpPurpose.REGISTRATION;
-      } else if (pStr === 'EMAIL_VERIFICATION') {
+      } else if (pStr === 'EMAIL_VERIFICATION' || pStr === 'EMAILVERIFICATION') {
         targetPurpose = OtpPurpose.EMAIL_VERIFICATION;
-      } else if (pStr === 'MOBILE_VERIFICATION') {
+      } else if (pStr === 'MOBILE_VERIFICATION' || pStr === 'MOBILEVERIFICATION') {
         targetPurpose = OtpPurpose.MOBILE_VERIFICATION;
       } else {
         targetPurpose = OtpPurpose.LOGIN;
@@ -1011,49 +1009,22 @@ export class AuthService {
       data: { isVerified: true, verifiedAt: new Date() },
     });
 
-    // 1. REGISTER Purpose Response
-    if (targetPurpose === OtpPurpose.REGISTRATION) {
-      const user = await this.database.user.findFirst({
-        where: {
-          OR: [
-            { email: { equals: rawIdentifier, mode: 'insensitive' } },
-            { mobile: rawIdentifier },
-            { mobile: normalizedIdentifier },
-          ],
-        },
-      });
+    // Find user by identifier if exists
+    const user = await this.database.user.findFirst({
+      where: {
+        OR: [
+          { email: { equals: rawIdentifier, mode: 'insensitive' } },
+          { mobile: rawIdentifier },
+          { mobile: normalizedIdentifier },
+        ],
+      },
+    });
 
-      return {
-        success: true,
-        message: 'Registration successful.',
-        data: user
-          ? {
-              userId: user.id,
-              name: user.name,
-              mobile: user.mobile,
-              email: user.email,
-              buyer: user.isBuyer,
-              seller: user.isSeller,
-              employee: user.isEmployee,
-            }
-          : {
-              verified: true,
-            },
-      };
-    }
+    let accessToken = '';
+    let refreshToken = '';
+    let expiresInSeconds = 0;
 
-    // 2. LOGIN Purpose Response
     if (targetPurpose === OtpPurpose.LOGIN) {
-      const user = await this.database.user.findFirst({
-        where: {
-          OR: [
-            { email: { equals: rawIdentifier, mode: 'insensitive' } },
-            { mobile: rawIdentifier },
-            { mobile: normalizedIdentifier },
-          ],
-        },
-      });
-
       if (!user) {
         throw new BadRequestException('User not found for this identifier. Please register first.');
       }
@@ -1073,9 +1044,9 @@ export class AuthService {
         process.env.JWT_REFRESH_SECRET ||
         'haatza_refresh_secret';
 
-      const expiresInSeconds = 3600;
-      const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
-      const refreshToken = this.jwtService.sign(payload, {
+      expiresInSeconds = 3600;
+      accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+      refreshToken = this.jwtService.sign(payload, {
         secret: refreshSecret,
         expiresIn: '7d',
       });
@@ -1105,46 +1076,38 @@ export class AuthService {
           },
         });
       } catch (dbErr: any) {
-        this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`);
+        this.logger.error(`UserSession creation warning for user ${user?.id}: ${dbErr?.message}`);
       }
-
-      return {
-        success: true,
-        message: 'Login successful.',
-        data: {
-          accessToken,
-          refreshToken,
-          expiresIn: expiresInSeconds,
-          user: {
-            id: user.id,
-            name: user.name,
-            email: user.email,
-            phoneNumber: user.mobile,
-            status: user.status,
-            role: user.role,
-            isEmployee: user.isEmployee,
-            is_employee: user.isEmployee,
-            isBuyer: user.isBuyer,
-            is_buyer: user.isBuyer,
-            isSeller: user.isSeller,
-            is_seller: user.isSeller,
-          },
-        },
-      };
     }
 
-    // 3. FORGOT_PASSWORD & Default Verification Response
-    const resetToken = this.jwtService.sign(
-      { identifier: rawIdentifier, purpose: 'RESET_PASSWORD' },
-      { expiresIn: '15m' },
-    );
+    let message = 'OTP verified successfully.';
+    if (targetPurpose === OtpPurpose.REGISTRATION) {
+      message = 'Registration successful.';
+    } else if (targetPurpose === OtpPurpose.LOGIN) {
+      message = 'Login successful.';
+    }
 
     return {
       success: true,
-      message: 'OTP verified successfully.',
+      message,
       data: {
-        verified: true,
-        resetToken,
+        accessToken: accessToken || '',
+        refreshToken: refreshToken || '',
+        expiresIn: expiresInSeconds || 0,
+        user: {
+          id: user?.id || '',
+          name: user?.name || '',
+          email: user?.email || '',
+          phoneNumber: user?.mobile || '',
+          status: user?.status || 'ACTIVE',
+          role: user?.role || 'SELLER',
+          isEmployee: user?.isEmployee ?? false,
+          is_employee: user?.isEmployee ?? false,
+          isBuyer: user?.isBuyer ?? false,
+          is_buyer: user?.isBuyer ?? false,
+          isSeller: user?.isSeller ?? true,
+          is_seller: user?.isSeller ?? true,
+        },
       },
     };
   }

@@ -29,7 +29,23 @@ export class RegisterDto {
   password: string;
 
   @IsOptional()
-  @Transform(({ value }) => (value === '' || value === null || value === undefined ? undefined : value))
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toUpperCase().replace(/[\s\-]/g, '_');
+      if (normalized === 'BUYER') return UserRole.BUYER;
+      if (normalized === 'SELLER') return UserRole.SELLER;
+      if (normalized === 'EMPLOYEE') return UserRole.EMPLOYEE;
+      if (normalized === 'ADMIN') return UserRole.ADMIN;
+      if (normalized === 'DELIVERY_PARTNER' || normalized === 'DELIVERYPARTNER') return UserRole.DELIVERY_PARTNER;
+      if (normalized === 'NEST_WORKER' || normalized === 'NESTWORKER') return UserRole.NEST_WORKER;
+      if (normalized === 'SUPPORT') return UserRole.SUPPORT;
+      if (normalized === 'SELLER_OWNER' || normalized === 'SELLEROWNER') return UserRole.SELLER_OWNER;
+      if (normalized === 'SELLER_STAFF' || normalized === 'SELLERSTAFF') return UserRole.SELLER_STAFF;
+      if (normalized === 'ACCOUNT_MANAGER' || normalized === 'ACCOUNTMANAGER') return UserRole.ACCOUNT_MANAGER;
+      return normalized as UserRole;
+    }
+    return value;
+  })
   @IsEnum(UserRole, {
     message:
       'role must be one of the following values: ADMIN, SELLER, BUYER, NEST_WORKER, DELIVERY_PARTNER, SUPPORT, SELLER_OWNER, SELLER_STAFF, ACCOUNT_MANAGER, EMPLOYEE',
