@@ -900,7 +900,11 @@ export class AuthService {
     this.logger.log(`Generated OTP for ${normalizedIdentifier} (${targetPurpose}): ${rawOtp}`);
 
     if (!isEmail) {
-      await this.smsService.sendOtp(normalizedIdentifier, rawOtp);
+      try {
+        await this.smsService.sendOtp(normalizedIdentifier, rawOtp);
+      } catch (smsErr: any) {
+        this.logger.error(`SMS dispatch warning for ${normalizedIdentifier}: ${smsErr?.message}`);
+      }
     }
 
     return {

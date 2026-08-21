@@ -107,12 +107,42 @@ export class SmsService {
           `Fast2SMS OTP sent successfully to ${cleanedPhone}. RequestId: ${data.request_id || 'N/A'}`,
         );
         return true;
-      } else {
-        this.logger.error(
-          `Fast2SMS API failed for ${cleanedPhone}: ${JSON.stringify(data)}`,
-        );
-        return false;
       }
+
+      // Fallback to Quick SMS (route=q) if DLT template fails
+      if (!data.return && this.route === 'dlt') {
+        this.logger.warn(
+          `Fast2SMS DLT route failed (${JSON.stringify(data)}). Retrying via Quick SMS route ('q')...`,
+        );
+
+        const fallbackUrl = `${this.fast2SmsUrl}?authorization=${encodeURIComponent(
+          this.apiKey,
+        )}&route=q&message=${encodeURIComponent(
+          `Your OTP verification code for Haatza is ${otpCode}.`,
+        )}&numbers=${cleanedPhone}&language=english&flash=0`;
+
+        const fallbackResp = await fetch(fallbackUrl, {
+          method: 'GET',
+          headers: { authorization: this.apiKey },
+        });
+
+        const fallbackData = (await fallbackResp.json()) as Fast2SmsResponse;
+        if (fallbackResp.ok && fallbackData.return === true) {
+          this.logger.log(`Fast2SMS Quick SMS OTP sent successfully to ${cleanedPhone}.`);
+          return true;
+        }
+
+        this.logger.error(
+          `Fast2SMS Quick SMS fallback also failed for ${cleanedPhone}: ${JSON.stringify(
+            fallbackData,
+          )}`,
+        );
+      }
+
+      this.logger.error(
+        `Fast2SMS API failed for ${cleanedPhone}: ${JSON.stringify(data)}`,
+      );
+      return false;
     } catch (error: any) {
       this.logger.error(
         `Failed to send Fast2SMS OTP to ${cleanedPhone}: ${error?.message}`,
