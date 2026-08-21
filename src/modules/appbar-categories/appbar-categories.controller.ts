@@ -18,21 +18,23 @@ import { GetAppbarCategoriesDto } from './dto/get-appbar-categories.dto';
 export class AppbarCategoriesController {
   constructor(private readonly appbarCategoriesService: AppbarCategoriesService) {}
 
-  @Post()
+  @Get()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Appbar Categories (POST - Recommended)',
+    summary: 'Get Appbar Categories (GET)',
     description:
       'Returns Appbar Categories based on module (haatza or lite). Lite module requires customer latitude and longitude for nearest warehouse distance calculation.',
   })
-  @ApiBody({ type: GetAppbarCategoriesDto })
+  @ApiQuery({ name: 'module', required: true, type: String, example: 'lite' })
+  @ApiQuery({ name: 'latitude', required: false, type: Number, example: 12.8456 })
+  @ApiQuery({ name: 'longitude', required: false, type: Number, example: 77.6603 })
   @ApiResponse({
     status: 200,
     description: 'Appbar categories retrieved successfully',
   })
-  async getAppbarCategoriesPost(@Body() dto: GetAppbarCategoriesDto) {
+  async getAppbarCategoriesGet(@Query() query: GetAppbarCategoriesDto) {
     try {
-      return await this.appbarCategoriesService.getAppbarCategories(dto);
+      return await this.appbarCategoriesService.getAppbarCategories(query);
     } catch (err: any) {
       if (err instanceof BadRequestException || err instanceof HttpException) {
         const responseJson: any = err.getResponse();
@@ -52,19 +54,21 @@ export class AppbarCategoriesController {
     }
   }
 
-  @Get()
+  @Post()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Appbar Categories (GET)',
+    summary: 'Get Appbar Categories (POST - Compatibility Fallback)',
     description:
-      'Returns Appbar Categories via query parameters.',
+      'Returns Appbar Categories based on module (haatza or lite). Lite module requires customer latitude and longitude for nearest warehouse distance calculation.',
   })
-  @ApiQuery({ name: 'module', required: true, type: String })
-  @ApiQuery({ name: 'latitude', required: false, type: Number })
-  @ApiQuery({ name: 'longitude', required: false, type: Number })
-  async getAppbarCategoriesGet(@Query() query: GetAppbarCategoriesDto) {
+  @ApiBody({ type: GetAppbarCategoriesDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Appbar categories retrieved successfully',
+  })
+  async getAppbarCategoriesPost(@Body() dto: GetAppbarCategoriesDto) {
     try {
-      return await this.appbarCategoriesService.getAppbarCategories(query);
+      return await this.appbarCategoriesService.getAppbarCategories(dto);
     } catch (err: any) {
       if (err instanceof BadRequestException || err instanceof HttpException) {
         const responseJson: any = err.getResponse();

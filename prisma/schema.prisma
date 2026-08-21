@@ -258,6 +258,8 @@ model SellerSubscription {
   status             String                      @default("ACTIVE") @db.VarChar(20)
   paymentId          String?                     @map("payment_id") @db.VarChar(100)
   razorpayOrderId    String?                     @map("razorpay_order_id") @db.VarChar(100)
+  autoRenew          Boolean                     @default(true) @map("auto_renew")
+  cancelledAt        DateTime?                   @map("cancelled_at")
   createdAt          DateTime                    @default(now()) @map("created_at")
   plan               PricingPlan                 @relation(fields: [planId], references: [id])
   invoices           SellerSubscriptionInvoice[]
@@ -298,6 +300,88 @@ model SellerSubscriptionInvoice {
   @@index([subscriptionId])
   @@index([sellerId])
   @@map("seller_subscription_invoices")
+}
+
+model SubscriptionCoupon {
+  id                String    @id @default(uuid()) @db.VarChar(36)
+  code              String    @unique @db.VarChar(50)
+  discountType      String    @map("discount_type") @db.VarChar(20)
+  discountValue     Decimal   @map("discount_value") @db.Decimal(12, 2)
+  minOrderAmount    Decimal?  @default(0.00) @map("min_order_amount") @db.Decimal(12, 2)
+  maxDiscountAmount Decimal?  @map("max_discount_amount") @db.Decimal(12, 2)
+  startDate         DateTime  @map("start_date")
+  endDate           DateTime  @map("end_date")
+  usageLimit        Int?      @map("usage_limit")
+  usageCount        Int       @default(0) @map("usage_count")
+  status            String    @default("ACTIVE") @db.VarChar(20)
+  applicablePlanId  String?   @map("applicable_plan_id") @db.VarChar(36)
+  description       String?   @db.Text
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  @@index([code])
+  @@index([status])
+  @@map("subscription_coupons")
+}
+
+model SellerWallet {
+  id           String              @id @default(uuid()) @db.VarChar(36)
+  sellerId     String              @unique @map("seller_id") @db.VarChar(50)
+  balance      Decimal             @default(0.00) @db.Decimal(12, 2)
+  currency     String              @default("INR") @db.VarChar(10)
+  createdAt    DateTime            @default(now()) @map("created_at")
+  updatedAt    DateTime            @updatedAt @map("updated_at")
+  transactions WalletTransaction[]
+
+  @@index([sellerId])
+  @@map("seller_wallets")
+}
+
+model WalletTransaction {
+  id          String       @id @default(uuid()) @db.VarChar(36)
+  walletId    String       @map("wallet_id") @db.VarChar(36)
+  sellerId    String       @map("seller_id") @db.VarChar(50)
+  amount      Decimal      @db.Decimal(12, 2)
+  type        String       @db.VarChar(20)
+  description String?      @db.VarChar(255)
+  referenceId String?      @map("reference_id") @db.VarChar(100)
+  createdAt   DateTime     @default(now()) @map("created_at")
+  wallet      SellerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+
+  @@index([walletId])
+  @@index([sellerId])
+  @@map("wallet_transactions")
+}
+
+model SellerReferral {
+  id             String                @id @default(uuid()) @db.VarChar(36)
+  sellerId       String                @unique @map("seller_id") @db.VarChar(50)
+  referralCode   String                @unique @map("referral_code") @db.VarChar(50)
+  referralLink   String?               @map("referral_link") @db.VarChar(255)
+  pointsBalance  Decimal               @default(0.00) @map("points_balance") @db.Decimal(12, 2)
+  totalEarned    Decimal               @default(0.00) @map("total_earned") @db.Decimal(12, 2)
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+  history        ReferralTransaction[]
+
+  @@index([sellerId])
+  @@index([referralCode])
+  @@map("seller_referrals")
+}
+
+model ReferralTransaction {
+  id              String         @id @default(uuid()) @db.VarChar(36)
+  referralId      String         @map("referral_id") @db.VarChar(36)
+  sellerId        String         @map("seller_id") @db.VarChar(50)
+  referredSellerId String?       @map("referred_seller_id") @db.VarChar(50)
+  points          Decimal        @db.Decimal(12, 2)
+  type            String         @db.VarChar(20)
+  description     String?        @db.VarChar(255)
+  createdAt       DateTime       @default(now()) @map("created_at")
+  referral        SellerReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+
+  @@index([referralId])
+  @@index([sellerId])
+  @@map("referral_transactions")
 }
 
 model UserLoginHistory {
