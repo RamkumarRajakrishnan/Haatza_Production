@@ -757,50 +757,71 @@ export class AuthService {
       cleanedPhone = cleanedPhone.substring(2);
     }
 
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
+    // 1. Locate User First
+    let user = await this.authRepository.findUserByIdentifier(targetIdentifier);
+    if (!user && (email || mobile)) {
+      user = await this.database.user.findFirst({
+        where: {
+          OR: [
+            ...(email ? [{ email: { equals: email, mode: 'insensitive' as const } }] : []),
+            ...(mobile ? [{ mobile }] : []),
+            ...(cleanedPhone ? [{ mobile: cleanedPhone }] : []),
+          ],
+        },
+      });
+    }
 
+    if (!user) {
+      throw new NotFoundException('User with provided credentials not found.');
+    }
+
+    // 2. Validate OTP Verification
     let isOtpValid = false;
 
-    // Check 1: If OTP code passed directly in resetPassword payload (e.g. otp: "123456" or actual OTP)
-    if (dto.otp || (dto as any).otpCode) {
-      const inputOtp = String(dto.otp || (dto as any).otpCode).trim();
-      if (inputOtp === '123456' || inputOtp === '666666') {
+    // Check A: Direct OTP passed in reset-password body (supports test master OTP 123456/666666)
+    const inputOtp = String(dto.otp || (dto as any).otpCode || '').trim();
+    if (inputOtp === '123456' || inputOtp === '666666') {
+      isOtpValid = true;
+    } else if (inputOtp) {
+      const userIdsToMatch: string[] = [targetIdentifier, cleanedPhone, user.mobile, user.email].filter(
+        (id): id is string => typeof id === 'string' && id.trim().length > 0,
+      );
+
+      const matchingOtp = await this.database.otpVerification.findFirst({
+        where: {
+          OR: [
+            ...userIdsToMatch.map((id) => ({ identifier: id })),
+            { userId: user.id },
+          ],
+          otpHash: inputOtp,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (matchingOtp) {
         isOtpValid = true;
-      } else {
-        const matchingOtp = await this.database.otpVerification.findFirst({
-          where: {
-            OR: [
-              { identifier: targetIdentifier },
-              { identifier: cleanedPhone },
-              { identifier: { equals: targetIdentifier, mode: 'insensitive' } },
-            ],
-            otpHash: inputOtp,
-          },
-          orderBy: { createdAt: 'desc' },
+        await this.database.otpVerification.update({
+          where: { id: matchingOtp.id },
+          data: { isVerified: true, verifiedAt: new Date() },
         });
-        if (matchingOtp) {
-          isOtpValid = true;
-          await this.database.otpVerification.update({
-            where: { id: matchingOtp.id },
-            data: { isVerified: true, verifiedAt: new Date() },
-          });
-        }
       }
     }
 
-    // Check 2: Check if an OTP for this identifier was verified in the last 30 minutes
+    // Check B: Prior OTP Verification Check across user.id, mobile, email, or identifier
     if (!isOtpValid) {
+      const userIdsToMatch: string[] = [targetIdentifier, cleanedPhone, user.mobile, user.email].filter(
+        (id): id is string => typeof id === 'string' && id.trim().length > 0,
+      );
+
       const verifiedOtpRecord = await this.database.otpVerification.findFirst({
         where: {
           OR: [
-            { identifier: targetIdentifier },
-            { identifier: cleanedPhone },
-            { identifier: { equals: targetIdentifier, mode: 'insensitive' } },
+            ...userIdsToMatch.map((id) => ({ identifier: id })),
+            { userId: user.id },
           ],
           isVerified: true,
-          verifiedAt: { gte: thirtyMinutesAgo },
         },
-        orderBy: { verifiedAt: 'desc' },
+        orderBy: { updatedAt: 'desc' },
       });
 
       if (verifiedOtpRecord) {
@@ -812,16 +833,6 @@ export class AuthService {
       throw new BadRequestException(
         'OTP verification required. Please request and verify an OTP code before resetting your password.',
       );
-    }
-
-    let user = await this.authRepository.findUserByIdentifier(targetIdentifier);
-
-    if (!user && email && mobile) {
-      user = await this.authRepository.findUserByEmailAndMobile(email, mobile);
-    }
-
-    if (!user) {
-      throw new NotFoundException('User with provided credentials not found.');
     }
 
     await this.database.user.update({
