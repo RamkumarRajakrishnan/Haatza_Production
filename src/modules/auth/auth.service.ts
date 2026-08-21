@@ -860,23 +860,50 @@ export class AuthService {
   }
 
   async verifyOtp(dto: VerifyOtpDto) {
-    const targetIdentifier = (
+    const rawIdentifier = (
       dto.identifier ||
       dto.mobile ||
       dto.phone ||
       dto.email ||
       ''
-    ).replace(/[\s\-\(\)\+]/g, '');
-    const targetOtp = dto.otp || dto.otpCode || '';
+    ).trim();
 
-    if (!targetIdentifier || !targetOtp) {
+    const targetOtp = (dto.otp || dto.otpCode || '').trim();
+
+    if (!rawIdentifier || !targetOtp) {
       throw new BadRequestException('Identifier and OTP code are required');
+    }
+
+    let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
+    if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+      cleanedPhone = cleanedPhone.substring(2);
+    }
+
+    // Resolve case-insensitive OtpPurpose
+    let targetPurpose: OtpPurpose = OtpPurpose.LOGIN;
+    if (dto.purpose) {
+      const pStr = String(dto.purpose).trim().toUpperCase();
+      if (pStr === 'FORGOT_PASSWORD' || pStr === 'FORGOTPASSWORD') {
+        targetPurpose = OtpPurpose.FORGOT_PASSWORD;
+      } else if (pStr === 'REGISTRATION') {
+        targetPurpose = OtpPurpose.REGISTRATION;
+      } else if (pStr === 'EMAIL_VERIFICATION') {
+        targetPurpose = OtpPurpose.EMAIL_VERIFICATION;
+      } else if (pStr === 'MOBILE_VERIFICATION') {
+        targetPurpose = OtpPurpose.MOBILE_VERIFICATION;
+      } else {
+        targetPurpose = OtpPurpose.LOGIN;
+      }
     }
 
     const otpRecord = await this.database.otpVerification.findFirst({
       where: {
-        identifier: targetIdentifier,
-        purpose: dto.purpose ?? OtpPurpose.LOGIN,
+        OR: [
+          { identifier: rawIdentifier },
+          { identifier: cleanedPhone },
+          { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
+        ],
+        purpose: targetPurpose,
         isVerified: false,
       },
       orderBy: { createdAt: 'desc' },
@@ -905,6 +932,7 @@ export class AuthService {
       message: 'OTP verified successfully',
       data: {
         verified: true,
+        purpose: targetPurpose,
       },
     };
   }

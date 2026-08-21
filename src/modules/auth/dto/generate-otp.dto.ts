@@ -8,6 +8,7 @@ import {
   ValidatorConstraintInterface,
   ValidationArguments,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { OtpPurpose, OtpChannel } from '@prisma/client';
 
@@ -47,6 +48,18 @@ export class GenerateOtpDto {
   identifier: string;
 
   @ApiPropertyOptional({ enum: OtpPurpose, default: OtpPurpose.LOGIN })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toUpperCase();
+      if (normalized === 'LOGIN') return OtpPurpose.LOGIN;
+      if (normalized === 'FORGOT_PASSWORD' || normalized === 'FORGOTPASSWORD') return OtpPurpose.FORGOT_PASSWORD;
+      if (normalized === 'REGISTRATION') return OtpPurpose.REGISTRATION;
+      if (normalized === 'EMAIL_VERIFICATION') return OtpPurpose.EMAIL_VERIFICATION;
+      if (normalized === 'MOBILE_VERIFICATION') return OtpPurpose.MOBILE_VERIFICATION;
+      return normalized as OtpPurpose;
+    }
+    return value;
+  })
   @IsEnum(OtpPurpose)
   @IsOptional()
   purpose?: OtpPurpose = OtpPurpose.LOGIN;
