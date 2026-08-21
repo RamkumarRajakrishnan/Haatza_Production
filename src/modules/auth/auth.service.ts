@@ -832,9 +832,23 @@ export class AuthService {
       normalizedIdentifier = rawIdentifier.toLowerCase();
     }
 
-    const targetPurpose = dto.purpose ?? OtpPurpose.LOGIN;
+    let targetPurpose: OtpPurpose = OtpPurpose.LOGIN;
+    if (dto.purpose) {
+      const pStr = String(dto.purpose).trim().toUpperCase();
+      if (pStr === 'FORGOT_PASSWORD' || pStr === 'FORGOTPASSWORD') {
+        targetPurpose = OtpPurpose.FORGOT_PASSWORD;
+      } else if (pStr === 'REGISTRATION' || pStr === 'REGISTER') {
+        targetPurpose = OtpPurpose.REGISTRATION;
+      } else if (pStr === 'EMAIL_VERIFICATION') {
+        targetPurpose = OtpPurpose.EMAIL_VERIFICATION;
+      } else if (pStr === 'MOBILE_VERIFICATION') {
+        targetPurpose = OtpPurpose.MOBILE_VERIFICATION;
+      } else {
+        targetPurpose = OtpPurpose.LOGIN;
+      }
+    }
 
-    // Invalidate older unverified OTPs for this identifier & purpose so only the latest OTP is active
+    // Invalidate older unverified OTPs for this identifier so only the latest OTP is active
     try {
       await this.database.otpVerification.updateMany({
         where: {
@@ -842,7 +856,6 @@ export class AuthService {
             { identifier: normalizedIdentifier },
             { identifier: rawIdentifier },
           ],
-          purpose: targetPurpose,
           isVerified: false,
         },
         data: {
@@ -884,7 +897,7 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`Generated OTP for ${normalizedIdentifier}: ${rawOtp}`);
+    this.logger.log(`Generated OTP for ${normalizedIdentifier} (${targetPurpose}): ${rawOtp}`);
 
     if (!isEmail) {
       await this.smsService.sendOtp(normalizedIdentifier, rawOtp);
@@ -946,7 +959,7 @@ export class AuthService {
       }
     }
 
-    const otpRecord = await this.database.otpVerification.findFirst({
+    let otpRecord = await this.database.otpVerification.findFirst({
       where: {
         OR: [
           { identifier: normalizedIdentifier },
@@ -958,6 +971,21 @@ export class AuthService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    // Fallback: search for latest active OTP for identifier regardless of exact purpose match
+    if (!otpRecord) {
+      otpRecord = await this.database.otpVerification.findFirst({
+        where: {
+          OR: [
+            { identifier: normalizedIdentifier },
+            { identifier: rawIdentifier },
+            { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
+          ],
+          isVerified: false,
+        },
+        orderBy: { createdAt: 'desc' },
+      });
+    }
 
     if (!otpRecord) {
       throw new BadRequestException('No active OTP request found for this identifier');
