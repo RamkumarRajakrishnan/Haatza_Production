@@ -796,6 +796,7 @@ export class AuthService {
     const rawIdentifier = dto.identifier.trim();
     const isEmail = rawIdentifier.includes('@');
 
+    let normalizedIdentifier = rawIdentifier;
     if (!isEmail) {
       let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
       if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
@@ -807,15 +808,41 @@ export class AuthService {
           'Mobile number must be a valid 10-digit phone number starting with 6-9.',
         );
       }
+      normalizedIdentifier = cleanedPhone;
+    } else {
+      normalizedIdentifier = rawIdentifier.toLowerCase();
+    }
+
+    const targetPurpose = dto.purpose ?? OtpPurpose.LOGIN;
+
+    // Invalidate older unverified OTPs for this identifier & purpose so only the latest OTP is active
+    try {
+      await this.database.otpVerification.updateMany({
+        where: {
+          OR: [
+            { identifier: normalizedIdentifier },
+            { identifier: rawIdentifier },
+          ],
+          purpose: targetPurpose,
+          isVerified: false,
+        },
+        data: {
+          isVerified: true,
+        },
+      });
+    } catch (e: any) {
+      this.logger.warn(`Older OTP invalidation warning: ${e.message}`);
     }
 
     const identifierType = isEmail ? OtpIdentifierType.EMAIL : OtpIdentifierType.PHONE;
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
-    const otpHash = rawOtp; // Store plain-text 6-digit OTP code directly so it is visible unencrypted in DB
+    const otpHash = rawOtp; // Store plain-text 6-digit OTP code
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
 
     const existingUser = await this.database.user.findFirst({
-      where: isEmail ? { email: rawIdentifier } : { mobile: rawIdentifier },
+      where: isEmail
+        ? { email: { equals: normalizedIdentifier, mode: 'insensitive' } }
+        : { OR: [{ mobile: normalizedIdentifier }, { mobile: rawIdentifier }] },
       select: { id: true },
     });
 
@@ -826,10 +853,10 @@ export class AuthService {
       data: {
         id: otpId,
         userId: existingUser?.id ?? null,
-        identifier: dto.identifier,
+        identifier: normalizedIdentifier,
         identifierType,
         otpHash,
-        purpose: dto.purpose ?? OtpPurpose.LOGIN,
+        purpose: targetPurpose,
         channel: dto.channel ?? OtpChannel.SMS,
         expiresAt,
         createdAt: now,
@@ -838,14 +865,10 @@ export class AuthService {
       },
     });
 
-    this.logger.log(`Generated OTP for ${dto.identifier}: ${rawOtp}`);
+    this.logger.log(`Generated OTP for ${normalizedIdentifier}: ${rawOtp}`);
 
     if (!isEmail) {
-      let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
-      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
-        cleanedPhone = cleanedPhone.substring(2);
-      }
-      await this.smsService.sendOtp(cleanedPhone, rawOtp);
+      await this.smsService.sendOtp(normalizedIdentifier, rawOtp);
     }
 
     return {
@@ -855,6 +878,7 @@ export class AuthService {
       data: {
         otpId: otpRecord.id,
         expiresAt: otpRecord.expiresAt,
+        ...(process.env.NODE_ENV !== 'production' ? { otp: rawOtp } : {}),
       },
     };
   }
@@ -874,9 +898,16 @@ export class AuthService {
       throw new BadRequestException('Identifier and OTP code are required');
     }
 
-    let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
-    if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
-      cleanedPhone = cleanedPhone.substring(2);
+    const isEmail = rawIdentifier.includes('@');
+    let normalizedIdentifier = rawIdentifier;
+    if (!isEmail) {
+      let cleanedPhone = rawIdentifier.replace(/[\s\-\(\)\+]/g, '');
+      if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+        cleanedPhone = cleanedPhone.substring(2);
+      }
+      normalizedIdentifier = cleanedPhone;
+    } else {
+      normalizedIdentifier = rawIdentifier.toLowerCase();
     }
 
     // Resolve case-insensitive OtpPurpose
@@ -899,8 +930,8 @@ export class AuthService {
     const otpRecord = await this.database.otpVerification.findFirst({
       where: {
         OR: [
+          { identifier: normalizedIdentifier },
           { identifier: rawIdentifier },
-          { identifier: cleanedPhone },
           { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
         ],
         purpose: targetPurpose,
@@ -917,7 +948,7 @@ export class AuthService {
       throw new BadRequestException('OTP has expired');
     }
 
-    if (otpRecord.otpHash !== targetOtp) {
+    if (String(otpRecord.otpHash).trim() !== targetOtp) {
       throw new BadRequestException('Invalid OTP code');
     }
 
@@ -933,7 +964,7 @@ export class AuthService {
           OR: [
             { email: { equals: rawIdentifier, mode: 'insensitive' } },
             { mobile: rawIdentifier },
-            { mobile: cleanedPhone },
+            { mobile: normalizedIdentifier },
           ],
         },
       });
@@ -964,7 +995,7 @@ export class AuthService {
           OR: [
             { email: { equals: rawIdentifier, mode: 'insensitive' } },
             { mobile: rawIdentifier },
-            { mobile: cleanedPhone },
+            { mobile: normalizedIdentifier },
           ],
         },
       });
