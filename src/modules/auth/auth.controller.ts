@@ -117,12 +117,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @Post(['verify-otp', 'verifyotp', 'verifyOtp'])
   verifyOtp(@Body() data: VerifyOtpSessionDto | VerifyOtpDto, @Req() req: Request) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent = req.headers['user-agent'];
+
     if ('phoneNumber' in data) {
-      const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
-      const userAgent = req.headers['user-agent'];
       return this.authService.verifyOtpSession(data as VerifyOtpSessionDto, { ipAddress, userAgent });
     }
-    return this.authService.verifyOtp(data as VerifyOtpDto);
+    return this.authService.verifyOtp(data as VerifyOtpDto, { ipAddress, userAgent });
   }
 
   @ApiOperation({ summary: 'Resend OTP code' })

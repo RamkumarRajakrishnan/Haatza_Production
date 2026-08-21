@@ -859,7 +859,7 @@ export class AuthService {
     };
   }
 
-  async verifyOtp(dto: VerifyOtpDto) {
+  async verifyOtp(dto: VerifyOtpDto, reqMeta?: { ipAddress?: string; userAgent?: string }) {
     const rawIdentifier = (
       dto.identifier ||
       dto.mobile ||
@@ -885,7 +885,7 @@ export class AuthService {
       const pStr = String(dto.purpose).trim().toUpperCase();
       if (pStr === 'FORGOT_PASSWORD' || pStr === 'FORGOTPASSWORD') {
         targetPurpose = OtpPurpose.FORGOT_PASSWORD;
-      } else if (pStr === 'REGISTRATION') {
+      } else if (pStr === 'REGISTRATION' || pStr === 'REGISTER') {
         targetPurpose = OtpPurpose.REGISTRATION;
       } else if (pStr === 'EMAIL_VERIFICATION') {
         targetPurpose = OtpPurpose.EMAIL_VERIFICATION;
@@ -926,13 +926,134 @@ export class AuthService {
       data: { isVerified: true, verifiedAt: new Date() },
     });
 
+    // 1. REGISTER Purpose Response
+    if (targetPurpose === OtpPurpose.REGISTRATION) {
+      const user = await this.database.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: rawIdentifier, mode: 'insensitive' } },
+            { mobile: rawIdentifier },
+            { mobile: cleanedPhone },
+          ],
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Registration successful.',
+        data: user
+          ? {
+              userId: user.id,
+              name: user.name,
+              mobile: user.mobile,
+              email: user.email,
+              buyer: user.isBuyer,
+              seller: user.isSeller,
+              employee: user.isEmployee,
+            }
+          : {
+              verified: true,
+            },
+      };
+    }
+
+    // 2. LOGIN Purpose Response
+    if (targetPurpose === OtpPurpose.LOGIN) {
+      const user = await this.database.user.findFirst({
+        where: {
+          OR: [
+            { email: { equals: rawIdentifier, mode: 'insensitive' } },
+            { mobile: rawIdentifier },
+            { mobile: cleanedPhone },
+          ],
+        },
+      });
+
+      if (!user) {
+        throw new BadRequestException('User not found for this identifier. Please register first.');
+      }
+
+      const sessionUuid = crypto.randomUUID();
+      const payload = {
+        sub: user.id,
+        sessionId: sessionUuid,
+        role: user.role,
+        mobile: user.mobile,
+        email: user.email,
+        jti: crypto.randomUUID(),
+      };
+
+      const refreshSecret =
+        this.configService.get<string>('JWT_REFRESH_SECRET') ||
+        process.env.JWT_REFRESH_SECRET ||
+        'haatza_refresh_secret';
+
+      const expiresInSeconds = 3600;
+      const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: refreshSecret,
+        expiresIn: '7d',
+      });
+
+      const tokenHash = this.hashToken(refreshToken);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      try {
+        await this.database.userSession.create({
+          data: {
+            id: sessionUuid,
+            userId: user.id,
+            identifier: rawIdentifier,
+            refreshTokenHash: tokenHash,
+            refreshToken,
+            ipAddress: reqMeta?.ipAddress || null,
+            userAgent: reqMeta?.userAgent || null,
+            deviceName: this.parseDeviceName(reqMeta?.userAgent),
+            platform: this.parsePlatform(reqMeta?.userAgent),
+            deviceType: reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB',
+            isActive: true,
+            lastActivityAt: now,
+            expiresAt,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      } catch (dbErr: any) {
+        this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`);
+      }
+
+      return {
+        success: true,
+        message: 'Login successful.',
+        data: {
+          accessToken,
+          refreshToken,
+          expiresIn: expiresInSeconds,
+          user: {
+            id: user.id,
+            name: user.name,
+            email: user.email,
+            phoneNumber: user.mobile,
+            status: user.status,
+            role: user.role,
+            isEmployee: user.isEmployee,
+            is_employee: user.isEmployee,
+            isBuyer: user.isBuyer,
+            is_buyer: user.isBuyer,
+            isSeller: user.isSeller,
+            is_seller: user.isSeller,
+          },
+        },
+      };
+    }
+
+    // 3. FORGOT_PASSWORD & Default Verification Response
     return {
       success: true,
-      statusCode: 200,
-      message: 'OTP verified successfully',
+      message: 'OTP verified successfully.',
       data: {
         verified: true,
-        purpose: targetPurpose,
       },
     };
   }
