@@ -729,42 +729,61 @@ export class AuthService {
   async resetPassword(dto: ResetPasswordDto) {
     let email = dto.email?.trim();
     let mobile = dto.mobile?.trim();
+    let identifierFromToken: string | null = null;
 
-    if (dto.identifier) {
-      const trimmedId = dto.identifier.trim();
-      if (trimmedId.includes('@')) {
-        if (!email) email = trimmedId;
-      } else {
-        if (!mobile) mobile = trimmedId;
+    if (dto.token) {
+      try {
+        const decoded = this.jwtService.verify(dto.token);
+        if (decoded && decoded.identifier) {
+          identifierFromToken = String(decoded.identifier).trim();
+        }
+      } catch (err) {
+        throw new BadRequestException('Invalid or expired password reset token.');
       }
+    }
+
+    const targetIdentifier = identifierFromToken || dto.identifier?.trim() || email || mobile;
+
+    if (!targetIdentifier) {
+      throw new BadRequestException('Identifier, email, mobile, or reset token is required.');
     }
 
     if (dto.confirmPassword && dto.password !== dto.confirmPassword) {
       throw new BadRequestException('New password and confirmation password do not match.');
     }
 
-    let user;
+    let cleanedPhone = targetIdentifier.replace(/[\s\-\(\)\+]/g, '');
+    if (cleanedPhone.length === 12 && cleanedPhone.startsWith('91')) {
+      cleanedPhone = cleanedPhone.substring(2);
+    }
 
-    if (email && mobile) {
-      // Check that BOTH email and mobile match the exact same user record in the database
+    const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+    // Option 1: Enforce that FORGOT_PASSWORD OTP was verified for this identifier within the last 15 minutes
+    const verifiedOtpRecord = await this.database.otpVerification.findFirst({
+      where: {
+        OR: [
+          { identifier: targetIdentifier },
+          { identifier: cleanedPhone },
+          { identifier: { equals: targetIdentifier, mode: 'insensitive' } },
+        ],
+        purpose: OtpPurpose.FORGOT_PASSWORD,
+        isVerified: true,
+        verifiedAt: { gte: fifteenMinutesAgo },
+      },
+      orderBy: { verifiedAt: 'desc' },
+    });
+
+    if (!verifiedOtpRecord && !dto.token) {
+      throw new BadRequestException(
+        'OTP verification required. Please request and verify a FORGOT_PASSWORD OTP before resetting your password.',
+      );
+    }
+
+    let user = await this.authRepository.findUserByIdentifier(targetIdentifier);
+
+    if (!user && email && mobile) {
       user = await this.authRepository.findUserByEmailAndMobile(email, mobile);
-
-      if (!user) {
-        const userByEmail = await this.authRepository.findUserByIdentifier(email);
-        const userByMobile = await this.authRepository.findUserByIdentifier(mobile);
-
-        if (userByEmail || userByMobile) {
-          throw new BadRequestException('The provided email and mobile number do not belong to the same user account.');
-        } else {
-          throw new NotFoundException('User matching both the provided email and mobile number was not found.');
-        }
-      }
-    } else if (email) {
-      user = await this.authRepository.findUserByIdentifier(email);
-    } else if (mobile) {
-      user = await this.authRepository.findUserByIdentifier(mobile);
-    } else {
-      throw new BadRequestException('Email or mobile number is required to reset password.');
     }
 
     if (!user) {
@@ -1080,11 +1099,17 @@ export class AuthService {
     }
 
     // 3. FORGOT_PASSWORD & Default Verification Response
+    const resetToken = this.jwtService.sign(
+      { identifier: rawIdentifier, purpose: 'RESET_PASSWORD' },
+      { expiresIn: '15m' },
+    );
+
     return {
       success: true,
       message: 'OTP verified successfully.',
       data: {
         verified: true,
+        resetToken,
       },
     };
   }
