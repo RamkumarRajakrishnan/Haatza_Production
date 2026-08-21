@@ -239,6 +239,7 @@ model PricingPlan {
   status        String               @default("ACTIVE") @db.VarChar(20)
   createdAt     DateTime             @default(now()) @map("created_at")
   subscriptions SellerSubscription[]
+  coupons       SubscriptionCoupon[]
 
   @@index([status])
   @@map("pricing_plans")
@@ -312,11 +313,12 @@ model SubscriptionCoupon {
   startDate         DateTime  @map("start_date")
   endDate           DateTime  @map("end_date")
   usageLimit        Int?      @map("usage_limit")
-  usageCount        Int       @default(0) @map("usage_count")
-  status            String    @default("ACTIVE") @db.VarChar(20)
-  applicablePlanId  String?   @map("applicable_plan_id") @db.VarChar(36)
-  description       String?   @db.Text
-  createdAt         DateTime  @default(now()) @map("created_at")
+  usageCount        Int          @default(0) @map("usage_count")
+  status            String       @default("ACTIVE") @db.VarChar(20)
+  applicablePlanId  String?      @map("applicable_plan_id") @db.VarChar(36)
+  applicablePlan    PricingPlan? @relation(fields: [applicablePlanId], references: [id])
+  description       String?      @db.Text
+  createdAt         DateTime     @default(now()) @map("created_at")
 
   @@index([code])
   @@index([status])

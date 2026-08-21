@@ -144,8 +144,15 @@ export class WalletService {
       });
 
       const startedDate = new Date();
-      const endedDate = new Date();
-      endedDate.setDate(endedDate.getDate() + 30);
+      const endedDate = new Date(startedDate);
+      const unit = (plan.periodUnit || 'MONTH').toUpperCase();
+      if (unit === 'YEAR' || unit === 'ANNUAL') {
+        endedDate.setFullYear(endedDate.getFullYear() + 1);
+      } else if (unit === 'WEEK') {
+        endedDate.setDate(endedDate.getDate() + 7);
+      } else {
+        endedDate.setDate(endedDate.getDate() + 30);
+      }
 
       // Create subscription
       const subscription = await tx.sellerSubscription.create({
@@ -188,8 +195,16 @@ export class WalletService {
         },
       });
 
-      // Update coupon usage count if used
+      // Update coupon usage count if used after verifying limit atomically inside transaction
       if (appliedCouponCode) {
+        const dbCoupon = await tx.subscriptionCoupon.findUnique({
+          where: { code: appliedCouponCode },
+        });
+
+        if (dbCoupon && dbCoupon.usageLimit !== null && dbCoupon.usageCount >= dbCoupon.usageLimit) {
+          throw new BadRequestException('Coupon usage limit reached under concurrent processing.');
+        }
+
         await tx.subscriptionCoupon.update({
           where: { code: appliedCouponCode },
           data: { usageCount: { increment: 1 } },

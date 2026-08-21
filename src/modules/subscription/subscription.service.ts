@@ -23,7 +23,7 @@ export class SubscriptionService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly razorpayService: RazorpayIntegrationService,
-  ) {}
+  ) { }
 
   /**
    * 1. GET /_functions/getPlans
@@ -287,6 +287,19 @@ export class SubscriptionService {
     };
   }
 
+  private calculateEndDate(startedDate: Date, periodUnit?: string): Date {
+    const endedDate = new Date(startedDate);
+    const unit = (periodUnit || 'MONTH').toUpperCase();
+    if (unit === 'YEAR' || unit === 'ANNUAL') {
+      endedDate.setFullYear(endedDate.getFullYear() + 1);
+    } else if (unit === 'WEEK') {
+      endedDate.setDate(endedDate.getDate() + 7);
+    } else {
+      endedDate.setDate(endedDate.getDate() + 30);
+    }
+    return endedDate;
+  }
+
   /**
    * 6. POST /api/v1/processSubscriptionOrder
    * Idempotently process payment verification -> subscription -> invoice.
@@ -349,8 +362,7 @@ export class SubscriptionService {
     const gstin = user?.gstin || null;
 
     const startedDate = new Date();
-    const endedDate = new Date();
-    endedDate.setDate(endedDate.getDate() + 30); // Default 30 days subscription
+    const endedDate = this.calculateEndDate(startedDate, plan.periodUnit);
 
     const subTotal = Number(plan.price);
     const cgst = Math.round(subTotal * 0.09 * 100) / 100;
@@ -473,14 +485,22 @@ export class SubscriptionService {
     let commissionRate = '5%';
     let prioritySupport = false;
 
-    if (subscription.planName.toLowerCase().includes('pro')) {
+    const planNameLower = (subscription.planName || '').toLowerCase();
+    const planId = subscription.planId;
+
+    if (planId === 'plan_pro_123' || planNameLower.includes('pro')) {
       maxListings = 999999;
       commissionRate = '0%';
       prioritySupport = true;
-    } else if (subscription.planName.toLowerCase().includes('growth')) {
+    } else if (planId === 'plan_growth_123' || planNameLower.includes('growth')) {
       maxListings = 50;
       commissionRate = '5%';
       prioritySupport = false;
+    } else if (subscription.plan && subscription.plan.benefits) {
+      const bStr = JSON.stringify(subscription.plan.benefits).toLowerCase();
+      if (bStr.includes('unlimited')) maxListings = 999999;
+      if (bStr.includes('0%')) commissionRate = '0%';
+      if (bStr.includes('priority')) prioritySupport = true;
     }
 
     return {
