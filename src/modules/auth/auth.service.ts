@@ -851,8 +851,12 @@ export class AuthService {
       success: true,
       statusCode: 200,
       message: 'Password reset successfully. You can now login with your new password.',
-      data: null,
-      error: null,
+      data: {
+        userId: user.id,
+        mobile: user.mobile,
+        email: user.email || '',
+        reset: true,
+      },
     };
   }
 
