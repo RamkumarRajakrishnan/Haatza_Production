@@ -413,7 +413,7 @@ export class SubscriptionService {
 
   /**
    * 7. GET /api/v1/seller/plan-usage
-   * Returns current active plan usage & quota limits.
+   * Returns current active plan usage & quota limits safely without crashing on missing products table.
    */
   async getPlanUsage(sellerId: string) {
     const user = await this.databaseService.user.findFirst({
@@ -421,17 +421,34 @@ export class SubscriptionService {
     });
 
     const effectiveSellerId = user?.sellerId || sellerId;
+    const sellerEmail = user?.email || null;
 
+    // Search subscription by sellerId or email
     const subscription = await this.databaseService.sellerSubscription.findFirst({
-      where: { sellerId: effectiveSellerId, status: 'ACTIVE' },
+      where: {
+        OR: [
+          { sellerId: effectiveSellerId },
+          { sellerId },
+          ...(sellerEmail ? [{ email: { equals: sellerEmail, mode: 'insensitive' as const } }] : []),
+        ],
+        status: 'ACTIVE',
+      },
       orderBy: { createdAt: 'desc' },
       include: { plan: true },
     });
 
-    // Derive listings count from products database
-    const currentListings = await this.databaseService.product.count({
-      where: { sellerId: effectiveSellerId },
-    });
+    // Safely derive listings count from products table
+    let currentListings = 0;
+    try {
+      currentListings = await this.databaseService.product.count({
+        where: {
+          OR: [{ sellerId: effectiveSellerId }, { sellerId }],
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Could not count seller products: ${err.message}`);
+      currentListings = 0;
+    }
 
     if (!subscription) {
       return {
@@ -488,6 +505,7 @@ export class SubscriptionService {
       where: { OR: [{ sellerId }, { id: sellerId }] },
     });
     const effectiveSellerId = user?.sellerId || sellerId;
+    const sellerEmail = user?.email || null;
 
     const subscription = await this.databaseService.sellerSubscription.findUnique({
       where: { id: dto.subscriptionId },
@@ -497,7 +515,14 @@ export class SubscriptionService {
       throw new NotFoundException('Subscription record not found.');
     }
 
-    if (subscription.sellerId !== effectiveSellerId) {
+    // Flexible ownership check
+    const isOwner =
+      subscription.sellerId === effectiveSellerId ||
+      subscription.sellerId === sellerId ||
+      subscription.sellerId === user?.id ||
+      (sellerEmail && subscription.email.toLowerCase() === sellerEmail.toLowerCase());
+
+    if (!isOwner) {
       throw new ForbiddenException('You are not authorized to cancel this subscription.');
     }
 
@@ -530,10 +555,15 @@ export class SubscriptionService {
    * Generates and downloads invoice details.
    */
   async downloadInvoice(sellerId: string, invoiceId: string) {
+    if (!invoiceId || invoiceId === ':invoiceId') {
+      throw new BadRequestException('Please provide a valid invoice ID in the URL path (e.g. /sellerInvoice/inv_123/download).');
+    }
+
     const user = await this.databaseService.user.findFirst({
       where: { OR: [{ sellerId }, { id: sellerId }] },
     });
     const effectiveSellerId = user?.sellerId || sellerId;
+    const sellerEmail = user?.email || null;
 
     const invoice = await this.databaseService.sellerSubscriptionInvoice.findUnique({
       where: { id: invoiceId },
@@ -543,7 +573,13 @@ export class SubscriptionService {
       throw new NotFoundException('Invoice not found.');
     }
 
-    if (invoice.sellerId !== effectiveSellerId) {
+    // Flexible ownership check
+    const isOwner =
+      invoice.sellerId === effectiveSellerId ||
+      invoice.sellerId === sellerId ||
+      invoice.sellerId === user?.id;
+
+    if (!isOwner) {
       throw new ForbiddenException('Access denied. Invoice belongs to another seller.');
     }
 
