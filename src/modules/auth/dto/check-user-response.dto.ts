@@ -34,8 +34,11 @@ export class CheckUserDataDto {
   @ApiProperty({ description: 'Whether user phone has been verified' })
   phoneVerified: boolean;
 
-  @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER'] })
+  @ApiProperty({ description: 'Recommended next action for client', enum: ['LOGIN', 'REGISTER', 'VERIFY_OTP', 'LOGIN_PASSWORD'] })
   nextStep: NextStep | string;
+
+  @ApiProperty({ description: 'Authentication method (OTP vs PASSWORD)', required: false })
+  authMethod?: string;
 }
 
 export class CheckUserResponseDto {

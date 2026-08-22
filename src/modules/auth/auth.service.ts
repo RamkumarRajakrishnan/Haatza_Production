@@ -173,6 +173,9 @@ export class AuthService {
     const isActive = user.status === 'ACTIVE';
     const emailVerified = !!user.emailVerifiedAt;
     const phoneVerified = !!user.phoneVerifiedAt;
+    const isPhone = identifierType === 'PHONE';
+    const authMethod = isPhone ? 'OTP' : 'PASSWORD';
+    const nextStep = isPhone ? 'VERIFY_OTP' : 'LOGIN_PASSWORD';
 
     return {
       success: true,
@@ -182,6 +185,7 @@ export class AuthService {
         exists: true,
         userId: user.id,
         identifierType,
+        authMethod,
         userType: user.isEmployee ? 'EMPLOYEE' : (user.isSeller ? 'SELLER' : 'BUYER'),
         isBuyer: user.isBuyer,
         isSeller: user.isSeller,
@@ -189,7 +193,7 @@ export class AuthService {
         isActive,
         emailVerified,
         phoneVerified,
-        nextStep: 'LOGIN',
+        nextStep,
       },
       error: null,
     };
