@@ -33,6 +33,18 @@ import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
+  // Temporary in-memory store for pending registrations (cleared after OTP verification)
+  private readonly pendingRegistrations = new Map<string, {
+    mobile: string;
+    email: string;
+    password: string;
+    role?: UserRole;
+    buyer?: boolean;
+    employee?: boolean;
+    isEmployee?: boolean;
+    expiresAt: Date;
+  }>();
+
   constructor(
     private readonly database: DatabaseService,
     private readonly jwtService: JwtService,
@@ -227,86 +239,40 @@ export class AuthService {
       throw new ConflictException('User with these credentials already exists');
     }
 
-    const isEmployeeBool =
-      (data as any).employee === true ||
-      (data as any).employee === 'true' ||
-      (data as any).isEmployee === true ||
-      (data as any).isEmployee === 'true' ||
-      data.role === UserRole.EMPLOYEE;
-
-    const isBuyerBool =
-      (data.buyer === true || (data.buyer as any) === 'true' || data.role === UserRole.BUYER) &&
-      !isEmployeeBool;
-
-    const userRole = data.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
-
-    const roleRecord = await this.database.role.findFirst({
-      where: {
-        OR: [{ name: userRole }, { code: userRole.toLowerCase() }],
-      },
+    // Store registration data temporarily — user is created only after OTP verification
+    this.pendingRegistrations.set(data.mobile, {
+      mobile: data.mobile,
+      email: trimmedEmail,
+      password: data.password,
+      role: data.role,
+      buyer: data.buyer,
+      employee: (data as any).employee,
+      isEmployee: (data as any).isEmployee,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // expires in 15 minutes
     });
 
-    const isSellerBool =
-      (userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF) &&
-      !isEmployeeBool;
-
-    const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
-
-    let user;
-    try {
-      user = await this.database.user.create({
-        data: {
-          name: '',
-          mobile: data.mobile,
-          email: trimmedEmail,
-          password: data.password,
-          role: userRole,
-          isBuyer: isBuyerBool,
-          isSeller: isSellerBool,
-          isEmployee: finalIsEmployeeBool,
-          roleId: roleRecord ? roleRecord.id : null,
-        },
-      });
-    } catch (err: any) {
-      if (err?.code === 'P2002') {
-        const target = Array.isArray(err?.meta?.target)
-          ? err.meta.target.join(' ')
-          : String(err?.meta?.target || '');
-        if (target.includes('email')) {
-          throw new ConflictException('Email address already registered');
-        }
-        if (target.includes('mobile') || target.includes('phone')) {
-          throw new ConflictException('Mobile number already registered');
-        }
-        throw new ConflictException('User with these credentials already exists');
-      }
-      throw err;
-    }
-
-    // mobile is always required — always send OTP to mobile for registration verification
+    // Send OTP to mobile for verification
     let otpData: any = null;
     try {
       const otpResult = await this.generateOtp({
-        identifier: user.mobile,
+        identifier: data.mobile,
         purpose: OtpPurpose.REGISTRATION,
         channel: OtpChannel.SMS,
       });
       otpData = otpResult.data;
     } catch (otpErr: any) {
-      this.logger.warn(`Failed to auto-generate registration OTP for user ${user.id}: ${otpErr?.message}`);
+      this.pendingRegistrations.delete(data.mobile);
+      this.logger.warn(`Failed to generate registration OTP for ${data.mobile}: ${otpErr?.message}`);
+      throw new BadRequestException('Failed to send OTP. Please try again.');
     }
 
     return {
       success: true,
-      statusCode: 201,
-      message: 'Registration successful. OTP sent to your mobile number for verification.',
+      statusCode: 200,
+      message: 'OTP sent to your mobile number. Please verify to complete registration.',
       data: {
-        userId: user.id,
-        mobile: user.mobile,
-        email: user.email || '',
-        buyer: isBuyerBool,
-        seller: isSellerBool,
-        employee: finalIsEmployeeBool,
+        mobile: data.mobile,
+        email: trimmedEmail,
         otp: otpData,
         nextStep: 'VERIFY_OTP',
       },
@@ -1083,12 +1049,98 @@ export class AuthService {
       },
     });
 
-    // If OTP purpose is REGISTRATION, update user verification timestamp
-    if (user && targetPurpose === OtpPurpose.REGISTRATION) {
-      const isEmail = rawIdentifier.includes('@');
+    // If OTP purpose is REGISTRATION, create the user from pending registration data
+    if (targetPurpose === OtpPurpose.REGISTRATION) {
+      const pending = this.pendingRegistrations.get(normalizedIdentifier)
+        || this.pendingRegistrations.get(rawIdentifier);
+
+      if (!pending) {
+        throw new BadRequestException('Registration session expired or not found. Please register again.');
+      }
+
+      if (new Date() > pending.expiresAt) {
+        this.pendingRegistrations.delete(normalizedIdentifier);
+        throw new BadRequestException('Registration session expired. Please register again.');
+      }
+
+      const isEmployeeBool =
+        pending.employee === true ||
+        (pending.employee as any) === 'true' ||
+        pending.isEmployee === true ||
+        (pending.isEmployee as any) === 'true' ||
+        pending.role === UserRole.EMPLOYEE;
+
+      const isBuyerBool =
+        (pending.buyer === true || (pending.buyer as any) === 'true' || pending.role === UserRole.BUYER) &&
+        !isEmployeeBool;
+
+      const userRole = pending.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
+
+      const roleRecord = await this.database.role.findFirst({
+        where: { OR: [{ name: userRole }, { code: userRole.toLowerCase() }] },
+      });
+
+      const isSellerBool =
+        (userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF) &&
+        !isEmployeeBool;
+
+      const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
+
+      let createdUser: any;
+      try {
+        createdUser = await this.database.user.create({
+          data: {
+            name: '',
+            mobile: pending.mobile,
+            email: pending.email,
+            password: pending.password,
+            role: userRole,
+            isBuyer: isBuyerBool,
+            isSeller: isSellerBool,
+            isEmployee: finalIsEmployeeBool,
+            roleId: roleRecord ? roleRecord.id : null,
+            phoneVerifiedAt: new Date(), // mark phone as verified immediately
+          },
+        });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          const target = Array.isArray(err?.meta?.target)
+            ? err.meta.target.join(' ')
+            : String(err?.meta?.target || '');
+          if (target.includes('email')) throw new ConflictException('Email address already registered');
+          if (target.includes('mobile') || target.includes('phone')) throw new ConflictException('Mobile number already registered');
+          throw new ConflictException('User with these credentials already exists');
+        }
+        throw err;
+      }
+
+      // Clear pending registration data
+      this.pendingRegistrations.delete(normalizedIdentifier);
+      this.pendingRegistrations.delete(rawIdentifier);
+
+      return {
+        success: true,
+        statusCode: 201,
+        message: 'Registration successful.',
+        data: {
+          userId: createdUser.id,
+          mobile: createdUser.mobile,
+          email: createdUser.email || '',
+          buyer: isBuyerBool,
+          seller: isSellerBool,
+          employee: finalIsEmployeeBool,
+          nextStep: 'LOGIN',
+        },
+        error: null,
+      };
+    }
+
+    // If OTP purpose is LOGIN or other, update user verification timestamp
+    if (user) {
+      const isEmailId = rawIdentifier.includes('@');
       await this.database.user.update({
         where: { id: user.id },
-        data: isEmail ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() },
+        data: isEmailId ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() },
       }).catch(err => this.logger.warn(`Failed to update verification timestamp: ${err.message}`));
     }
 
@@ -1096,7 +1148,7 @@ export class AuthService {
     let refreshToken = '';
     let expiresInSeconds = 0;
 
-    if (targetPurpose === OtpPurpose.LOGIN || targetPurpose === OtpPurpose.REGISTRATION) {
+    if (targetPurpose === OtpPurpose.LOGIN) {
       if (!user) {
         throw new BadRequestException('User not found for this identifier. Please register first.');
       }
@@ -1153,9 +1205,7 @@ export class AuthService {
     }
 
     let message = 'OTP verified successfully.';
-    if (targetPurpose === OtpPurpose.REGISTRATION) {
-      message = 'Registration successful.';
-    } else if (targetPurpose === OtpPurpose.LOGIN) {
+    if (targetPurpose === OtpPurpose.LOGIN) {
       message = 'Login successful.';
     }
 
