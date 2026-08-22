@@ -12,17 +12,13 @@ import { UserRole } from '@prisma/client';
 
 export class RegisterDto {
   @IsString()
-  name: string;
-
-  @IsString()
   @Matches(/^[6-9]\d{9}$/, {
     message: 'mobile must be a valid 10-digit phone number starting with 6-9',
   })
   mobile: string;
 
-  @IsOptional()
   @IsEmail({}, { message: 'email must be a valid email address' })
-  email?: string;
+  email: string;
 
   @IsString()
   @MinLength(6)

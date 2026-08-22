@@ -175,7 +175,7 @@ export class AuthService {
     const phoneVerified = !!user.phoneVerifiedAt;
     const isPhone = identifierType === 'PHONE';
     const authMethod = isPhone ? 'OTP' : 'PASSWORD';
-    const nextStep = isPhone ? 'VERIFY_OTP' : 'LOGIN_PASSWORD';
+    const nextStep = isPhone ? 'VERIFY_OTP' : 'LOGIN';
 
     return {
       success: true,
@@ -206,15 +206,14 @@ export class AuthService {
   }
 
   async register(data: RegisterDto) {
-    const trimmedEmail = data.email?.trim().toLowerCase();
-    const whereConditions: any[] = [{ mobile: data.mobile }];
-    if (trimmedEmail) {
-      whereConditions.push({ email: { equals: trimmedEmail, mode: 'insensitive' } });
-    }
-
+    // email is now required — always deduplicate on both mobile and email
+    const trimmedEmail = data.email.trim().toLowerCase();
     const existingUser = await this.database.user.findFirst({
       where: {
-        OR: whereConditions,
+        OR: [
+          { mobile: data.mobile },
+          { email: { equals: trimmedEmail, mode: 'insensitive' } },
+        ],
       },
     });
 
@@ -222,7 +221,7 @@ export class AuthService {
       if (existingUser.mobile === data.mobile) {
         throw new ConflictException('Mobile number already registered');
       }
-      if (trimmedEmail && existingUser.email?.toLowerCase() === trimmedEmail) {
+      if (existingUser.email?.toLowerCase() === trimmedEmail) {
         throw new ConflictException('Email address already registered');
       }
       throw new ConflictException('User with these credentials already exists');
@@ -257,9 +256,8 @@ export class AuthService {
     try {
       user = await this.database.user.create({
         data: {
-          name: data.name,
           mobile: data.mobile,
-          email: data.email,
+          email: trimmedEmail,
           password: data.password,
           role: userRole,
           isBuyer: isBuyerBool,
@@ -284,18 +282,32 @@ export class AuthService {
       throw err;
     }
 
+    // mobile is always required — always send OTP to mobile for registration verification
+    let otpData: any = null;
+    try {
+      const otpResult = await this.generateOtp({
+        identifier: user.mobile,
+        purpose: OtpPurpose.REGISTRATION,
+        channel: OtpChannel.SMS,
+      });
+      otpData = otpResult.data;
+    } catch (otpErr: any) {
+      this.logger.warn(`Failed to auto-generate registration OTP for user ${user.id}: ${otpErr?.message}`);
+    }
+
     return {
       success: true,
       statusCode: 201,
-      message: 'Registration successful.',
+      message: 'Registration successful. OTP sent to your mobile number for verification.',
       data: {
         userId: user.id,
-        name: user.name,
         mobile: user.mobile,
         email: user.email || '',
         buyer: isBuyerBool,
         seller: isSellerBool,
         employee: finalIsEmployeeBool,
+        otp: otpData,
+        nextStep: 'VERIFY_OTP',
       },
       error: null,
     };
@@ -1070,11 +1082,20 @@ export class AuthService {
       },
     });
 
+    // If OTP purpose is REGISTRATION, update user verification timestamp
+    if (user && targetPurpose === OtpPurpose.REGISTRATION) {
+      const isEmail = rawIdentifier.includes('@');
+      await this.database.user.update({
+        where: { id: user.id },
+        data: isEmail ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() },
+      }).catch(err => this.logger.warn(`Failed to update verification timestamp: ${err.message}`));
+    }
+
     let accessToken = '';
     let refreshToken = '';
     let expiresInSeconds = 0;
 
-    if (targetPurpose === OtpPurpose.LOGIN) {
+    if (targetPurpose === OtpPurpose.LOGIN || targetPurpose === OtpPurpose.REGISTRATION) {
       if (!user) {
         throw new BadRequestException('User not found for this identifier. Please register first.');
       }
