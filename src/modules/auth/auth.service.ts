@@ -1224,11 +1224,8 @@ export class AuthService {
           status: user?.status || 'ACTIVE',
           role: user?.role || 'SELLER',
           isEmployee: user?.isEmployee ?? false,
-          is_employee: user?.isEmployee ?? false,
           isBuyer: user?.isBuyer ?? false,
-          is_buyer: user?.isBuyer ?? false,
           isSeller: user?.isSeller ?? true,
-          is_seller: user?.isSeller ?? true,
         },
       },
     };
