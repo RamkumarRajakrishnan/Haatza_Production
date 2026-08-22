@@ -744,7 +744,8 @@ export class DatabaseService
           image text,
           status text NOT NULL DEFAULT 'ACTIVE',
           expire_date timestamp,
-          appbar_color text,
+          primary_appbar_color text,
+          secondary_appbar_color text,
           appbar_image text,
           category_text_color text,
           appbarbackground boolean DEFAULT false,
@@ -753,6 +754,22 @@ export class DatabaseService
           updated_date timestamp DEFAULT now(),
           owner text
         );
+
+        -- Safe rename column & add new column if table already exists
+        DO $$ 
+        BEGIN
+          IF EXISTS (
+            SELECT 1 
+            FROM information_schema.columns 
+            WHERE table_schema = 'public' 
+              AND table_name = 'appbar_categories' 
+              AND column_name = 'appbar_color'
+          ) THEN
+            ALTER TABLE public.appbar_categories RENAME COLUMN appbar_color TO primary_appbar_color;
+          END IF;
+        END $$;
+
+        ALTER TABLE public.appbar_categories ADD COLUMN IF NOT EXISTS secondary_appbar_color text;
 
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_module_status ON public.appbar_categories(module, status);
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_wh_mod_stat ON public.appbar_categories(warehouse_id, module, status);

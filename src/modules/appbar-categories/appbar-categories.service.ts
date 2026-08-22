@@ -83,10 +83,12 @@ export class AppbarCategoriesService {
            category_id AS "categoryId",
            category_name AS "categoryName",
            image,
-           appbar_color AS "appbarColor",
+           primary_appbar_color AS "primaryAppbarColor",
+           secondary_appbar_color AS "secondaryAppbarColor",
            appbar_image AS "appbarImage",
            category_text_color AS "categoryTextColor",
            appbarbackground,
+           expire_date AS "expireDate",
            COALESCE(warehouse_id, 'WH00001') AS "warehouseId"
          FROM public.appbar_categories
          WHERE LOWER(TRIM(module)) = 'haatza'
@@ -99,12 +101,14 @@ export class AppbarCategoriesService {
         categoryId: cat.categoryId,
         categoryName: cat.categoryName,
         image: cat.image || '',
-        appbarColor: cat.appbarColor || '',
+        primaryAppbarColor: cat.primaryAppbarColor || '',
+        secondaryAppbarColor: cat.secondaryAppbarColor || '',
         appbarImage: cat.appbarImage || '',
         categoryTextColor: cat.categoryTextColor || '',
         appbarbackground: Boolean(cat.appbarbackground),
         warehouseId: cat.warehouseId || '',
         nearestWarehouseDistanceKm: 0,
+        expireDate: cat.expireDate || null,
       }));
 
       return {
@@ -236,10 +240,12 @@ export class AppbarCategoriesService {
          category_id AS "categoryId",
          category_name AS "categoryName",
          image,
-         appbar_color AS "appbarColor",
+         primary_appbar_color AS "primaryAppbarColor",
+         secondary_appbar_color AS "secondaryAppbarColor",
          appbar_image AS "appbarImage",
          category_text_color AS "categoryTextColor",
          appbarbackground,
+         expire_date AS "expireDate",
          warehouse_id AS "warehouseId"
        FROM public.appbar_categories
        WHERE LOWER(TRIM(module)) = 'lite'
@@ -266,12 +272,14 @@ export class AppbarCategoriesService {
       categoryId: cat.categoryId,
       categoryName: cat.categoryName,
       image: cat.image || '',
-      appbarColor: cat.appbarColor || '',
+      primaryAppbarColor: cat.primaryAppbarColor || '',
+      secondaryAppbarColor: cat.secondaryAppbarColor || '',
       appbarImage: cat.appbarImage || '',
       categoryTextColor: cat.categoryTextColor || '',
       appbarbackground: Boolean(cat.appbarbackground),
       warehouseId: nearestWh.warehouseId,
       nearestWarehouseDistanceKm: nearestWh.distance,
+      expireDate: cat.expireDate || null,
     }));
 
     return {
