@@ -256,6 +256,7 @@ export class AuthService {
     try {
       user = await this.database.user.create({
         data: {
+          name: '',
           mobile: data.mobile,
           email: trimmedEmail,
           password: data.password,
