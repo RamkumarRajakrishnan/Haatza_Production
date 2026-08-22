@@ -782,11 +782,9 @@ export class AuthService {
     // 2. Validate OTP Verification
     let isOtpValid = false;
 
-    // Check A: Direct OTP passed in reset-password body (supports test master OTP 123456/666666)
+    // Check A: Direct OTP passed in reset-password body
     const inputOtp = String(dto.otp || (dto as any).otpCode || '').trim();
-    if (inputOtp === '123456' || inputOtp === '666666') {
-      isOtpValid = true;
-    } else if (inputOtp) {
+    if (inputOtp) {
       const userIdsToMatch: string[] = [targetIdentifier, cleanedPhone, user.mobile, user.email].filter(
         (id): id is string => typeof id === 'string' && id.trim().length > 0,
       );
@@ -1050,10 +1048,9 @@ export class AuthService {
       throw new BadRequestException('OTP has expired');
     }
 
-    const isMasterOtp = targetOtp === '123456' || targetOtp === '666666';
     const isValidOtp = String(otpRecord.otpHash).trim() === targetOtp;
 
-    if (!isMasterOtp && !isValidOtp) {
+    if (!isValidOtp) {
       throw new BadRequestException('Invalid OTP code');
     }
 
