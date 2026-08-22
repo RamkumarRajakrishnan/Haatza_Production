@@ -69,6 +69,16 @@ export class CheckUserDto {
     enum: Platform,
   })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toUpperCase();
+      if (normalized === 'BUYER') return Platform.BUYER;
+      if (normalized === 'SELLER') return Platform.SELLER;
+      if (normalized === 'EMPLOYEE') return Platform.EMPLOYEE;
+      return normalized as Platform;
+    }
+    return value;
+  })
   @IsEnum(Platform, { message: 'Platform must be BUYER, SELLER, or EMPLOYEE.' })
   platform?: Platform;
 }

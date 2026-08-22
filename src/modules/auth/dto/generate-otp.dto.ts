@@ -65,6 +65,16 @@ export class GenerateOtpDto {
   purpose?: OtpPurpose = OtpPurpose.LOGIN;
 
   @ApiPropertyOptional({ enum: OtpChannel, default: OtpChannel.SMS })
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      const normalized = value.trim().toUpperCase();
+      if (normalized === 'SMS') return OtpChannel.SMS;
+      if (normalized === 'EMAIL') return OtpChannel.EMAIL;
+      if (normalized === 'WHATSAPP') return OtpChannel.WHATSAPP;
+      return normalized as OtpChannel;
+    }
+    return value;
+  })
   @IsEnum(OtpChannel)
   @IsOptional()
   channel?: OtpChannel = OtpChannel.SMS;
