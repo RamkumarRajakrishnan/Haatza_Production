@@ -10,6 +10,7 @@ import {
   UpdateCategoryDto,
   UpdateCategoryStatusDto,
   QueryCategoryDto,
+  UpdateCategorySequenceDto,
 } from './dto/category-master.dto';
 import {
   CategoryType,
@@ -538,6 +539,40 @@ export class CategoryService {
       status: 'success',
       message: `Category '${existing.categoryId}' permanently deleted.`,
       data: { id: existing.id, categoryId: existing.categoryId },
+    };
+  }
+
+  /**
+   * Update category sequence order.
+   */
+  async updateCategorySequence(idOrCategoryId: string, dto: UpdateCategorySequenceDto) {
+    const targetId = (dto.categoryId || idOrCategoryId)?.trim();
+    if (!targetId) {
+      throw new BadRequestException('Category identifier is required.');
+    }
+
+    const existing = await this.db.categoryMaster.findFirst({
+      where: {
+        OR: [{ categoryId: targetId }, { id: targetId }],
+      },
+    });
+
+    if (!existing) {
+      throw new NotFoundException(`Category '${targetId}' not found.`);
+    }
+
+    const updated = await this.db.categoryMaster.update({
+      where: { id: existing.id },
+      data: {
+        sequence: dto.sequence,
+        updatedBy: dto.updatedBy || null,
+      },
+    });
+
+    return {
+      status: 'success',
+      message: `Category sequence updated to ${updated.sequence} successfully`,
+      data: this.formatCategoryOutput(updated),
     };
   }
 

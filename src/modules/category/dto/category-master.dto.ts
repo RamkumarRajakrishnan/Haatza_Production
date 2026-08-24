@@ -239,3 +239,30 @@ export class GetChildCategoriesDto {
   )
   module?: CategoryModule;
 }
+
+export class UpdateCategorySequenceDto {
+  @ApiPropertyOptional({
+    description: 'Category ID (optional if passed in URL parameter)',
+    example: 'CAT_002',
+  })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
+
+  @ApiProperty({
+    description: 'Target Sequence Order number',
+    example: 2,
+  })
+  @IsNotEmpty({ message: 'sequence is required.' })
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  sequence: number;
+
+  @ApiPropertyOptional({
+    description: 'Updater User Reference',
+  })
+  @IsOptional()
+  @IsString()
+  updatedBy?: string;
+}

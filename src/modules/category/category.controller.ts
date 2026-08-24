@@ -4,6 +4,7 @@ import {
   Post,
   Put,
   Delete,
+  Patch,
   Body,
   Query,
   Param,
@@ -18,6 +19,7 @@ import {
   UpdateCategoryStatusDto,
   QueryCategoryDto,
   GetChildCategoriesDto,
+  UpdateCategorySequenceDto,
 } from './dto/category-master.dto';
 import { CategoryModule } from '@prisma/client';
 
@@ -92,9 +94,10 @@ export class CategoryController {
 
   @Put(['update_category_status', 'updateCategoryStatus'])
   @Post(['update_category_status', 'updateCategoryStatus'])
+  @Patch(['patch_categoryStatus', 'categoryStatus', 'status'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Activate / Deactivate Category (PUT /update_category_status)',
+    summary: 'Activate / Deactivate Category (PUT / PATCH /update_category_status)',
     description: 'Toggles status between ACTIVE and INACTIVE. Checks product/dashboard/order dependencies when deactivating.',
   })
   async updateCategoryStatus(
@@ -103,6 +106,20 @@ export class CategoryController {
   ) {
     const targetId = dto.categoryId || queryCategoryId;
     return this.categoryService.updateCategoryStatus(targetId, dto);
+  }
+
+  @Patch(['patch_categorySequence', 'categorySequence', 'sequence'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Update Category Sequence (PATCH /patch_categorySequence)',
+    description: 'Updates sequence order number for category display sequence.',
+  })
+  async updateCategorySequence(
+    @Query('category_id') queryCategoryId: string,
+    @Body() dto: UpdateCategorySequenceDto,
+  ) {
+    const targetId = dto.categoryId || queryCategoryId;
+    return this.categoryService.updateCategorySequence(targetId, dto);
   }
 
   @Get(['get_category_hierarchy', 'getCategoryHierarchy', 'hierarchy'])
