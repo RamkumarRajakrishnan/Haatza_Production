@@ -579,7 +579,6 @@ export class DatabaseService
           created_at timestamp DEFAULT now()
         );
 
-        CREATE INDEX IF NOT EXISTS idx_pricing_plans_status ON public.pricing_plans(status);
         CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_seller_id ON public.seller_subscriptions(seller_id);
         CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_plan_id ON public.seller_subscriptions(plan_id);
         CREATE INDEX IF NOT EXISTS idx_seller_subscriptions_status ON public.seller_subscriptions(status);
@@ -650,15 +649,6 @@ export class DatabaseService
         CREATE INDEX IF NOT EXISTS idx_seller_wallets_seller_id ON public.seller_wallets(seller_id);
         CREATE INDEX IF NOT EXISTS idx_seller_referrals_seller_id ON public.seller_referrals(seller_id);
 
-        -- Seed initial plans if pricing_plans is empty
-        INSERT INTO public.pricing_plans (id, name, price, period_unit, ribbon, benefits, status)
-        SELECT 'plan_pro_123', 'Pro', 499.00, 'MONTH', 'Recommended', '["0% Commission", "Priority Support", "Unlimited Listings"]'::jsonb, 'ACTIVE'
-        WHERE NOT EXISTS (SELECT 1 FROM public.pricing_plans WHERE id = 'plan_pro_123');
-
-        INSERT INTO public.pricing_plans (id, name, price, period_unit, ribbon, benefits, status)
-        SELECT 'plan_growth_123', 'Growth', 299.00, 'MONTH', 'Popular', '["5% Commission", "Standard Support", "Up to 50 Listings"]'::jsonb, 'ACTIVE'
-        WHERE NOT EXISTS (SELECT 1 FROM public.pricing_plans WHERE id = 'plan_growth_123');
-
         -- Seed sample coupons
         INSERT INTO public.subscription_coupons (id, code, discount_type, discount_value, min_order_amount, start_date, end_date, description, status)
         SELECT 'coupon_001', 'GROW50', 'PERCENTAGE', 50.00, 100.00, NOW() - INTERVAL '1 day', NOW() + INTERVAL '1 year', '50% off on Growth Plan', 'ACTIVE'
@@ -676,7 +666,7 @@ export class DatabaseService
 
           UPDATE public.users 
           SET is_seller = true
-          WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF') OR user_id IN (SELECT user_id FROM public.sellers);
+          WHERE email LIKE 'seller%' OR role::text IN ('SELLER', 'SELLER_OWNER', 'SELLER_STAFF');
 
           UPDATE public.users 
           SET is_employee = true

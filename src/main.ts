@@ -92,6 +92,10 @@ async function bootstrap() {
         { path: '/', method: RequestMethod.GET },
         { path: 'health', method: RequestMethod.GET },
         { path: 'uploads/(.*)', method: RequestMethod.ALL },
+        { path: 'grow-plans', method: RequestMethod.ALL },
+        { path: 'grow-plans/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/grow-plans', method: RequestMethod.ALL },
+        { path: 'api/v1/grow-plans/(.*)', method: RequestMethod.ALL },
       ],
     });
 

@@ -99,20 +99,20 @@ export class SubscriptionService {
     }
 
     try {
-      const subscriptions = await this.databaseService.sellerSubscription.findMany({
+      const subscriptions = await this.databaseService.growPlan.findMany({
         where: { email: { equals: email, mode: 'insensitive' } },
         orderBy: { createdAt: 'desc' },
       });
 
       const orders = subscriptions.map((sub) => ({
         TableID: sub.id,
-        planName: sub.planName,
-        planId: sub.planId,
-        status: sub.status,
-        email: sub.email,
-        startedDate: sub.startedDate.toISOString(),
-        endedDate: sub.endedDate.toISOString(),
-        orderId: sub.razorpayOrderId || sub.paymentId || '',
+        planName: sub.planName || '',
+        planId: sub.planId || '',
+        status: sub.status || '',
+        email: sub.email || '',
+        startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
+        endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
+        orderId: sub.razorpayOrderId || sub.paymentId || sub.orderId || '',
       }));
 
       return {
@@ -155,12 +155,12 @@ export class SubscriptionService {
 
       let subscriptionRecord;
       if (subDto.tableId) {
-        const existing = await this.databaseService.sellerSubscription.findUnique({
+        const existing = await this.databaseService.growPlan.findUnique({
           where: { id: subDto.tableId },
         });
 
         if (existing) {
-          subscriptionRecord = await this.databaseService.sellerSubscription.update({
+          subscriptionRecord = await this.databaseService.growPlan.update({
             where: { id: subDto.tableId },
             data: {
               planName: subDto.planName,
@@ -178,7 +178,7 @@ export class SubscriptionService {
       }
 
       if (!subscriptionRecord) {
-        subscriptionRecord = await this.databaseService.sellerSubscription.create({
+        subscriptionRecord = await this.databaseService.growPlan.create({
           data: {
             id: subDto.tableId || undefined,
             sellerId,
@@ -191,35 +191,8 @@ export class SubscriptionService {
             status: subDto.status || 'Active',
             paymentId: subDto.paymentId || null,
             razorpayOrderId: subDto.razorpayOrderId || null,
-          },
-        });
-      }
-
-      let invoiceRecord: any = null;
-      if (invoiceDto) {
-        const walletUsed = invoiceDto.payments?.wallet ?? 0;
-        const upiPaid = invoiceDto.payments?.upi ?? invoiceDto.totalPayable ?? 0;
-
-        invoiceRecord = await this.databaseService.sellerSubscriptionInvoice.create({
-          data: {
-            subscriptionId: subscriptionRecord.id,
-            sellerId: invoiceDto.sellerId || sellerId,
-            invoiceDate: invoiceDto.invoiceDate ? new Date(invoiceDto.invoiceDate) : new Date(),
-            sellerName: invoiceDto.sellerName,
-            address: invoiceDto.address || null,
-            gstin: invoiceDto.gstin || null,
-            itemName: invoiceDto.item,
-            rate: invoiceDto.rate,
-            subtotal: invoiceDto.subtotal,
-            taxableAmount: invoiceDto.amount ?? invoiceDto.subtotal,
-            cgst: invoiceDto.cgst ?? 0,
-            sgst: invoiceDto.sgst ?? 0,
-            walletAmountUsed: walletUsed,
-            upiAmountPaid: upiPaid,
-            totalPayable: invoiceDto.totalPayable,
-            transactionMethod: invoiceDto.transactionMethod || 'UPI',
-            paymentId: subDto.paymentId || null,
-            razorpayOrderId: subDto.razorpayOrderId || null,
+            orderId: subDto.razorpayOrderId || null,
+            manageGrowPlanPageLink: '/order-log/',
           },
         });
       }
@@ -229,7 +202,7 @@ export class SubscriptionService {
         message: 'Subscription created successfully',
         data: {
           subscriptionId: subscriptionRecord.id,
-          invoiceId: invoiceRecord?.id || null,
+          invoiceId: null,
         },
       };
     } catch (error: any) {
@@ -331,24 +304,22 @@ export class SubscriptionService {
     }
 
     // 2. Idempotency Check
-    const existingSubscription = await this.databaseService.sellerSubscription.findFirst({
+    const existingSubscription = await this.databaseService.growPlan.findFirst({
       where: {
         OR: [
           { razorpayOrderId: dto.razorpay_order_id },
           { paymentId: dto.razorpay_payment_id },
         ],
       },
-      include: { invoices: true },
     });
 
     if (existingSubscription) {
       return {
-        success: true,
-        message: 'Subscription order already processed',
-        data: {
+        status: 'success',
+        message: {
+          message: 'Subscription order processed successfully',
           subscriptionId: existingSubscription.id,
-          invoiceId: existingSubscription.invoices[0]?.id || null,
-          status: existingSubscription.status,
+          status: existingSubscription.status || 'ACTIVE',
         },
       };
     }
@@ -383,7 +354,7 @@ export class SubscriptionService {
 
     // 5. Database Transaction
     const result = await this.databaseService.$transaction(async (tx) => {
-      const subscription = await tx.sellerSubscription.create({
+      const subscription = await tx.growPlan.create({
         data: {
           sellerId: user?.sellerId || sellerId,
           email,
@@ -395,42 +366,20 @@ export class SubscriptionService {
           status: 'ACTIVE',
           paymentId: dto.razorpay_payment_id,
           razorpayOrderId: dto.razorpay_order_id,
-          autoRenew: true,
+          orderId: dto.razorpay_order_id,
+          manageGrowPlanPageLink: '/order-log/',
         },
       });
 
-      const invoice = await tx.sellerSubscriptionInvoice.create({
-        data: {
-          subscriptionId: subscription.id,
-          sellerId: user?.sellerId || sellerId,
-          invoiceDate: new Date(),
-          sellerName,
-          address,
-          gstin,
-          itemName: `${plan.name} Plan Subscription`,
-          rate: subTotal,
-          subtotal: subTotal,
-          taxableAmount: subTotal,
-          cgst,
-          sgst,
-          upiAmountPaid: totalPayable,
-          totalPayable,
-          transactionMethod: 'RAZORPAY_ONLINE',
-          paymentId: dto.razorpay_payment_id,
-          razorpayOrderId: dto.razorpay_order_id,
-        },
-      });
-
-      return { subscription, invoice };
+      return { subscription };
     });
 
     return {
-      success: true,
-      message: 'Subscription created and invoice generated successfully',
-      data: {
+      status: 'success',
+      message: {
+        message: 'Subscription order processed successfully',
         subscriptionId: result.subscription.id,
-        invoiceId: result.invoice.id,
-        status: result.subscription.status,
+        status: result.subscription.status || 'ACTIVE',
       },
     };
   }
@@ -448,7 +397,7 @@ export class SubscriptionService {
     const sellerEmail = user?.email || null;
 
     // Search subscription by sellerId or email
-    const subscription = await this.databaseService.sellerSubscription.findFirst({
+    const subscription = await this.databaseService.growPlan.findFirst({
       where: {
         OR: [
           { sellerId: effectiveSellerId },
@@ -488,7 +437,7 @@ export class SubscriptionService {
     }
 
     const now = new Date();
-    const endDate = new Date(subscription.endedDate);
+    const endDate = subscription.endedDate ? new Date(subscription.endedDate) : new Date();
     const diffTime = endDate.getTime() - now.getTime();
     const daysRemaining = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
 
@@ -541,7 +490,7 @@ export class SubscriptionService {
     const effectiveSellerId = user?.sellerId || sellerId;
     const sellerEmail = user?.email || null;
 
-    const subscription = await this.databaseService.sellerSubscription.findUnique({
+    const subscription = await this.databaseService.growPlan.findUnique({
       where: { id: dto.subscriptionId },
     });
 
@@ -554,21 +503,21 @@ export class SubscriptionService {
       subscription.sellerId === effectiveSellerId ||
       subscription.sellerId === sellerId ||
       subscription.sellerId === user?.id ||
-      (sellerEmail && subscription.email.toLowerCase() === sellerEmail.toLowerCase());
+      (sellerEmail && subscription.email && subscription.email.toLowerCase() === sellerEmail.toLowerCase());
 
     if (!isOwner) {
       throw new ForbiddenException('You are not authorized to cancel this subscription.');
     }
 
-    if (!subscription.autoRenew || subscription.status === 'CANCELLED') {
-      throw new ConflictException('Subscription is already cancelled or auto-renew disabled.');
+    if (subscription.status === 'CANCELLED') {
+      throw new ConflictException('Subscription is already cancelled.');
     }
 
-    const updated = await this.databaseService.sellerSubscription.update({
+    const updated = await this.databaseService.growPlan.update({
       where: { id: dto.subscriptionId },
       data: {
-        autoRenew: false,
-        cancelledAt: new Date(),
+        status: 'CANCELLED',
+        endedDate: new Date(),
       },
     });
 
@@ -577,9 +526,8 @@ export class SubscriptionService {
       message: 'Subscription cancellation scheduled successfully',
       data: {
         subscriptionId: updated.id,
-        autoRenew: updated.autoRenew,
         status: updated.status,
-        endsAt: updated.endedDate.toISOString(),
+        endsAt: updated.endedDate ? updated.endedDate.toISOString() : new Date().toISOString(),
       },
     };
   }
@@ -599,7 +547,7 @@ export class SubscriptionService {
     const effectiveSellerId = user?.sellerId || sellerId;
     const sellerEmail = user?.email || null;
 
-    const invoice = await this.databaseService.sellerSubscriptionInvoice.findUnique({
+    const invoice = await this.databaseService.growPlan.findUnique({
       where: { id: invoiceId },
     });
 
@@ -617,23 +565,29 @@ export class SubscriptionService {
       throw new ForbiddenException('Access denied. Invoice belongs to another seller.');
     }
 
+    const plan = HARDCODED_PLANS.find(p => p.id === invoice.planId);
+    const subTotal = Number(plan?.price ?? 0);
+    const cgst = Math.round(subTotal * 0.09 * 100) / 100;
+    const sgst = Math.round(subTotal * 0.09 * 100) / 100;
+    const totalPayable = subTotal + cgst + sgst;
+
     return {
       success: true,
       message: 'Invoice fetched successfully',
       data: {
         invoiceId: invoice.id,
-        invoiceDate: invoice.invoiceDate,
-        sellerName: invoice.sellerName,
-        gstin: invoice.gstin,
-        address: invoice.address,
-        itemName: invoice.itemName,
-        rate: invoice.rate,
-        subtotal: invoice.subtotal,
-        taxableAmount: invoice.taxableAmount,
-        cgst: invoice.cgst,
-        sgst: invoice.sgst,
-        totalPayable: invoice.totalPayable,
-        transactionMethod: invoice.transactionMethod,
+        invoiceDate: invoice.createdAt,
+        sellerName: user?.name ?? 'Seller',
+        gstin: user?.gstin ?? 'N/A',
+        address: user?.address ?? 'N/A',
+        itemName: `${invoice.planName ?? 'Pro'} Plan Subscription`,
+        rate: subTotal,
+        subtotal: subTotal,
+        taxableAmount: subTotal,
+        cgst,
+        sgst,
+        totalPayable,
+        transactionMethod: 'RAZORPAY_ONLINE',
         paymentId: invoice.paymentId,
         razorpayOrderId: invoice.razorpayOrderId,
       },
