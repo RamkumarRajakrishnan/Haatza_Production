@@ -19,10 +19,18 @@ export class LoginDto {
   @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   mobile?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'Mobile phone number (alias for identifier)',
+  })
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  phone?: string;
+
+  @ApiPropertyOptional({
     description: 'User password',
   })
+  @IsOptional()
   @IsString()
-  @IsNotEmpty({ message: 'Password is required' })
-  password: string;
+  password?: string;
 }

@@ -288,13 +288,18 @@ export class AuthService {
     data: LoginDto,
     reqMeta?: { ipAddress?: string; userAgent?: string },
   ) {
-    const rawIdentifier = data.identifier || data.mobile;
+    const rawIdentifier = data.identifier || data.mobile || data.phone;
 
     if (!rawIdentifier) {
       throw new UnauthorizedException({
         success: false,
         message: 'Invalid email/phone number or password.',
       });
+    }
+
+    const isEmail = rawIdentifier.includes('@');
+    if (isEmail && !data.password) {
+      throw new BadRequestException('Password is required for email login.');
     }
 
     const user = await this.authRepository.findUserByIdentifier(rawIdentifier);
@@ -332,8 +337,6 @@ export class AuthService {
       });
     }
 
-    const isEmail = rawIdentifier.includes('@');
-
     if (!isEmail) {
       // 1. Mobile login flow - generate and send OTP
       let otpData: any = null;
@@ -365,8 +368,9 @@ export class AuthService {
 
     // Password Verification (Plaintext comparison with bcrypt fallback for legacy hashed passwords)
     const isPasswordValid =
-      data.password === user.password ||
-      (user.password?.startsWith('$2') ? await bcrypt.compare(data.password, user.password) : false);
+      data.password &&
+      (data.password === user.password ||
+        (user.password?.startsWith('$2') ? await bcrypt.compare(data.password, user.password) : false));
 
     if (!isPasswordValid) {
       const lockResult = await this.authRepository.incrementFailedLoginAttempts(
