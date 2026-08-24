@@ -42,6 +42,8 @@ export class AuthService {
     buyer?: boolean;
     employee?: boolean;
     isEmployee?: boolean;
+    name?: string;
+    gender?: string;
     expiresAt: Date;
   }>();
 
@@ -248,6 +250,8 @@ export class AuthService {
       buyer: data.buyer,
       employee: (data as any).employee,
       isEmployee: (data as any).isEmployee,
+      name: data.name,
+      gender: data.gender,
       expiresAt: new Date(Date.now() + 15 * 60 * 1000), // expires in 15 minutes
     });
 
@@ -1090,7 +1094,8 @@ export class AuthService {
       try {
         createdUser = await this.database.user.create({
           data: {
-            name: '',
+            name: pending.name || '',
+            gender: pending.gender || null,
             mobile: pending.mobile,
             email: pending.email,
             password: pending.password,

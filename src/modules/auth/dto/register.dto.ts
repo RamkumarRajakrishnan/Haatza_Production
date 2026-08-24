@@ -20,6 +20,14 @@ export class RegisterDto {
   @IsEmail({}, { message: 'email must be a valid email address' })
   email: string;
 
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @IsOptional()
+  @IsString()
+  gender?: string;
+
   @IsString()
   @MinLength(6)
   password: string;
