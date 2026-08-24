@@ -332,6 +332,37 @@ export class AuthService {
       });
     }
 
+    const isEmail = rawIdentifier.includes('@');
+
+    if (!isEmail) {
+      // 1. Mobile login flow - generate and send OTP
+      let otpData: any = null;
+      try {
+        const otpResult = await this.generateOtp({
+          identifier: user.mobile || rawIdentifier,
+          purpose: OtpPurpose.LOGIN,
+          channel: OtpChannel.SMS,
+        });
+        otpData = otpResult.data;
+      } catch (otpErr: any) {
+        this.logger.warn(`Failed to generate login OTP for ${rawIdentifier}: ${otpErr?.message}`);
+        throw new BadRequestException('Failed to send OTP. Please try again.');
+      }
+
+      return {
+        success: true,
+        statusCode: 200,
+        message: 'OTP sent to your mobile number. Please verify to complete login.',
+        data: {
+          mobile: user.mobile || rawIdentifier,
+          email: user.email || '',
+          otp: otpData,
+          nextStep: 'VERIFY_OTP',
+        },
+        error: null,
+      };
+    }
+
     // Password Verification (Plaintext comparison with bcrypt fallback for legacy hashed passwords)
     const isPasswordValid =
       data.password === user.password ||
