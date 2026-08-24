@@ -21,6 +21,7 @@ import { VerifyOtpSessionDto } from './dto/verify-otp-session.dto';
 import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 import { SelectRoleDto } from './dto/select-role.dto';
 import { SwitchRoleDto } from './dto/switch-role.dto';
+import { EmployeeLoginDto } from './dto/employee-login.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Auth')
@@ -67,6 +68,26 @@ export class AuthController {
     const userAgent = req.headers['user-agent'];
 
     return this.authService.login(data, { ipAddress, userAgent });
+  }
+
+  @ApiOperation({ summary: 'Authenticate employee with email and password' })
+  @ApiResponse({
+    status: 200,
+    description: 'Authentication successful',
+    type: LoginSuccessResponseDto,
+  })
+  @ApiResponse({
+    status: 401,
+    description: 'Unauthorized - Invalid credentials or account status',
+    type: LoginErrorResponseDto,
+  })
+  @HttpCode(HttpStatus.OK)
+  @Post(['employee-login', 'employee/login'])
+  employeeLogin(@Body() data: EmployeeLoginDto, @Req() req: Request) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent = req.headers['user-agent'];
+
+    return this.authService.employeeLogin(data, { ipAddress, userAgent });
   }
 
   @ApiOperation({ summary: 'Refresh access token using refresh token or session token' })

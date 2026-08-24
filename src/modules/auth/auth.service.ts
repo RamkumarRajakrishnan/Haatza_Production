@@ -21,6 +21,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SelectRoleDto } from './dto/select-role.dto';
 import { SwitchRoleDto } from './dto/switch-role.dto';
+import { EmployeeLoginDto } from './dto/employee-login.dto';
 
 import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
@@ -470,6 +471,179 @@ export class AuthService {
     });
 
     this.logger.log(`User ${user.id} logged in successfully.`);
+
+    return {
+      success: true,
+      statusCode: 200,
+      message: 'Login successful.',
+      data: {
+        accessToken,
+        refreshToken,
+        expiresIn: expiresInSeconds,
+        user: {
+          id: user.id,
+          name: user.name,
+          gender: user.gender || '',
+          email: user.email,
+          phoneNumber: user.mobile,
+          status: user.status,
+          role: user.role,
+          isEmployee: user.isEmployee,
+          is_employee: user.isEmployee,
+          isBuyer: user.isBuyer,
+          is_buyer: user.isBuyer,
+          isSeller: user.isSeller,
+          is_seller: user.isSeller,
+        },
+      },
+      error: null,
+    };
+  }
+
+  async employeeLogin(
+    data: EmployeeLoginDto,
+    reqMeta?: { ipAddress?: string; userAgent?: string },
+  ) {
+    const email = data.email?.trim().toLowerCase();
+
+    if (!email) {
+      throw new BadRequestException('Email is required.');
+    }
+
+    const user = await this.database.user.findFirst({
+      where: { email: { equals: email, mode: 'insensitive' } },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email or password.',
+      });
+    }
+
+    // Role check: must be an employee or admin
+    if (!user.isEmployee && user.role !== UserRole.EMPLOYEE && user.role !== UserRole.ADMIN) {
+      throw new ForbiddenException({
+        success: false,
+        message: 'Access denied. You are not authorized to login as an employee.',
+      });
+    }
+
+    // Security Check 1: Account Lockout Check
+    if (user.lockedUntil && user.lockedUntil > new Date()) {
+      this.logger.warn(`Employee login attempt blocked for locked account ID: ${user.id}`);
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Account is locked due to multiple failed login attempts. Please try again later.',
+      });
+    }
+
+    // Security Check 2: Account Status Check
+    if (user.status !== 'ACTIVE') {
+      this.logger.warn(`Employee login attempt for inactive user ID: ${user.id}, Status: ${user.status}`);
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email or password.',
+      });
+    }
+
+    // Password Verification
+    const isPasswordValid =
+      data.password &&
+      (data.password === user.password ||
+        (user.password?.startsWith('$2') ? await bcrypt.compare(data.password, user.password) : false));
+
+    if (!isPasswordValid) {
+      const lockResult = await this.authRepository.incrementFailedLoginAttempts(
+        user.id,
+        user.failedLoginAttempts,
+      );
+
+      this.recordLoginHistory({
+        userId: user.id,
+        identifier: email,
+        status: LoginStatus.FAILED,
+        failureReason: lockResult.isLocked
+          ? 'Invalid password - Account Locked'
+          : 'Invalid password',
+        ipAddress: reqMeta?.ipAddress,
+        userAgent: reqMeta?.userAgent,
+      });
+
+      throw new UnauthorizedException({
+        success: false,
+        message: 'Invalid email or password.',
+      });
+    }
+
+    // Successful Authentication
+    await this.authRepository.resetLoginAttemptsAndRecordLogin(user.id);
+
+    const sessionUuid = crypto.randomUUID();
+
+    const payload = {
+      sub: user.id,
+      sessionId: sessionUuid,
+      role: user.role,
+      mobile: user.mobile,
+      email: user.email,
+      jti: crypto.randomUUID(),
+    };
+
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      process.env.JWT_REFRESH_SECRET ||
+      'haatza_refresh_secret';
+
+    const expiresInSeconds = 3600; // 1 hour
+
+    const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: '7d',
+    });
+
+    const tokenHash = this.hashToken(refreshToken);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    try {
+      await this.database.userSession.create({
+        data: {
+          id: sessionUuid,
+          userId: user.id,
+          identifier: email,
+          refreshTokenHash: tokenHash,
+          refreshToken,
+          ipAddress: reqMeta?.ipAddress || null,
+          userAgent: reqMeta?.userAgent || null,
+          deviceName: this.parseDeviceName(reqMeta?.userAgent),
+          platform: this.parsePlatform(reqMeta?.userAgent),
+          deviceType: reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB',
+          isActive: true,
+          lastActivityAt: now,
+          expiresAt,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (dbErr: any) {
+      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`, dbErr?.stack);
+    }
+
+    this.recordSuccessSideEffects({
+      userId: user.id,
+    });
+
+    this.recordLoginHistory({
+      userId: user.id,
+      identifier: email,
+      status: LoginStatus.SUCCESS,
+      ipAddress: reqMeta?.ipAddress,
+      userAgent: reqMeta?.userAgent,
+    });
+
+    this.logger.log(`Employee ${user.id} logged in successfully.`);
 
     return {
       success: true,
