@@ -1170,32 +1170,30 @@ export class AuthService {
 
       return {
         success: true,
-        statusCode: 201,
         message: 'Registration successful.',
         data: {
-          userId: createdUser.id,
-          mobile: createdUser.mobile,
+          userId: createdUser.id || '',
+          mobile: createdUser.mobile || '',
           email: createdUser.email || '',
           buyer: isBuyerBool,
           seller: isSellerBool,
           employee: finalIsEmployeeBool,
-          accessToken,
-          refreshToken,
-          expiresIn: expiresInSeconds,
+          accessToken: accessToken || '',
+          refreshToken: refreshToken || '',
+          expiresIn: expiresInSeconds || 0,
           user: {
-            id: createdUser.id,
+            id: createdUser.id || '',
             name: createdUser.name || '',
             email: createdUser.email || '',
             phoneNumber: createdUser.mobile || '',
             status: createdUser.status || 'ACTIVE',
-            role: createdUser.role,
+            role: createdUser.role || 'SELLER',
             isEmployee: createdUser.isEmployee ?? false,
             isBuyer: createdUser.isBuyer ?? false,
             isSeller: createdUser.isSeller ?? false,
           },
           nextStep: 'HOME',
         },
-        error: null,
       };
     }
 
@@ -1277,6 +1275,12 @@ export class AuthService {
       success: true,
       message,
       data: {
+        userId: user?.id || '',
+        mobile: user?.mobile || '',
+        email: user?.email || '',
+        buyer: user?.isBuyer ?? false,
+        seller: user?.isSeller ?? false,
+        employee: user?.isEmployee ?? false,
         accessToken: accessToken || '',
         refreshToken: refreshToken || '',
         expiresIn: expiresInSeconds || 0,
@@ -1289,8 +1293,9 @@ export class AuthService {
           role: user?.role || 'SELLER',
           isEmployee: user?.isEmployee ?? false,
           isBuyer: user?.isBuyer ?? false,
-          isSeller: user?.isSeller ?? true,
+          isSeller: user?.isSeller ?? false,
         },
+        nextStep: targetPurpose === OtpPurpose.FORGOT_PASSWORD ? 'RESET_PASSWORD' : 'HOME',
       },
     };
   }
