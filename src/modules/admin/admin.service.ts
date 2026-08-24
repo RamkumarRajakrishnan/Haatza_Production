@@ -8,7 +8,7 @@ export class AdminService {
   async getMetrics() {
     const [totalUsers, totalSellers, totalProducts, totalOrders] = await Promise.all([
       this.db.user.count(),
-      this.db.seller.count(),
+      this.db.user.count({ where: { isSeller: true } }),
       this.db.product.count(),
       this.db.order.count(),
     ]);

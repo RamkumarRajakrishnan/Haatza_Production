@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { PayWithWalletDto } from './dto/wallet.dto';
+import { HARDCODED_PLANS } from '../subscription/subscription.service';
 
 @Injectable()
 export class WalletService {
@@ -57,9 +58,7 @@ export class WalletService {
     const effectiveSellerId = user?.sellerId || sellerId;
 
     // 1. Fetch Plan
-    const plan = await this.databaseService.pricingPlan.findUnique({
-      where: { id: dto.planId },
-    });
+    const plan = HARDCODED_PLANS.find(p => p.id === dto.planId);
 
     if (!plan || plan.status !== 'ACTIVE') {
       throw new BadRequestException('Pricing plan not found or inactive.');

@@ -258,9 +258,9 @@ export class DatabaseService
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'UserRole') THEN
             CREATE TYPE public."UserRole" AS ENUM ('ADMIN', 'SELLER', 'BUYER', 'NEST_WORKER', 'DELIVERY_PARTNER', 'SUPPORT', 'SELLER_OWNER', 'SELLER_STAFF', 'ACCOUNT_MANAGER', 'EMPLOYEE');
           END IF;
-          DO $$ BEGIN
+          DO $inner$ BEGIN
             ALTER TYPE public."UserRole" ADD VALUE IF NOT EXISTS 'EMPLOYEE';
-          EXCEPTION WHEN OTHERS THEN NULL; END $$;
+          EXCEPTION WHEN OTHERS THEN NULL; END $inner$;
           IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'OtpIdentifierType') THEN
             CREATE TYPE public."OtpIdentifierType" AS ENUM ('EMAIL', 'PHONE');
           END IF;
@@ -515,15 +515,24 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS expires_at timestamp;
 
         -- Grow Plan Subscription Tables DDL
-        CREATE TABLE IF NOT EXISTS public.pricing_plans (
+        CREATE TABLE IF NOT EXISTS public.grow_plan (
           id varchar(36) PRIMARY KEY,
-          name varchar(50) NOT NULL,
-          price numeric(12, 2) NOT NULL,
-          period_unit varchar(20) DEFAULT 'MONTH',
-          ribbon varchar(50),
-          benefits jsonb,
-          status varchar(20) DEFAULT 'ACTIVE',
-          created_at timestamp DEFAULT now()
+          member_id text,
+          order_id text,
+          plan_name text,
+          nickname text,
+          plan_id text,
+          status text,
+          email text,
+          ended_date timestamp,
+          started_date timestamp,
+          payment_id text,
+          razorpay_order_id text,
+          manage_grow_plan_page_link text,
+          phone text,
+          seller_id text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
         );
 
         CREATE TABLE IF NOT EXISTS public.seller_subscriptions (

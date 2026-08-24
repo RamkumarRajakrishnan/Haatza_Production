@@ -38,7 +38,6 @@ model User {
   isEmployee          Boolean            @default(false) @map("is_employee")
   buyer               Buyer?
   otps                OtpVerification[]
-  seller              Seller?
   loginHistories      UserLoginHistory[]
   userPageRoles       UserPageRole[]
   userRoles           UserRoleMapping[]
@@ -155,19 +154,6 @@ model OtpVerification {
   @@map("otp_verifications")
 }
 
-model Seller {
-  id           String   @id @default(uuid()) @map("seller_pk")
-  userId       String   @unique @map("user_id")
-  businessName String   @map("business_name")
-  gstNumber    String?  @map("gst_number")
-  address      String?  @map("address")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
-  user         User     @relation(fields: [userId], references: [id])
-
-  @@map("sellers")
-}
-
 model Buyer {
   id        String   @id @default(uuid()) @map("buyer_pk")
   userId    String   @unique @map("user_id")
@@ -229,22 +215,6 @@ model Warehouse {
   @@map("warehouses")
 }
 
-model PricingPlan {
-  id            String               @id @default(uuid()) @db.VarChar(36)
-  name          String               @db.VarChar(50)
-  price         Decimal              @db.Decimal(12, 2)
-  periodUnit    String               @default("MONTH") @map("period_unit") @db.VarChar(20)
-  ribbon        String?              @db.VarChar(50)
-  benefits      Json?                @db.JsonB
-  status        String               @default("ACTIVE") @db.VarChar(20)
-  createdAt     DateTime             @default(now()) @map("created_at")
-  subscriptions SellerSubscription[]
-  coupons       SubscriptionCoupon[]
-
-  @@index([status])
-  @@map("pricing_plans")
-}
-
 model SellerSubscription {
   id                 String                      @id @default(uuid()) @db.VarChar(36)
   sellerId           String                      @map("seller_id") @db.VarChar(50)
@@ -262,7 +232,6 @@ model SellerSubscription {
   autoRenew          Boolean                     @default(true) @map("auto_renew")
   cancelledAt        DateTime?                   @map("cancelled_at")
   createdAt          DateTime                    @default(now()) @map("created_at")
-  plan               PricingPlan                 @relation(fields: [planId], references: [id])
   invoices           SellerSubscriptionInvoice[]
 
   @@index([sellerId])
@@ -316,7 +285,6 @@ model SubscriptionCoupon {
   usageCount        Int          @default(0) @map("usage_count")
   status            String       @default("ACTIVE") @db.VarChar(20)
   applicablePlanId  String?      @map("applicable_plan_id") @db.VarChar(36)
-  applicablePlan    PricingPlan? @relation(fields: [applicablePlanId], references: [id])
   description       String?      @db.Text
   createdAt         DateTime     @default(now()) @map("created_at")
 
@@ -698,3 +666,26 @@ enum CategoryModule {
   LITE
   ALL
 }
+
+model GrowPlan {
+  id                     String    @id @default(uuid()) @map("id") @db.VarChar(36)
+  memberId               String?   @map("member_id") @db.Text
+  orderId                String?   @map("order_id") @db.Text
+  planName               String?   @map("plan_name") @db.Text
+  nickname               String?   @map("nickname") @db.Text
+  planId                 String?   @map("plan_id") @db.Text
+  status                 String?   @map("status") @db.Text
+  email                  String?   @map("email") @db.Text
+  endedDate              DateTime? @map("ended_date")
+  startedDate            DateTime? @map("started_date")
+  paymentId              String?   @map("payment_id") @db.Text
+  razorpayOrderId        String?   @map("razorpay_order_id") @db.Text
+  manageGrowPlanPageLink String?   @map("manage_grow_plan_page_link") @db.Text
+  phone                  String?   @map("phone") @db.Text
+  sellerId               String?   @map("seller_id") @db.Text
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@map("grow_plan")
+}
+

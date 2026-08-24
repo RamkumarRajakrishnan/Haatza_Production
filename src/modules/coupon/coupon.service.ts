@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { ValidateCouponDto } from './dto/coupon.dto';
+import { HARDCODED_PLANS } from '../subscription/subscription.service';
 
 @Injectable()
 export class CouponService {
@@ -52,9 +53,7 @@ export class CouponService {
    * Validate promo code and calculate subtotal, discount, GST, and net payable.
    */
   async validateCoupon(sellerId: string, dto: ValidateCouponDto) {
-    const plan = await this.databaseService.pricingPlan.findUnique({
-      where: { id: dto.planId },
-    });
+    const plan = HARDCODED_PLANS.find(p => p.id === dto.planId);
 
     if (!plan || plan.status !== 'ACTIVE') {
       throw new BadRequestException('Invalid or inactive pricing plan.');

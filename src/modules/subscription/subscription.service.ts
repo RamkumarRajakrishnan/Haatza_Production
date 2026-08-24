@@ -16,6 +16,27 @@ import {
 } from './dto/subscription-payment.dto';
 import { RazorpayIntegrationService } from '../../integrations/razorpay/razorpay.service';
 
+export const HARDCODED_PLANS = [
+  {
+    id: 'plan_pro_123',
+    name: 'Pro',
+    price: 499.00,
+    periodUnit: 'MONTH',
+    ribbon: 'Recommended',
+    benefits: ["0% Commission", "Priority Support", "Unlimited Listings"],
+    status: 'ACTIVE'
+  },
+  {
+    id: 'plan_growth_123',
+    name: 'Growth',
+    price: 299.00,
+    periodUnit: 'MONTH',
+    ribbon: 'Popular',
+    benefits: ["5% Commission", "Standard Support", "Up to 50 Listings"],
+    status: 'ACTIVE'
+  }
+];
+
 @Injectable()
 export class SubscriptionService {
   private readonly logger = new Logger(SubscriptionService.name);
@@ -31,10 +52,7 @@ export class SubscriptionService {
    */
   async getPlans() {
     try {
-      const plans = await this.databaseService.pricingPlan.findMany({
-        where: { status: 'ACTIVE' },
-        orderBy: { createdAt: 'asc' },
-      });
+      const plans = HARDCODED_PLANS;
 
       const items = plans.map((plan) => {
         let benefitsArray: string[] = [];
@@ -225,9 +243,7 @@ export class SubscriptionService {
    * Create a Razorpay order before opening Razorpay checkout.
    */
   async createRazorpayOrder(sellerId: string, dto: CreateRazorpayOrderDto) {
-    const plan = await this.databaseService.pricingPlan.findUnique({
-      where: { id: dto.planId },
-    });
+    const plan = HARDCODED_PLANS.find(p => p.id === dto.planId);
 
     if (!plan || plan.status !== 'ACTIVE') {
       throw new BadRequestException('Requested plan does not exist or is inactive.');
@@ -258,9 +274,7 @@ export class SubscriptionService {
    * Signature verification for Razorpay payment.
    */
   async verifyRazorpayPayment(sellerId: string, dto: VerifyRazorpayPaymentDto) {
-    const plan = await this.databaseService.pricingPlan.findUnique({
-      where: { id: dto.planId },
-    });
+    const plan = HARDCODED_PLANS.find(p => p.id === dto.planId);
 
     if (!plan) {
       throw new NotFoundException('Pricing plan not found.');
@@ -340,9 +354,7 @@ export class SubscriptionService {
     }
 
     // 3. Plan Lookup
-    const plan = await this.databaseService.pricingPlan.findUnique({
-      where: { id: dto.planId },
-    });
+    const plan = HARDCODED_PLANS.find(p => p.id === dto.planId);
 
     if (!plan || plan.status !== 'ACTIVE') {
       throw new BadRequestException('Selected plan is invalid or inactive.');
@@ -446,7 +458,6 @@ export class SubscriptionService {
         status: 'ACTIVE',
       },
       orderBy: { createdAt: 'desc' },
-      include: { plan: true },
     });
 
     // Safely derive listings count from products table
@@ -496,11 +507,14 @@ export class SubscriptionService {
       maxListings = 50;
       commissionRate = '5%';
       prioritySupport = false;
-    } else if (subscription.plan && subscription.plan.benefits) {
-      const bStr = JSON.stringify(subscription.plan.benefits).toLowerCase();
-      if (bStr.includes('unlimited')) maxListings = 999999;
-      if (bStr.includes('0%')) commissionRate = '0%';
-      if (bStr.includes('priority')) prioritySupport = true;
+    } else {
+      const plan = HARDCODED_PLANS.find(p => p.id === planId);
+      if (plan && plan.benefits) {
+        const bStr = JSON.stringify(plan.benefits).toLowerCase();
+        if (bStr.includes('unlimited')) maxListings = 999999;
+        if (bStr.includes('0%')) commissionRate = '0%';
+        if (bStr.includes('priority')) prioritySupport = true;
+      }
     }
 
     return {
