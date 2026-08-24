@@ -6,6 +6,7 @@ import {
   IsString,
   Matches,
   MinLength,
+  IsNotEmpty,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { UserRole } from '@prisma/client';
@@ -20,13 +21,13 @@ export class RegisterDto {
   @IsEmail({}, { message: 'email must be a valid email address' })
   email: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'name is required' })
   @IsString()
-  name?: string;
+  name: string;
 
-  @IsOptional()
+  @IsNotEmpty({ message: 'gender is required' })
   @IsString()
-  gender?: string;
+  gender: string;
 
   @IsString()
   @MinLength(6)
