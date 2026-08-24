@@ -501,82 +501,59 @@ export class AuthService {
   }
 
   async employeeLogin(
-    data: EmployeeLoginDto,
+    dto: EmployeeLoginDto,
     reqMeta?: { ipAddress?: string; userAgent?: string },
   ) {
-    const email = data.email?.trim().toLowerCase();
-
-    if (!email) {
-      throw new BadRequestException('Email is required.');
-    }
-
     const user = await this.database.user.findFirst({
-      where: { email: { equals: email, mode: 'insensitive' } },
+      where: { email: { equals: dto.email, mode: 'insensitive' } },
+      include: { userRole: true },
     });
 
     if (!user) {
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Invalid email or password.',
-      });
-    }
-
-    // Role check: must be an employee or admin
-    if (!user.isEmployee && user.role !== UserRole.EMPLOYEE && user.role !== UserRole.ADMIN) {
-      throw new ForbiddenException({
-        success: false,
-        message: 'Access denied. You are not authorized to login as an employee.',
-      });
-    }
-
-    // Security Check 1: Account Lockout Check
-    if (user.lockedUntil && user.lockedUntil > new Date()) {
-      this.logger.warn(`Employee login attempt blocked for locked account ID: ${user.id}`);
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Account is locked due to multiple failed login attempts. Please try again later.',
-      });
-    }
-
-    // Security Check 2: Account Status Check
-    if (user.status !== 'ACTIVE') {
-      this.logger.warn(`Employee login attempt for inactive user ID: ${user.id}, Status: ${user.status}`);
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Invalid email or password.',
-      });
-    }
-
-    // Password Verification
-    const isPasswordValid =
-      data.password &&
-      (data.password === user.password ||
-        (user.password?.startsWith('$2') ? await bcrypt.compare(data.password, user.password) : false));
-
-    if (!isPasswordValid) {
-      const lockResult = await this.authRepository.incrementFailedLoginAttempts(
-        user.id,
-        user.failedLoginAttempts,
-      );
-
       this.recordLoginHistory({
-        userId: user.id,
-        identifier: email,
+        identifier: dto.email,
         status: LoginStatus.FAILED,
-        failureReason: lockResult.isLocked
-          ? 'Invalid password - Account Locked'
-          : 'Invalid password',
+        failureReason: 'Employee account not found',
         ipAddress: reqMeta?.ipAddress,
         userAgent: reqMeta?.userAgent,
       });
 
-      throw new UnauthorizedException({
-        success: false,
-        message: 'Invalid email or password.',
-      });
+      throw new UnauthorizedException('Invalid email address or password.');
     }
 
-    // Successful Authentication
+    const isEmployee =
+      user.isEmployee ||
+      user.role === 'EMPLOYEE' ||
+      user.userRole?.name?.toUpperCase() === 'EMPLOYEE' ||
+      user.userRole?.code?.toUpperCase() === 'EMPLOYEE';
+
+    if (!isEmployee) {
+      throw new UnauthorizedException('Access denied. Only employee accounts are authorized.');
+    }
+
+    // Security Check: Status Check
+    if (user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('Employee account is inactive.');
+    }
+
+    // Password Verification
+    const isPasswordValid =
+      dto.password === user.password ||
+      (user.password?.startsWith('$2') ? await bcrypt.compare(dto.password, user.password) : false);
+
+    if (!isPasswordValid) {
+      this.recordLoginHistory({
+        userId: user.id,
+        identifier: dto.email,
+        status: LoginStatus.FAILED,
+        failureReason: 'Invalid password',
+        ipAddress: reqMeta?.ipAddress,
+        userAgent: reqMeta?.userAgent,
+      });
+
+      throw new UnauthorizedException('Invalid email address or password.');
+    }
+
     await this.authRepository.resetLoginAttemptsAndRecordLogin(user.id);
 
     const sessionUuid = crypto.randomUUID();
@@ -595,7 +572,7 @@ export class AuthService {
       process.env.JWT_REFRESH_SECRET ||
       'haatza_refresh_secret';
 
-    const expiresInSeconds = 3600; // 1 hour
+    const expiresInSeconds = 3600;
 
     const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
     const refreshToken = this.jwtService.sign(payload, {
@@ -612,7 +589,7 @@ export class AuthService {
         data: {
           id: sessionUuid,
           userId: user.id,
-          identifier: email,
+          identifier: dto.email,
           refreshTokenHash: tokenHash,
           refreshToken,
           ipAddress: reqMeta?.ipAddress || null,
@@ -628,7 +605,7 @@ export class AuthService {
         },
       });
     } catch (dbErr: any) {
-      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`, dbErr?.stack);
+      this.logger.error(`UserSession creation warning for user ${user.id}: ${dbErr?.message}`);
     }
 
     this.recordSuccessSideEffects({
@@ -637,18 +614,18 @@ export class AuthService {
 
     this.recordLoginHistory({
       userId: user.id,
-      identifier: email,
+      identifier: dto.email,
       status: LoginStatus.SUCCESS,
       ipAddress: reqMeta?.ipAddress,
       userAgent: reqMeta?.userAgent,
     });
 
-    this.logger.log(`Employee ${user.id} logged in successfully.`);
+    this.logger.log(`Employee user ${user.id} logged in successfully.`);
 
     return {
       success: true,
       statusCode: 200,
-      message: 'Login successful.',
+      message: 'Employee login successful.',
       data: {
         accessToken,
         refreshToken,
@@ -657,8 +634,8 @@ export class AuthService {
           id: user.id,
           name: user.name,
           gender: user.gender || '',
-          email: user.email,
-          phoneNumber: user.mobile,
+          email: user.email || '',
+          phoneNumber: user.mobile || '',
           status: user.status,
           role: user.role,
           isEmployee: user.isEmployee,

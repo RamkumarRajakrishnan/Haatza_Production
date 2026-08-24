@@ -4,19 +4,17 @@ import { ApiProperty } from '@nestjs/swagger';
 
 export class EmployeeLoginDto {
   @ApiProperty({
-    description: 'Employee email address',
+    description: 'Employee Email address',
     example: 'employee@haatza.com',
   })
-  @IsNotEmpty({ message: 'Email is required' })
-  @IsEmail({}, { message: 'Please provide a valid email address' })
-  @Transform(({ value }) => (typeof value === 'string' ? value.toLowerCase().trim() : value))
+  @IsEmail({}, { message: 'email must be a valid email address' })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim().toLowerCase() : value))
   email: string;
 
   @ApiProperty({
     description: 'Employee password',
-    example: 'password123',
   })
-  @IsNotEmpty({ message: 'Password is required' })
   @IsString()
+  @IsNotEmpty({ message: 'Password is required' })
   password: string;
 }

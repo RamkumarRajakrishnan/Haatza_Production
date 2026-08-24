@@ -70,19 +70,17 @@ export class AuthController {
     return this.authService.login(data, { ipAddress, userAgent });
   }
 
-  @ApiOperation({ summary: 'Authenticate employee with email and password' })
+  @ApiOperation({ summary: 'Employee login using email and password' })
   @ApiResponse({
     status: 200,
-    description: 'Authentication successful',
-    type: LoginSuccessResponseDto,
+    description: 'Employee Authentication successful',
   })
   @ApiResponse({
     status: 401,
-    description: 'Unauthorized - Invalid credentials or account status',
-    type: LoginErrorResponseDto,
+    description: 'Unauthorized - Invalid credentials or non-employee account',
   })
   @HttpCode(HttpStatus.OK)
-  @Post(['employee-login', 'employee/login'])
+  @Post('employee-login')
   employeeLogin(@Body() data: EmployeeLoginDto, @Req() req: Request) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
     const userAgent = req.headers['user-agent'];
