@@ -24,7 +24,7 @@ export class CategoryService {
   constructor(private readonly db: DatabaseService) {}
 
   /**
-   * Generates next sequential unique category ID (CAT001, CAT002, CAT003...)
+   * Generates next sequential unique category ID (CAT_001, CAT_002, CAT_003...)
    */
   private async generateCategoryId(): Promise<string> {
     const records = await this.db.categoryMaster.findMany({
@@ -34,7 +34,7 @@ export class CategoryService {
 
     let maxNum = 0;
     for (const r of records) {
-      const match = r.categoryId.match(/^CAT(\d+)$/i);
+      const match = r.categoryId.match(/^CAT_?(\d+)$/i);
       if (match) {
         const num = parseInt(match[1], 10);
         if (!isNaN(num) && num > maxNum) {
@@ -44,7 +44,7 @@ export class CategoryService {
     }
 
     const nextNum = maxNum + 1;
-    return `CAT${String(nextNum).padStart(3, '0')}`;
+    return `CAT_${String(nextNum).padStart(3, '0')}`;
   }
 
   /**

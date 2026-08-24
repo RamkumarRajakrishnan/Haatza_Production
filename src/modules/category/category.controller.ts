@@ -30,7 +30,7 @@ export class CategoryController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: 'Create Category (POST /create_category)',
-    description: 'Creates a new Category Master record with auto-generated unique category_id (CAT001, CAT002...).',
+    description: 'Creates a new Category Master record with auto-generated unique category_id (CAT_001, CAT_002...).',
   })
   @ApiResponse({ status: 201, description: 'Category created successfully' })
   async createCategory(@Body() dto: CreateCategoryDto) {

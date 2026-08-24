@@ -35,7 +35,7 @@ export class CreateCategoryDto {
 
   @ApiPropertyOptional({
     description: 'Parent Category ID (null for MAIN_CATEGORY)',
-    example: 'CAT001',
+    example: 'CAT_001',
   })
   @IsOptional()
   @IsString()
@@ -115,7 +115,7 @@ export class UpdateCategoryDto extends PartialType(CreateCategoryDto) {
 export class UpdateCategoryStatusDto {
   @ApiPropertyOptional({
     description: 'Category ID (optional if passed in URL parameter)',
-    example: 'CAT002',
+    example: 'CAT_002',
   })
   @IsOptional()
   @IsString()
@@ -216,7 +216,7 @@ export class QueryCategoryDto {
 export class GetChildCategoriesDto {
   @ApiPropertyOptional({
     description: 'Parent Category ID',
-    example: 'CAT001',
+    example: 'CAT_001',
   })
   @IsOptional()
   @IsString()
@@ -224,7 +224,7 @@ export class GetChildCategoriesDto {
 
   @ApiPropertyOptional({
     description: 'Alias for Parent Category ID',
-    example: 'CAT001',
+    example: 'CAT_001',
   })
   @IsOptional()
   @IsString()
