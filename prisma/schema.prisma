@@ -542,7 +542,7 @@ model AppbarCategory {
   warehouseId       String?   @map("warehouse_id")
   image             String?   @map("image")
   status            String    @default("ACTIVE") @map("status")
-  expireDate           DateTime? @map("expire_date")
+  expireDate        DateTime? @map("expire_date")
   primaryAppbarColor   String?   @map("primary_appbar_color")
   secondaryAppbarColor String?   @map("secondary_appbar_color")
   appbarImage          String?   @map("appbar_image")

@@ -108,7 +108,6 @@ export class AppbarCategoriesService {
         appbarbackground: Boolean(cat.appbarbackground),
         warehouseId: cat.warehouseId || '',
         nearestWarehouseDistanceKm: 0,
-        expireDate: cat.expireDate || null,
       }));
 
       return {
@@ -279,7 +278,6 @@ export class AppbarCategoriesService {
       appbarbackground: Boolean(cat.appbarbackground),
       warehouseId: nearestWh.warehouseId,
       nearestWarehouseDistanceKm: nearestWh.distance,
-      expireDate: cat.expireDate || null,
     }));
 
     return {

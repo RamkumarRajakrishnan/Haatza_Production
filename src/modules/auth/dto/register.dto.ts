@@ -21,13 +21,13 @@ export class RegisterDto {
   @IsEmail({}, { message: 'email must be a valid email address' })
   email: string;
 
-  @IsNotEmpty({ message: 'name is required' })
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
-  @IsNotEmpty({ message: 'gender is required' })
+  @IsOptional()
   @IsString()
-  gender: string;
+  gender?: string;
 
   @IsString()
   @MinLength(6)
