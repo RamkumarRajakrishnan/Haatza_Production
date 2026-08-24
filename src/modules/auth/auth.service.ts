@@ -478,6 +478,7 @@ export class AuthService {
         user: {
           id: user.id,
           name: user.name,
+          gender: user.gender || '',
           email: user.email,
           phoneNumber: user.mobile,
           status: user.status,
@@ -1220,6 +1221,7 @@ export class AuthService {
           user: {
             id: createdUser.id || '',
             name: createdUser.name || '',
+            gender: createdUser.gender || '',
             email: createdUser.email || '',
             phoneNumber: createdUser.mobile || '',
             status: createdUser.status || 'ACTIVE',
@@ -1323,6 +1325,7 @@ export class AuthService {
         user: {
           id: user?.id || '',
           name: user?.name || '',
+          gender: user?.gender || '',
           email: user?.email || '',
           phoneNumber: user?.mobile || '',
           status: user?.status || 'ACTIVE',
