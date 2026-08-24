@@ -1118,6 +1118,56 @@ export class AuthService {
       this.pendingRegistrations.delete(normalizedIdentifier);
       this.pendingRegistrations.delete(rawIdentifier);
 
+      const sessionUuid = crypto.randomUUID();
+      const payload = {
+        sub: createdUser.id,
+        sessionId: sessionUuid,
+        role: createdUser.role,
+        mobile: createdUser.mobile,
+        email: createdUser.email,
+        jti: crypto.randomUUID(),
+      };
+
+      const refreshSecret =
+        this.configService.get<string>('JWT_REFRESH_SECRET') ||
+        process.env.JWT_REFRESH_SECRET ||
+        'haatza_refresh_secret';
+
+      const expiresInSeconds = 3600;
+      const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+      const refreshToken = this.jwtService.sign(payload, {
+        secret: refreshSecret,
+        expiresIn: '7d',
+      });
+
+      const tokenHash = this.hashToken(refreshToken);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+      try {
+        await this.database.userSession.create({
+          data: {
+            id: sessionUuid,
+            userId: createdUser.id,
+            identifier: rawIdentifier,
+            refreshTokenHash: tokenHash,
+            refreshToken,
+            ipAddress: reqMeta?.ipAddress || null,
+            userAgent: reqMeta?.userAgent || null,
+            deviceName: this.parseDeviceName(reqMeta?.userAgent),
+            platform: this.parsePlatform(reqMeta?.userAgent),
+            deviceType: reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB',
+            isActive: true,
+            lastActivityAt: now,
+            expiresAt,
+            createdAt: now,
+            updatedAt: now,
+          },
+        });
+      } catch (dbErr: any) {
+        this.logger.error(`UserSession creation warning for user ${createdUser?.id}: ${dbErr?.message}`);
+      }
+
       return {
         success: true,
         statusCode: 201,
@@ -1129,7 +1179,21 @@ export class AuthService {
           buyer: isBuyerBool,
           seller: isSellerBool,
           employee: finalIsEmployeeBool,
-          nextStep: 'LOGIN',
+          accessToken,
+          refreshToken,
+          expiresIn: expiresInSeconds,
+          user: {
+            id: createdUser.id,
+            name: createdUser.name || '',
+            email: createdUser.email || '',
+            phoneNumber: createdUser.mobile || '',
+            status: createdUser.status || 'ACTIVE',
+            role: createdUser.role,
+            isEmployee: createdUser.isEmployee ?? false,
+            isBuyer: createdUser.isBuyer ?? false,
+            isSeller: createdUser.isSeller ?? false,
+          },
+          nextStep: 'HOME',
         },
         error: null,
       };

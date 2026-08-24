@@ -280,35 +280,13 @@ export class DashboardService {
         expiresAtDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
       }
 
-      const rawCategoryId = w.categoryId ?? w.category_id;
-      let finalCategoryId = 'all';
-      let finalCategoryName = w.categoryName ?? null;
-
-      if (rawCategoryId && String(rawCategoryId).trim()) {
-        const trimmedCatId = String(rawCategoryId).trim();
-        if (trimmedCatId.toLowerCase() !== 'all') {
-          const categoryExists = await this.db.categoryMaster.findUnique({
-            where: { categoryId: trimmedCatId },
-          });
-          if (!categoryExists) {
-            throw new BadRequestException(
-              `Category ID '${trimmedCatId}' does not exist in CategoryMaster.`,
-            );
-          }
-          finalCategoryId = trimmedCatId;
-          if (!finalCategoryName) {
-            finalCategoryName = categoryExists.categoryName;
-          }
-        }
-      }
-
       const data: any = {
         widgetType: w.widgetType || w.widget_type || 'hero_banner',
         title: w.title ?? w.Title ?? null,
         status: w.status || 'ACTIVE',
         sequence: Number(w.sequence) || 1,
-        categoryId: finalCategoryId,
-        categoryName: finalCategoryName,
+        categoryId: w.categoryId ?? w.category_id ?? crypto.randomUUID(),
+        categoryName: w.categoryName ?? null,
         item: parsedItemArray,
         warehouseId: w.warehouseId ?? null,
         module: w.module || 'HAATZA',
