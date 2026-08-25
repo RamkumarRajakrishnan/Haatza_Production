@@ -36,6 +36,16 @@ describe('AuthService', () => {
       roleMaster: {
         findFirst: jest.fn(),
       },
+      userRoleMapping: {
+        upsert: jest.fn().mockResolvedValue({ id: 'mapped_role_id' }),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+      },
+      userPageRole: {
+        upsert: jest.fn().mockResolvedValue({ id: 'mapped_page_role_id' }),
+        findFirst: jest.fn(),
+        findMany: jest.fn(),
+      },
       userSession: {
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `sess_${Date.now()}`, ...data })),
       },

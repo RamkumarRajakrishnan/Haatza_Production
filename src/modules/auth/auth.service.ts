@@ -584,6 +584,61 @@ export class AuthService {
     let employeeRoleId = employeeRoleInMapping?.id;
     let matchedRoleCode = employeeRoleInMapping?.roleCode;
 
+    // Automatically ensure the user is assigned the EMPLOYEE role in database mappings if they don't have one
+    if (!employeeRoleInMapping) {
+      const employeeRoleMaster = await this.database.roleMaster.findFirst({
+        where: {
+          roleCode: { equals: 'EMPLOYEE', mode: 'insensitive' },
+          isActive: true,
+        },
+      });
+
+      if (employeeRoleMaster) {
+        // Enforce isEmployee boolean column true to comply with database trigger constraints
+        if (!user.isEmployee) {
+          await this.database.user.update({
+            where: { id: user.id },
+            data: { isEmployee: true },
+          });
+          user.isEmployee = true;
+        }
+
+        // Create assignment in user_role
+        await this.database.userRoleMapping.upsert({
+          where: {
+            userId_roleId: {
+              userId: user.id,
+              roleId: employeeRoleMaster.id,
+            },
+          },
+          update: { isActive: true },
+          create: {
+            userId: user.id,
+            roleId: employeeRoleMaster.id,
+            isActive: true,
+          },
+        });
+
+        // Create assignment in user_page_role
+        await this.database.userPageRole.upsert({
+          where: {
+            userId_roleId: {
+              userId: user.id,
+              roleId: employeeRoleMaster.id,
+            },
+          },
+          update: {},
+          create: {
+            userId: user.id,
+            roleId: employeeRoleMaster.id,
+          },
+        });
+
+        employeeRoleId = employeeRoleMaster.id;
+        matchedRoleCode = employeeRoleMaster.roleCode;
+      }
+    }
+
     if (!employeeRoleId) {
       if (
         user.userRole?.name?.toUpperCase() === 'EMPLOYEE' ||
@@ -701,11 +756,11 @@ export class AuthService {
           phoneNumber: user.mobile || '',
           status: user.status,
           role: matchedRoleCode,
-          isEmployee: user.isEmployee,
+
           is_employee: user.isEmployee,
-          isBuyer: user.isBuyer,
+
           is_buyer: user.isBuyer,
-          isSeller: user.isSeller,
+
           is_seller: user.isSeller,
         },
       },
