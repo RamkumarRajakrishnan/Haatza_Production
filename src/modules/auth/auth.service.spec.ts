@@ -29,12 +29,19 @@ describe('AuthService', () => {
         create: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
+        findMany: jest.fn(),
       },
       role: {
         findFirst: jest.fn(),
       },
       roleMaster: {
         findFirst: jest.fn(),
+      },
+      otpVerification: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockResolvedValue({ id: 'otp_id', otpHash: '123456' }),
       },
       userRoleMapping: {
         upsert: jest.fn().mockResolvedValue({ id: 'mapped_role_id' }),
@@ -359,6 +366,81 @@ describe('AuthService', () => {
       expect(result.data.accessToken).toBeDefined();
       expect(result.data.user.role).toBe('EMPLOYEE');
       expect(result.data.user.email).toBe(mockUser.email);
+    });
+  });
+
+  describe('register & verifyOtp registration flow', () => {
+    const registerDto = {
+      name: 'John Doe',
+      email: 'john@domain.test',
+      mobile: '9876543210',
+      password: 'password123',
+      role: 'BUYER' as any,
+      buyer: true,
+      gender: 'Male',
+    };
+
+    it('should create a PENDING user if no user exists during register', async () => {
+      databaseService.user.findMany.mockResolvedValue([]);
+      databaseService.user.create.mockResolvedValue({
+        id: 'usr_pending_123',
+        ...registerDto,
+        status: 'PENDING',
+      });
+
+      const result = await service.register(registerDto);
+
+      expect(result.success).toBe(true);
+      expect(result.data.mobile).toBe(registerDto.mobile);
+      expect(databaseService.user.create).toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if ACTIVE user exists during register', async () => {
+      const ConflictExceptionClass = require('@nestjs/common').ConflictException;
+      databaseService.user.findMany.mockResolvedValue([
+        {
+          id: 'usr_active_123',
+          ...registerDto,
+          status: 'ACTIVE',
+        },
+      ]);
+
+      await expect(service.register(registerDto)).rejects.toThrow(ConflictExceptionClass);
+    });
+
+    it('should activate user and return tokens during verifyOtp for REGISTRATION', async () => {
+      const pendingUser = {
+        id: 'usr_pending_123',
+        ...registerDto,
+        status: 'PENDING',
+      };
+
+      databaseService.otpVerification.findFirst.mockResolvedValue({
+        id: 'otp_123',
+        otpHash: '123456',
+        expiresAt: new Date(Date.now() + 600000),
+      });
+      databaseService.otpVerification.update.mockResolvedValue({});
+      databaseService.user.findFirst.mockResolvedValue(pendingUser);
+      databaseService.role.findFirst.mockResolvedValue({ id: 'role_buyer_id' });
+      databaseService.user.update.mockResolvedValue({
+        ...pendingUser,
+        status: 'ACTIVE',
+      });
+
+      const result = await service.verifyOtp(
+        {
+          identifier: registerDto.mobile,
+          otpCode: '123456',
+          purpose: 'REGISTRATION' as any,
+        },
+        {}
+      );
+
+      expect(result.success).toBe(true);
+      expect(result.message).toBe('Registration successful.');
+      expect(result.data.accessToken).toBeDefined();
+      expect(result.data.user.status).toBe('ACTIVE');
     });
   });
 });
