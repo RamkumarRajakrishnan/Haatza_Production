@@ -34,7 +34,20 @@ import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
-  // database services and utility injections
+  // Temporary in-memory store for pending registrations (cleared after OTP verification)
+  private readonly pendingRegistrations = new Map<string, {
+    mobile: string;
+    email: string;
+    password: string;
+    role?: UserRole;
+    buyer?: boolean;
+    employee?: boolean;
+    isEmployee?: boolean;
+    name?: string;
+    gender?: string;
+    expiresAt: Date;
+  }>();
+
   constructor(
     private readonly database: DatabaseService,
     private readonly jwtService: JwtService,
@@ -208,10 +221,9 @@ export class AuthService {
   }
 
   async register(data: RegisterDto) {
+    // email is now required — always deduplicate on both mobile and email
     const trimmedEmail = data.email.trim().toLowerCase();
-    
-    // Find any existing users matching mobile or email
-    const existingUsers = await this.database.user.findMany({
+    const existingUser = await this.database.user.findFirst({
       where: {
         OR: [
           { mobile: data.mobile },
@@ -220,72 +232,29 @@ export class AuthService {
       },
     });
 
-    const activeUser = existingUsers.find((u) => u.status === 'ACTIVE');
-    if (activeUser) {
-      if (activeUser.mobile === data.mobile) {
+    if (existingUser) {
+      if (existingUser.mobile === data.mobile) {
         throw new ConflictException('Mobile number already registered');
       }
-      if (activeUser.email?.toLowerCase() === trimmedEmail) {
+      if (existingUser.email?.toLowerCase() === trimmedEmail) {
         throw new ConflictException('Email address already registered');
       }
       throw new ConflictException('User with these credentials already exists');
     }
 
-    const pendingUser = existingUsers.find((u) => u.status === 'PENDING');
-
-    const isEmployeeBool =
-      (data as any).employee === true ||
-      (data as any).employee === 'true' ||
-      (data as any).isEmployee === true ||
-      (data as any).isEmployee === 'true' ||
-      data.role === UserRole.EMPLOYEE;
-
-    const isBuyerBool =
-      (data.buyer === true || (data.buyer as any) === 'true' || data.role === UserRole.BUYER) &&
-      !isEmployeeBool;
-
-    const isSellerBool =
-      (data.role === UserRole.SELLER || data.role === UserRole.SELLER_OWNER || data.role === UserRole.SELLER_STAFF) &&
-      !isEmployeeBool;
-
-    const finalIsEmployeeBool = isEmployeeBool || data.role === UserRole.EMPLOYEE;
-
-    const saltRounds = 10;
-    const hashedPassword = await bcrypt.hash(data.password, saltRounds);
-
-    let userRecord: any;
-    if (pendingUser) {
-      userRecord = await this.database.user.update({
-        where: { id: pendingUser.id },
-        data: {
-          name: data.name || '',
-          gender: data.gender || null,
-          mobile: data.mobile,
-          email: trimmedEmail,
-          password: hashedPassword,
-          role: data.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER)),
-          isBuyer: isBuyerBool,
-          isSeller: isSellerBool,
-          isEmployee: finalIsEmployeeBool,
-          status: 'PENDING',
-        },
-      });
-    } else {
-      userRecord = await this.database.user.create({
-        data: {
-          name: data.name || '',
-          gender: data.gender || null,
-          mobile: data.mobile,
-          email: trimmedEmail,
-          password: hashedPassword,
-          role: data.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER)),
-          isBuyer: isBuyerBool,
-          isSeller: isSellerBool,
-          isEmployee: finalIsEmployeeBool,
-          status: 'PENDING',
-        },
-      });
-    }
+    // Store registration data temporarily — user is created only after OTP verification
+    this.pendingRegistrations.set(data.mobile, {
+      mobile: data.mobile,
+      email: trimmedEmail,
+      password: data.password,
+      role: data.role,
+      buyer: data.buyer,
+      employee: (data as any).employee,
+      isEmployee: (data as any).isEmployee,
+      name: data.name,
+      gender: data.gender,
+      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // expires in 15 minutes
+    });
 
     // Send OTP to mobile for verification
     let otpData: any = null;
@@ -297,6 +266,7 @@ export class AuthService {
       });
       otpData = otpResult.data;
     } catch (otpErr: any) {
+      this.pendingRegistrations.delete(data.mobile);
       this.logger.warn(`Failed to generate registration OTP for ${data.mobile}: ${otpErr?.message}`);
       throw new BadRequestException('Failed to send OTP. Please try again.');
     }
@@ -1388,71 +1358,75 @@ export class AuthService {
       },
     });
 
-    // If OTP purpose is REGISTRATION, activate the user and initialize session
+    // If OTP purpose is REGISTRATION, create the user from pending registration data
     if (targetPurpose === OtpPurpose.REGISTRATION) {
-      if (!user) {
-        throw new BadRequestException('Registration details not found. Please register again.');
+      const pending = this.pendingRegistrations.get(normalizedIdentifier)
+        || this.pendingRegistrations.get(rawIdentifier);
+
+      if (!pending) {
+        throw new BadRequestException('Registration session expired or not found. Please register again.');
       }
-      if (user.status !== 'PENDING') {
-        throw new BadRequestException('User registration already completed or account is active.');
+
+      if (new Date() > pending.expiresAt) {
+        this.pendingRegistrations.delete(normalizedIdentifier);
+        throw new BadRequestException('Registration session expired. Please register again.');
       }
+
+      const isEmployeeBool =
+        pending.employee === true ||
+        (pending.employee as any) === 'true' ||
+        pending.isEmployee === true ||
+        (pending.isEmployee as any) === 'true' ||
+        pending.role === UserRole.EMPLOYEE;
+
+      const isBuyerBool =
+        (pending.buyer === true || (pending.buyer as any) === 'true' || pending.role === UserRole.BUYER) &&
+        !isEmployeeBool;
+
+      const userRole = pending.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
 
       const roleRecord = await this.database.role.findFirst({
-        where: { OR: [{ name: user.role }, { code: user.role.toLowerCase() }] },
+        where: { OR: [{ name: userRole }, { code: userRole.toLowerCase() }] },
       });
 
-      // Update user status to ACTIVE
-      const createdUser = await this.database.user.update({
-        where: { id: user.id },
-        data: {
-          status: 'ACTIVE',
-          phoneVerifiedAt: new Date(), // mark phone as verified immediately
-          roleId: roleRecord ? roleRecord.id : user.roleId,
-        },
-      });
+      const isSellerBool =
+        (userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF) &&
+        !isEmployeeBool;
 
-      // If registered user is an employee, automatically assign EMPLOYEE mapping in RBAC tables
-      if (createdUser.isEmployee) {
-        const employeeRoleMaster = await this.database.roleMaster.findFirst({
-          where: {
-            roleCode: { equals: 'EMPLOYEE', mode: 'insensitive' },
-            isActive: true,
+      const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
+
+      let createdUser: any;
+      try {
+        createdUser = await this.database.user.create({
+          data: {
+            name: pending.name || '',
+            gender: pending.gender || null,
+            mobile: pending.mobile,
+            email: pending.email,
+            password: pending.password,
+            role: userRole,
+            isBuyer: isBuyerBool,
+            isSeller: isSellerBool,
+            isEmployee: finalIsEmployeeBool,
+            roleId: roleRecord ? roleRecord.id : null,
+            phoneVerifiedAt: new Date(), // mark phone as verified immediately
           },
         });
-
-        if (employeeRoleMaster) {
-          // Create assignment in user_role
-          await this.database.userRoleMapping.upsert({
-            where: {
-              userId_roleId: {
-                userId: createdUser.id,
-                roleId: employeeRoleMaster.id,
-              },
-            },
-            update: { isActive: true },
-            create: {
-              userId: createdUser.id,
-              roleId: employeeRoleMaster.id,
-              isActive: true,
-            },
-          });
-
-          // Create assignment in user_page_role
-          await this.database.userPageRole.upsert({
-            where: {
-              userId_roleId: {
-                userId: createdUser.id,
-                roleId: employeeRoleMaster.id,
-              },
-            },
-            update: {},
-            create: {
-              userId: createdUser.id,
-              roleId: employeeRoleMaster.id,
-            },
-          });
+      } catch (err: any) {
+        if (err?.code === 'P2002') {
+          const target = Array.isArray(err?.meta?.target)
+            ? err.meta.target.join(' ')
+            : String(err?.meta?.target || '');
+          if (target.includes('email')) throw new ConflictException('Email address already registered');
+          if (target.includes('mobile') || target.includes('phone')) throw new ConflictException('Mobile number already registered');
+          throw new ConflictException('User with these credentials already exists');
         }
+        throw err;
       }
+
+      // Clear pending registration data
+      this.pendingRegistrations.delete(normalizedIdentifier);
+      this.pendingRegistrations.delete(rawIdentifier);
 
       const sessionUuid = crypto.randomUUID();
       const payload = {
@@ -1511,9 +1485,9 @@ export class AuthService {
           userId: createdUser.id || '',
           mobile: createdUser.mobile || '',
           email: createdUser.email || '',
-          buyer: createdUser.isBuyer,
-          seller: createdUser.isSeller,
-          employee: createdUser.isEmployee,
+          buyer: isBuyerBool,
+          seller: isSellerBool,
+          employee: finalIsEmployeeBool,
           accessToken: accessToken || '',
           refreshToken: refreshToken || '',
           expiresIn: expiresInSeconds || 0,

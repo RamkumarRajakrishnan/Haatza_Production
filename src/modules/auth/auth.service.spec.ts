@@ -29,19 +29,12 @@ describe('AuthService', () => {
         create: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
-        findMany: jest.fn(),
       },
       role: {
         findFirst: jest.fn(),
       },
       roleMaster: {
         findFirst: jest.fn(),
-      },
-      otpVerification: {
-        findFirst: jest.fn(),
-        update: jest.fn(),
-        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
-        create: jest.fn().mockResolvedValue({ id: 'otp_id', otpHash: '123456' }),
       },
       userRoleMapping: {
         upsert: jest.fn().mockResolvedValue({ id: 'mapped_role_id' }),
@@ -52,6 +45,12 @@ describe('AuthService', () => {
         upsert: jest.fn().mockResolvedValue({ id: 'mapped_page_role_id' }),
         findFirst: jest.fn(),
         findMany: jest.fn(),
+      },
+      otpVerification: {
+        findFirst: jest.fn(),
+        update: jest.fn(),
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'otp_id', otpHash: '123456', ...data })),
       },
       userSession: {
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: `sess_${Date.now()}`, ...data })),
@@ -380,53 +379,45 @@ describe('AuthService', () => {
       gender: 'Male',
     };
 
-    it('should create a PENDING user if no user exists during register', async () => {
-      databaseService.user.findMany.mockResolvedValue([]);
-      databaseService.user.create.mockResolvedValue({
-        id: 'usr_pending_123',
-        ...registerDto,
-        status: 'PENDING',
-      });
+    it('should save registration details in pendingRegistrations, generate OTP, and return nextStep VERIFY_OTP', async () => {
+      databaseService.user.findFirst.mockResolvedValue(null);
 
       const result = await service.register(registerDto);
 
       expect(result.success).toBe(true);
+      expect(result.statusCode).toBe(200);
       expect(result.data.mobile).toBe(registerDto.mobile);
-      expect(databaseService.user.create).toHaveBeenCalled();
+      expect(result.data.nextStep).toBe('VERIFY_OTP');
     });
 
-    it('should throw ConflictException if ACTIVE user exists during register', async () => {
-      const ConflictExceptionClass = require('@nestjs/common').ConflictException;
-      databaseService.user.findMany.mockResolvedValue([
-        {
-          id: 'usr_active_123',
-          ...registerDto,
-          status: 'ACTIVE',
-        },
-      ]);
+    it('should throw ConflictException if user already exists during register', async () => {
+      databaseService.user.findFirst.mockResolvedValue({
+        id: 'usr_existing',
+        mobile: registerDto.mobile,
+        email: registerDto.email,
+      });
 
-      await expect(service.register(registerDto)).rejects.toThrow(ConflictExceptionClass);
+      await expect(service.register(registerDto)).rejects.toThrow('Mobile number already registered');
     });
 
-    it('should activate user and return tokens during verifyOtp for REGISTRATION', async () => {
-      const pendingUser = {
-        id: 'usr_pending_123',
-        ...registerDto,
-        status: 'PENDING',
-      };
+    it('should create user and session during verifyOtp for REGISTRATION', async () => {
+      databaseService.user.findFirst.mockResolvedValue(null);
+      await service.register(registerDto);
 
       databaseService.otpVerification.findFirst.mockResolvedValue({
-        id: 'otp_123',
+        id: 'otp_id',
         otpHash: '123456',
         expiresAt: new Date(Date.now() + 600000),
       });
-      databaseService.otpVerification.update.mockResolvedValue({});
-      databaseService.user.findFirst.mockResolvedValue(pendingUser);
+
       databaseService.role.findFirst.mockResolvedValue({ id: 'role_buyer_id' });
-      databaseService.user.update.mockResolvedValue({
-        ...pendingUser,
+      
+      const createdUser = {
+        id: 'usr_new_123',
+        ...registerDto,
         status: 'ACTIVE',
-      });
+      };
+      databaseService.user.create.mockResolvedValue(createdUser);
 
       const result = await service.verifyOtp(
         {
