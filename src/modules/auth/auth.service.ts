@@ -1405,8 +1405,11 @@ export class AuthService {
       },
     });
 
-    if (user && user.status === 'ACTIVE') {
-      throw new BadRequestException('User is already registered and active. Please login instead.');
+    // If OTP purpose is REGISTRATION, check user state
+    if (targetPurpose === OtpPurpose.REGISTRATION) {
+      if (user && user.status === 'ACTIVE') {
+        throw new BadRequestException('User is already registered and active. Please login instead.');
+      }
     }
 
     // If OTP purpose is LOGIN, check user state
