@@ -506,7 +506,16 @@ export class AuthService {
   ) {
     const user = await this.database.user.findFirst({
       where: { email: { equals: dto.email, mode: 'insensitive' } },
-      include: { userRole: true },
+      include: {
+        userRole: true,
+        userRoles: {
+          where: { isActive: true },
+          include: { role: true },
+        },
+        userPageRoles: {
+          include: { role: true },
+        },
+      },
     });
 
     if (!user) {
@@ -521,9 +530,22 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email address or password.');
     }
 
+    const employeeRoleInMapping =
+      user.userRoles?.find(
+        (ur) =>
+          ur.role?.roleCode?.toUpperCase() === 'EMPLOYEE' ||
+          ur.role?.roleName?.toUpperCase() === 'EMPLOYEE',
+      )?.role ||
+      user.userPageRoles?.find(
+        (upr) =>
+          upr.role?.roleCode?.toUpperCase() === 'EMPLOYEE' ||
+          upr.role?.roleName?.toUpperCase() === 'EMPLOYEE',
+      )?.role;
+
     const isEmployee =
       user.isEmployee ||
       user.role === 'EMPLOYEE' ||
+      !!employeeRoleInMapping ||
       user.userRole?.name?.toUpperCase() === 'EMPLOYEE' ||
       user.userRole?.code?.toUpperCase() === 'EMPLOYEE';
 
@@ -558,10 +580,51 @@ export class AuthService {
 
     const sessionUuid = crypto.randomUUID();
 
+    // Determine the employee role ID and code to set in the token
+    let employeeRoleId = employeeRoleInMapping?.id;
+    let matchedRoleCode = employeeRoleInMapping?.roleCode;
+
+    if (!employeeRoleId) {
+      if (
+        user.userRole?.name?.toUpperCase() === 'EMPLOYEE' ||
+        user.userRole?.code?.toUpperCase() === 'EMPLOYEE'
+      ) {
+        employeeRoleId = user.userRole.id;
+        matchedRoleCode = user.userRole.code;
+      } else {
+        const rm = await this.database.roleMaster.findFirst({
+          where: {
+            roleCode: { equals: 'EMPLOYEE', mode: 'insensitive' },
+            isActive: true,
+          },
+        });
+        if (rm) {
+          employeeRoleId = rm.id;
+          matchedRoleCode = rm.roleCode;
+        } else {
+          const r = await this.database.role.findFirst({
+            where: {
+              code: { equals: 'EMPLOYEE', mode: 'insensitive' },
+              isActive: true,
+            },
+          });
+          if (r) {
+            employeeRoleId = r.id;
+            matchedRoleCode = r.code;
+          }
+        }
+      }
+    }
+
+    if (!matchedRoleCode) {
+      matchedRoleCode = user.role === 'EMPLOYEE' ? user.role : 'EMPLOYEE';
+    }
+
     const payload = {
       sub: user.id,
       sessionId: sessionUuid,
-      role: user.role,
+      role: matchedRoleCode,
+      roleId: employeeRoleId || user.roleId || undefined,
       mobile: user.mobile,
       email: user.email,
       jti: crypto.randomUUID(),
@@ -637,7 +700,7 @@ export class AuthService {
           email: user.email || '',
           phoneNumber: user.mobile || '',
           status: user.status,
-          role: user.role,
+          role: matchedRoleCode,
           isEmployee: user.isEmployee,
           is_employee: user.isEmployee,
           isBuyer: user.isBuyer,

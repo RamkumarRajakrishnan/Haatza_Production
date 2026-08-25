@@ -13,6 +13,7 @@ describe('AuthService', () => {
   let service: AuthService;
   let authRepository: jest.Mocked<AuthRepository>;
   let jwtService: jest.Mocked<JwtService>;
+  let databaseService: any;
 
   beforeEach(async () => {
     const mockAuthRepository = {
@@ -30,6 +31,9 @@ describe('AuthService', () => {
         findFirst: jest.fn(),
       },
       role: {
+        findFirst: jest.fn(),
+      },
+      roleMaster: {
         findFirst: jest.fn(),
       },
       userSession: {
@@ -70,6 +74,7 @@ describe('AuthService', () => {
     service = module.get<AuthService>(AuthService);
     authRepository = module.get(AuthRepository);
     jwtService = module.get(JwtService);
+    databaseService = module.get(DatabaseService);
   });
 
   it('should be defined', () => {
@@ -259,6 +264,91 @@ describe('AuthService', () => {
       await expect(
         service.generateOtp({ identifier: '12345' }),
       ).rejects.toThrow('Mobile number must be a valid 10-digit phone number starting with 6-9.');
+    });
+  });
+
+  describe('employeeLogin', () => {
+    it('should throw UnauthorizedException if employee is not found', async () => {
+      databaseService.user.findFirst.mockResolvedValue(null);
+
+      await expect(
+        service.employeeLogin({ email: 'nonexistent@haatza.com', password: 'password' }),
+      ).rejects.toThrow(UnauthorizedException);
+    });
+
+    it('should throw UnauthorizedException if user has no employee flag or roles', async () => {
+      const mockUser = {
+        id: 'usr_buyer_only',
+        email: 'buyer@haatza.com',
+        isEmployee: false,
+        role: 'BUYER',
+        userRole: null,
+        userRoles: [],
+        userPageRoles: [],
+      };
+      databaseService.user.findFirst.mockResolvedValue(mockUser);
+
+      await expect(
+        service.employeeLogin({ email: mockUser.email, password: 'password' }),
+      ).rejects.toThrow('Access denied. Only employee accounts are authorized.');
+    });
+
+    it('should throw UnauthorizedException if employee status is inactive', async () => {
+      const mockUser = {
+        id: 'usr_inactive_employee',
+        email: 'employee@haatza.com',
+        isEmployee: true,
+        role: 'EMPLOYEE',
+        status: 'INACTIVE',
+      };
+      databaseService.user.findFirst.mockResolvedValue(mockUser);
+
+      await expect(
+        service.employeeLogin({ email: mockUser.email, password: 'password' }),
+      ).rejects.toThrow('Employee account is inactive.');
+    });
+
+    it('should throw UnauthorizedException if password is invalid', async () => {
+      const mockUser = {
+        id: 'usr_employee_1',
+        email: 'employee@haatza.com',
+        isEmployee: true,
+        role: 'EMPLOYEE',
+        status: 'ACTIVE',
+        password: 'correct_password',
+      };
+      databaseService.user.findFirst.mockResolvedValue(mockUser);
+
+      await expect(
+        service.employeeLogin({ email: mockUser.email, password: 'wrong_password' }),
+      ).rejects.toThrow('Invalid email address or password.');
+    });
+
+    it('should return token and user data on successful employee login', async () => {
+      const mockUser = {
+        id: 'usr_employee_1',
+        email: 'employee@haatza.com',
+        isEmployee: true,
+        role: 'BUYER',
+        status: 'ACTIVE',
+        password: 'correct_password',
+        mobile: '9999999999',
+        name: 'Employee One',
+        gender: 'Male',
+        isBuyer: true,
+        isSeller: false,
+      };
+
+      databaseService.user.findFirst.mockResolvedValue(mockUser);
+      databaseService.roleMaster.findFirst.mockResolvedValue({ id: 'role_emp_123', roleCode: 'EMPLOYEE' });
+
+      const result = await service.employeeLogin({ email: mockUser.email, password: 'correct_password' });
+
+      expect(result.success).toBe(true);
+      expect(result.statusCode).toBe(200);
+      expect(result.data.accessToken).toBeDefined();
+      expect(result.data.user.role).toBe('EMPLOYEE');
+      expect(result.data.user.email).toBe(mockUser.email);
     });
   });
 });
