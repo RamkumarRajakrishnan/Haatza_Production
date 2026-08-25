@@ -1121,6 +1121,9 @@ export class AuthService {
       });
 
       if (matchingOtp) {
+        if (new Date() > matchingOtp.expiresAt) {
+          throw new BadRequestException('OTP has expired');
+        }
         isOtpValid = true;
         await this.database.otpVerification.update({
           where: { id: matchingOtp.id },
@@ -1142,6 +1145,7 @@ export class AuthService {
             { userId: user.id },
           ],
           isVerified: true,
+          expiresAt: { gt: new Date() },
         },
         orderBy: { updatedAt: 'desc' },
       });
@@ -1240,7 +1244,7 @@ export class AuthService {
     const identifierType = isEmail ? OtpIdentifierType.EMAIL : OtpIdentifierType.PHONE;
     const rawOtp = Math.floor(100000 + Math.random() * 900000).toString();
     const otpHash = rawOtp; // Store plain-text 6-digit OTP code
-    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+    const expiresAt = new Date(Date.now() + 1 * 60 * 1000); // 1 minute
 
     const existingUser = await this.database.user.findFirst({
       where: isEmail
@@ -1374,11 +1378,6 @@ export class AuthService {
       throw new BadRequestException('Invalid OTP code');
     }
 
-    await this.database.otpVerification.update({
-      where: { id: otpRecord.id },
-      data: { isVerified: true, verifiedAt: new Date() },
-    });
-
     // Find user by identifier if exists
     const user = await this.database.user.findFirst({
       where: {
@@ -1392,14 +1391,32 @@ export class AuthService {
 
     // If OTP purpose is REGISTRATION, activate the pending user record
     if (targetPurpose === OtpPurpose.REGISTRATION) {
+      if (user && user.status === 'ACTIVE') {
+        throw new BadRequestException('User is already registered and active. Please login instead.');
+      }
       if (!user || user.status !== 'PENDING') {
         throw new BadRequestException('Registration session expired or not found. Please register again.');
       }
+    }
 
+    // If OTP purpose is LOGIN, check user state
+    if (targetPurpose === OtpPurpose.LOGIN) {
+      if (!user) {
+        throw new BadRequestException('User not found for this identifier. Please register first.');
+      }
+    }
+
+    await this.database.otpVerification.update({
+      where: { id: otpRecord.id },
+      data: { isVerified: true, verifiedAt: new Date() },
+    });
+
+    // If OTP purpose is REGISTRATION, activate the pending user record
+    if (targetPurpose === OtpPurpose.REGISTRATION) {
       let activatedUser: any;
       try {
         activatedUser = await this.database.user.update({
-          where: { id: user.id },
+          where: { id: user!.id },
           data: {
             status: 'ACTIVE',
             phoneVerifiedAt: new Date(),
