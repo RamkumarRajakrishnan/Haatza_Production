@@ -380,12 +380,6 @@ export class AuthService {
       success: true,
       message: 'Registration successful.',
       data: {
-        userId: activeUser.id,
-        mobile: activeUser.mobile,
-        email: activeUser.email || '',
-        buyer: activeUser.isBuyer ?? false,
-        seller: activeUser.isSeller ?? false,
-        employee: activeUser.isEmployee ?? false,
         accessToken,
         refreshToken,
         expiresIn: expiresInSeconds,
