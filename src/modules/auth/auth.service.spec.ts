@@ -395,6 +395,7 @@ describe('AuthService', () => {
         id: 'usr_existing',
         mobile: registerDto.mobile,
         email: registerDto.email,
+        status: 'ACTIVE',
       });
 
       await expect(service.register(registerDto)).rejects.toThrow('Mobile number already registered');
@@ -402,6 +403,14 @@ describe('AuthService', () => {
 
     it('should create user and session during verifyOtp for REGISTRATION', async () => {
       databaseService.user.findFirst.mockResolvedValue(null);
+      
+      const pendingUser = {
+        id: 'usr_new_123',
+        ...registerDto,
+        status: 'PENDING',
+      };
+      databaseService.user.create.mockResolvedValue(pendingUser);
+
       await service.register(registerDto);
 
       databaseService.otpVerification.findFirst.mockResolvedValue({
@@ -410,14 +419,13 @@ describe('AuthService', () => {
         expiresAt: new Date(Date.now() + 600000),
       });
 
-      databaseService.role.findFirst.mockResolvedValue({ id: 'role_buyer_id' });
-      
-      const createdUser = {
-        id: 'usr_new_123',
-        ...registerDto,
+      databaseService.user.findFirst.mockResolvedValue(pendingUser);
+
+      const activatedUser = {
+        ...pendingUser,
         status: 'ACTIVE',
       };
-      databaseService.user.create.mockResolvedValue(createdUser);
+      databaseService.user.update.mockResolvedValue(activatedUser);
 
       const result = await service.verifyOtp(
         {

@@ -233,27 +233,59 @@ export class AuthService {
     });
 
     if (existingUser) {
-      if (existingUser.mobile === data.mobile) {
-        throw new ConflictException('Mobile number already registered');
+      if (existingUser.status === 'ACTIVE') {
+        if (existingUser.mobile === data.mobile) {
+          throw new ConflictException('Mobile number already registered');
+        }
+        if (existingUser.email?.toLowerCase() === trimmedEmail) {
+          throw new ConflictException('Email address already registered');
+        }
+        throw new ConflictException('User with these credentials already exists');
       }
-      if (existingUser.email?.toLowerCase() === trimmedEmail) {
-        throw new ConflictException('Email address already registered');
+
+      // If user status is PENDING, we delete the stale record to avoid unique constraints when creating the new one
+      if (existingUser.status === 'PENDING') {
+        await this.database.user.delete({
+          where: { id: existingUser.id },
+        }).catch(err => this.logger.warn(`Failed to delete stale PENDING user: ${err.message}`));
       }
-      throw new ConflictException('User with these credentials already exists');
     }
 
-    // Store registration data temporarily — user is created only after OTP verification
-    this.pendingRegistrations.set(data.mobile, {
-      mobile: data.mobile,
-      email: trimmedEmail,
-      password: data.password,
-      role: data.role,
-      buyer: data.buyer,
-      employee: (data as any).employee,
-      isEmployee: (data as any).isEmployee,
-      name: data.name,
-      gender: data.gender,
-      expiresAt: new Date(Date.now() + 15 * 60 * 1000), // expires in 15 minutes
+    const isEmployeeBool =
+      data.role === UserRole.EMPLOYEE ||
+      (data as any).employee === true ||
+      (data as any).isEmployee === true;
+
+    const isBuyerBool =
+      (data.buyer === true || (data as any).role === UserRole.BUYER) &&
+      !isEmployeeBool;
+
+    const isSellerBool =
+      (data.role === UserRole.SELLER || data.role === UserRole.SELLER_OWNER || data.role === UserRole.SELLER_STAFF) &&
+      !isEmployeeBool;
+
+    const finalIsEmployeeBool = isEmployeeBool || data.role === UserRole.EMPLOYEE;
+
+    const userRole = data.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
+
+    const roleRecord = await this.database.role.findFirst({
+      where: { OR: [{ name: userRole }, { code: userRole.toLowerCase() }] },
+    });
+
+    const pendingUser = await this.database.user.create({
+      data: {
+        name: data.name || '',
+        gender: data.gender || null,
+        mobile: data.mobile,
+        email: trimmedEmail,
+        password: data.password,
+        role: userRole,
+        isBuyer: isBuyerBool,
+        isSeller: isSellerBool,
+        isEmployee: finalIsEmployeeBool,
+        roleId: roleRecord ? roleRecord.id : null,
+        status: 'PENDING',
+      },
     });
 
     // Send OTP to mobile for verification
@@ -266,7 +298,7 @@ export class AuthService {
       });
       otpData = otpResult.data;
     } catch (otpErr: any) {
-      this.pendingRegistrations.delete(data.mobile);
+      await this.database.user.delete({ where: { id: pendingUser.id } }).catch(() => {});
       this.logger.warn(`Failed to generate registration OTP for ${data.mobile}: ${otpErr?.message}`);
       throw new BadRequestException('Failed to send OTP. Please try again.');
     }
@@ -1358,83 +1390,32 @@ export class AuthService {
       },
     });
 
-    // If OTP purpose is REGISTRATION, create the user from pending registration data
+    // If OTP purpose is REGISTRATION, activate the pending user record
     if (targetPurpose === OtpPurpose.REGISTRATION) {
-      const pending = this.pendingRegistrations.get(normalizedIdentifier)
-        || this.pendingRegistrations.get(rawIdentifier);
-
-      if (!pending) {
+      if (!user || user.status !== 'PENDING') {
         throw new BadRequestException('Registration session expired or not found. Please register again.');
       }
 
-      if (new Date() > pending.expiresAt) {
-        this.pendingRegistrations.delete(normalizedIdentifier);
-        throw new BadRequestException('Registration session expired. Please register again.');
-      }
-
-      const isEmployeeBool =
-        pending.employee === true ||
-        (pending.employee as any) === 'true' ||
-        pending.isEmployee === true ||
-        (pending.isEmployee as any) === 'true' ||
-        pending.role === UserRole.EMPLOYEE;
-
-      const isBuyerBool =
-        (pending.buyer === true || (pending.buyer as any) === 'true' || pending.role === UserRole.BUYER) &&
-        !isEmployeeBool;
-
-      const userRole = pending.role || (isEmployeeBool ? UserRole.EMPLOYEE : (isBuyerBool ? UserRole.BUYER : UserRole.SELLER));
-
-      const roleRecord = await this.database.role.findFirst({
-        where: { OR: [{ name: userRole }, { code: userRole.toLowerCase() }] },
-      });
-
-      const isSellerBool =
-        (userRole === UserRole.SELLER || userRole === UserRole.SELLER_OWNER || userRole === UserRole.SELLER_STAFF) &&
-        !isEmployeeBool;
-
-      const finalIsEmployeeBool = isEmployeeBool || userRole === UserRole.EMPLOYEE;
-
-      let createdUser: any;
+      let activatedUser: any;
       try {
-        createdUser = await this.database.user.create({
+        activatedUser = await this.database.user.update({
+          where: { id: user.id },
           data: {
-            name: pending.name || '',
-            gender: pending.gender || null,
-            mobile: pending.mobile,
-            email: pending.email,
-            password: pending.password,
-            role: userRole,
-            isBuyer: isBuyerBool,
-            isSeller: isSellerBool,
-            isEmployee: finalIsEmployeeBool,
-            roleId: roleRecord ? roleRecord.id : null,
-            phoneVerifiedAt: new Date(), // mark phone as verified immediately
+            status: 'ACTIVE',
+            phoneVerifiedAt: new Date(),
           },
         });
       } catch (err: any) {
-        if (err?.code === 'P2002') {
-          const target = Array.isArray(err?.meta?.target)
-            ? err.meta.target.join(' ')
-            : String(err?.meta?.target || '');
-          if (target.includes('email')) throw new ConflictException('Email address already registered');
-          if (target.includes('mobile') || target.includes('phone')) throw new ConflictException('Mobile number already registered');
-          throw new ConflictException('User with these credentials already exists');
-        }
-        throw err;
+        throw new BadRequestException('Failed to activate user account. Please try again.');
       }
-
-      // Clear pending registration data
-      this.pendingRegistrations.delete(normalizedIdentifier);
-      this.pendingRegistrations.delete(rawIdentifier);
 
       const sessionUuid = crypto.randomUUID();
       const payload = {
-        sub: createdUser.id,
+        sub: activatedUser.id,
         sessionId: sessionUuid,
-        role: createdUser.role,
-        mobile: createdUser.mobile,
-        email: createdUser.email,
+        role: activatedUser.role,
+        mobile: activatedUser.mobile,
+        email: activatedUser.email,
         jti: crypto.randomUUID(),
       };
 
@@ -1458,7 +1439,7 @@ export class AuthService {
         await this.database.userSession.create({
           data: {
             id: sessionUuid,
-            userId: createdUser.id,
+            userId: activatedUser.id,
             identifier: rawIdentifier,
             refreshTokenHash: tokenHash,
             refreshToken,
@@ -1475,7 +1456,7 @@ export class AuthService {
           },
         });
       } catch (dbErr: any) {
-        this.logger.error(`UserSession creation warning for user ${createdUser?.id}: ${dbErr?.message}`);
+        this.logger.error(`UserSession creation warning for user ${activatedUser?.id}: ${dbErr?.message}`);
       }
 
       return {
