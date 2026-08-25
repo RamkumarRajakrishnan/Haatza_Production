@@ -251,6 +251,43 @@ export class AuthService {
       }
     }
 
+    // OTP verification validation
+    const cleanedMobile = data.mobile.replace(/[\s\-\(\)\+]/g, '');
+    let normalizedMobile = cleanedMobile;
+    if (cleanedMobile.length === 12 && cleanedMobile.startsWith('91')) {
+      normalizedMobile = cleanedMobile.substring(2);
+    }
+
+    const verifiedOtp = await this.database.otpVerification.findFirst({
+      where: {
+        OR: [
+          { identifier: normalizedMobile },
+          { identifier: data.mobile },
+          { identifier: cleanedMobile },
+        ],
+        purpose: OtpPurpose.REGISTRATION,
+        isVerified: true,
+        expiresAt: { gt: new Date() },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (!verifiedOtp) {
+      throw new BadRequestException('OTP verification required. Please verify your phone number first.');
+    }
+
+    // Clean up verified OTPs so they cannot be reused
+    await this.database.otpVerification.deleteMany({
+      where: {
+        OR: [
+          { identifier: normalizedMobile },
+          { identifier: data.mobile },
+          { identifier: cleanedMobile },
+        ],
+        purpose: OtpPurpose.REGISTRATION,
+      },
+    }).catch(err => this.logger.warn(`Failed to clean up verified OTPs: ${err.message}`));
+
     const isEmployeeBool =
       data.role === UserRole.EMPLOYEE ||
       (data as any).employee === true ||
@@ -272,7 +309,7 @@ export class AuthService {
       where: { OR: [{ name: userRole }, { code: userRole.toLowerCase() }] },
     });
 
-    const pendingUser = await this.database.user.create({
+    const activeUser = await this.database.user.create({
       data: {
         name: data.name || '',
         gender: data.gender || null,
@@ -284,36 +321,82 @@ export class AuthService {
         isSeller: isSellerBool,
         isEmployee: finalIsEmployeeBool,
         roleId: roleRecord ? roleRecord.id : null,
-        status: 'PENDING',
+        status: 'ACTIVE',
+        phoneVerifiedAt: new Date(),
       },
     });
 
-    // Send OTP to mobile for verification
-    let otpData: any = null;
+    const sessionUuid = crypto.randomUUID();
+    const payload = {
+      sub: activeUser.id,
+      sessionId: sessionUuid,
+      role: activeUser.role,
+      mobile: activeUser.mobile,
+      email: activeUser.email,
+      jti: crypto.randomUUID(),
+    };
+
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      process.env.JWT_REFRESH_SECRET ||
+      'haatza_refresh_secret';
+
+    const expiresInSeconds = 3600;
+    const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: '7d',
+    });
+
+    const tokenHash = this.hashToken(refreshToken);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
     try {
-      const otpResult = await this.generateOtp({
-        identifier: data.mobile,
-        purpose: OtpPurpose.REGISTRATION,
-        channel: OtpChannel.SMS,
+      await this.database.userSession.create({
+        data: {
+          id: sessionUuid,
+          userId: activeUser.id,
+          identifier: data.mobile,
+          refreshTokenHash: tokenHash,
+          refreshToken,
+          ipAddress: null,
+          userAgent: null,
+          deviceName: 'Web/Mobile App',
+          platform: 'CLIENT',
+          deviceType: 'WEB',
+          isActive: true,
+          lastActivityAt: now,
+          expiresAt,
+          createdAt: now,
+          updatedAt: now,
+        },
       });
-      otpData = otpResult.data;
-    } catch (otpErr: any) {
-      await this.database.user.delete({ where: { id: pendingUser.id } }).catch(() => {});
-      this.logger.warn(`Failed to generate registration OTP for ${data.mobile}: ${otpErr?.message}`);
-      throw new BadRequestException('Failed to send OTP. Please try again.');
+    } catch (dbErr: any) {
+      this.logger.error(`UserSession creation warning for user ${activeUser.id}: ${dbErr?.message}`);
     }
 
     return {
       success: true,
-      statusCode: 200,
-      message: 'OTP sent to your mobile number. Please verify to complete registration.',
+      statusCode: 201,
+      message: 'Registration successful.',
       data: {
-        mobile: data.mobile,
-        email: trimmedEmail,
-        otp: otpData,
-        nextStep: 'VERIFY_OTP',
+        accessToken,
+        refreshToken,
+        expiresIn: expiresInSeconds,
+        user: {
+          id: activeUser.id,
+          name: activeUser.name,
+          gender: activeUser.gender || '',
+          email: activeUser.email || '',
+          phoneNumber: activeUser.mobile,
+          status: activeUser.status,
+          role: activeUser.role,
+          isEmployee: activeUser.isEmployee ?? false,
+          isBuyer: activeUser.isBuyer ?? false,
+          isSeller: activeUser.isSeller ?? false,
+        },
       },
-      error: null,
     };
   }
 
@@ -1389,14 +1472,8 @@ export class AuthService {
       },
     });
 
-    // If OTP purpose is REGISTRATION, activate the pending user record
-    if (targetPurpose === OtpPurpose.REGISTRATION) {
-      if (user && user.status === 'ACTIVE') {
-        throw new BadRequestException('User is already registered and active. Please login instead.');
-      }
-      if (!user || user.status !== 'PENDING') {
-        throw new BadRequestException('Registration session expired or not found. Please register again.');
-      }
+    if (user && user.status === 'ACTIVE') {
+      throw new BadRequestException('User is already registered and active. Please login instead.');
     }
 
     // If OTP purpose is LOGIN, check user state
@@ -1411,74 +1488,10 @@ export class AuthService {
       data: { isVerified: true, verifiedAt: new Date() },
     });
 
-    // If OTP purpose is REGISTRATION, activate the pending user record
     if (targetPurpose === OtpPurpose.REGISTRATION) {
-      let activatedUser: any;
-      try {
-        activatedUser = await this.database.user.update({
-          where: { id: user!.id },
-          data: {
-            status: 'ACTIVE',
-            phoneVerifiedAt: new Date(),
-          },
-        });
-      } catch (err: any) {
-        throw new BadRequestException('Failed to activate user account. Please try again.');
-      }
-
-      const sessionUuid = crypto.randomUUID();
-      const payload = {
-        sub: activatedUser.id,
-        sessionId: sessionUuid,
-        role: activatedUser.role,
-        mobile: activatedUser.mobile,
-        email: activatedUser.email,
-        jti: crypto.randomUUID(),
-      };
-
-      const refreshSecret =
-        this.configService.get<string>('JWT_REFRESH_SECRET') ||
-        process.env.JWT_REFRESH_SECRET ||
-        'haatza_refresh_secret';
-
-      const expiresInSeconds = 3600;
-      const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
-      const refreshToken = this.jwtService.sign(payload, {
-        secret: refreshSecret,
-        expiresIn: '7d',
-      });
-
-      const tokenHash = this.hashToken(refreshToken);
-      const now = new Date();
-      const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-      try {
-        await this.database.userSession.create({
-          data: {
-            id: sessionUuid,
-            userId: activatedUser.id,
-            identifier: rawIdentifier,
-            refreshTokenHash: tokenHash,
-            refreshToken,
-            ipAddress: reqMeta?.ipAddress || null,
-            userAgent: reqMeta?.userAgent || null,
-            deviceName: this.parseDeviceName(reqMeta?.userAgent),
-            platform: this.parsePlatform(reqMeta?.userAgent),
-            deviceType: reqMeta?.userAgent?.toLowerCase().includes('mobile') ? 'MOBILE' : 'WEB',
-            isActive: true,
-            lastActivityAt: now,
-            expiresAt,
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
-      } catch (dbErr: any) {
-        this.logger.error(`UserSession creation warning for user ${activatedUser?.id}: ${dbErr?.message}`);
-      }
-
       return {
         success: true,
-        message: 'Registration successful.',
+        message: 'OTP verified successfully.',
         data: {},
       };
     }

@@ -29,6 +29,7 @@ describe('AuthService', () => {
         create: jest.fn(),
         update: jest.fn(),
         findFirst: jest.fn(),
+        delete: jest.fn().mockResolvedValue({}),
       },
       role: {
         findFirst: jest.fn(),
@@ -50,6 +51,7 @@ describe('AuthService', () => {
         findFirst: jest.fn(),
         update: jest.fn(),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+        deleteMany: jest.fn().mockResolvedValue({ count: 1 }),
         create: jest.fn().mockImplementation(({ data }) => Promise.resolve({ id: 'otp_id', otpHash: '123456', ...data })),
       },
       userSession: {
@@ -379,15 +381,31 @@ describe('AuthService', () => {
       gender: 'Male',
     };
 
-    it('should save registration details in pendingRegistrations, generate OTP, and return nextStep VERIFY_OTP', async () => {
+    it('should verify OTP and create ACTIVE user directly returning JWT tokens on register', async () => {
       databaseService.user.findFirst.mockResolvedValue(null);
+
+      databaseService.otpVerification.findFirst.mockResolvedValue({
+        id: 'otp_id',
+        isVerified: true,
+        expiresAt: new Date(Date.now() + 600000),
+      });
+
+      const mockActiveUser = {
+        id: 'usr_new_123',
+        ...registerDto,
+        status: 'ACTIVE',
+      };
+      databaseService.user.create.mockResolvedValue(mockActiveUser);
+      databaseService.roleMaster.findFirst.mockResolvedValue({ id: 'role_buyer_123', roleCode: 'BUYER' });
 
       const result = await service.register(registerDto);
 
       expect(result.success).toBe(true);
-      expect(result.statusCode).toBe(200);
-      expect(result.data.mobile).toBe(registerDto.mobile);
-      expect(result.data.nextStep).toBe('VERIFY_OTP');
+      expect(result.statusCode).toBe(201);
+      expect(result.data.accessToken).toBeDefined();
+      expect(result.data.refreshToken).toBeDefined();
+      expect(result.data.user.id).toBe(mockActiveUser.id);
+      expect(result.data.user.status).toBe('ACTIVE');
     });
 
     it('should throw ConflictException if user already exists during register', async () => {
@@ -401,31 +419,15 @@ describe('AuthService', () => {
       await expect(service.register(registerDto)).rejects.toThrow('Mobile number already registered');
     });
 
-    it('should create user and session during verifyOtp for REGISTRATION', async () => {
+    it('should verify OTP and return success during verifyOtp for REGISTRATION', async () => {
       databaseService.user.findFirst.mockResolvedValue(null);
-      
-      const pendingUser = {
-        id: 'usr_new_123',
-        ...registerDto,
-        status: 'PENDING',
-      };
-      databaseService.user.create.mockResolvedValue(pendingUser);
-
-      await service.register(registerDto);
 
       databaseService.otpVerification.findFirst.mockResolvedValue({
         id: 'otp_id',
         otpHash: '123456',
         expiresAt: new Date(Date.now() + 600000),
+        isVerified: false,
       });
-
-      databaseService.user.findFirst.mockResolvedValue(pendingUser);
-
-      const activatedUser = {
-        ...pendingUser,
-        status: 'ACTIVE',
-      };
-      databaseService.user.update.mockResolvedValue(activatedUser);
 
       const result = await service.verifyOtp(
         {
@@ -437,7 +439,7 @@ describe('AuthService', () => {
       );
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Registration successful.');
+      expect(result.message).toBe('OTP verified successfully.');
       expect(result.data).toEqual({});
     });
   });
