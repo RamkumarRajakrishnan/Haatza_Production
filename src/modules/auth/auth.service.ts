@@ -326,10 +326,83 @@ export class AuthService {
       },
     });
 
+    const sessionUuid = crypto.randomUUID();
+    const payload = {
+      sub: activeUser.id,
+      sessionId: sessionUuid,
+      role: activeUser.role,
+      mobile: activeUser.mobile,
+      email: activeUser.email,
+      jti: crypto.randomUUID(),
+    };
+
+    const refreshSecret =
+      this.configService.get<string>('JWT_REFRESH_SECRET') ||
+      process.env.JWT_REFRESH_SECRET ||
+      'haatza_refresh_secret';
+
+    const expiresInSeconds = 3600;
+    const accessToken = await this.jwtService.signAsync(payload, { expiresIn: `${expiresInSeconds}s` });
+    const refreshToken = this.jwtService.sign(payload, {
+      secret: refreshSecret,
+      expiresIn: '7d',
+    });
+
+    const tokenHash = this.hashToken(refreshToken);
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+    try {
+      await this.database.userSession.create({
+        data: {
+          id: sessionUuid,
+          userId: activeUser.id,
+          identifier: data.mobile,
+          refreshTokenHash: tokenHash,
+          refreshToken,
+          ipAddress: null,
+          userAgent: null,
+          deviceName: 'Web/Mobile App',
+          platform: 'CLIENT',
+          deviceType: 'WEB',
+          isActive: true,
+          lastActivityAt: now,
+          expiresAt,
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+    } catch (dbErr: any) {
+      this.logger.error(`UserSession creation warning for user ${activeUser.id}: ${dbErr?.message}`);
+    }
+
     return {
       success: true,
       message: 'Registration successful.',
-      data: {},
+      data: {
+        userId: activeUser.id,
+        mobile: activeUser.mobile,
+        email: activeUser.email || '',
+        buyer: activeUser.isBuyer ?? false,
+        seller: activeUser.isSeller ?? false,
+        employee: activeUser.isEmployee ?? false,
+        accessToken,
+        refreshToken,
+        expiresIn: expiresInSeconds,
+        user: {
+          id: activeUser.id,
+          name: activeUser.name,
+          gender: activeUser.gender || '',
+          email: activeUser.email || '',
+          phoneNumber: activeUser.mobile,
+          status: activeUser.status,
+          role: activeUser.role,
+          isEmployee: activeUser.isEmployee ?? false,
+          isBuyer: activeUser.isBuyer ?? false,
+          isSeller: activeUser.isSeller ?? false,
+        },
+        nextStep: 'HOME',
+      },
     };
   }
 

@@ -381,7 +381,7 @@ describe('AuthService', () => {
       gender: 'Male',
     };
 
-    it('should verify OTP and create ACTIVE user directly on register', async () => {
+    it('should verify OTP and create ACTIVE user directly returning JWT tokens on register', async () => {
       databaseService.user.findFirst.mockResolvedValue(null);
 
       databaseService.otpVerification.findFirst.mockResolvedValue({
@@ -401,8 +401,10 @@ describe('AuthService', () => {
       const result = await service.register(registerDto);
 
       expect(result.success).toBe(true);
-      expect(result.message).toBe('Registration successful.');
-      expect(result.data).toEqual({});
+      expect(result.data.accessToken).toBeDefined();
+      expect(result.data.refreshToken).toBeDefined();
+      expect(result.data.user.id).toBe(mockActiveUser.id);
+      expect(result.data.user.status).toBe('ACTIVE');
     });
 
     it('should throw ConflictException if user already exists during register', async () => {
