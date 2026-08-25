@@ -37,6 +37,8 @@ model User {
   role                UserRole           @default(BUYER) @map("role")
   isSeller            Boolean            @default(false) @map("is_seller")
   isEmployee          Boolean            @default(false) @map("is_employee")
+  password            String?
+  refresh_token       String?
   buyer               Buyer?
   otps                OtpVerification[]
   loginHistories      UserLoginHistory[]
@@ -152,6 +154,7 @@ model OtpVerification {
   @@index([purpose])
   @@index([expiresAt])
   @@index([isVerified])
+  @@index([identifier], map: "idx_otp_verifications_identifier")
   @@map("otp_verifications")
 }
 
@@ -167,22 +170,67 @@ model Buyer {
 }
 
 model Product {
-  id                 String   @id @default(uuid()) @map("product_id")
-  sellerId           String   @map("seller_id")
-  categoryId         String?  @map("category_id")
-  title              String   @map("title")
-  description        String?  @map("description")
-  price              Float    @map("price")
-  sku                String   @unique @map("sku")
-  inventory          Int      @default(0) @map("inventory")
-  mediaUrls          String[] @map("media_urls")
-  videoUrls          String[] @map("video_urls")
-  influencerBranding Boolean  @default(false) @map("influencer_branding")
-  createdAt          DateTime @default(now()) @map("created_at")
-  updatedAt          DateTime @updatedAt @map("updated_at")
+  id                     String    @id @default(uuid()) @map("product_id")
+  mainMedia              String?   @map("main_media")
+  oneRsStore             Boolean?  @default(false) @map("one_rs_store")
+  productImages          Json?     @map("product_images")
+  name                   String    @map("name")
+  searchKeywords         String[]  @map("search_keywords")
+  subCategory            String?   @map("sub_category")
+  subCategoryId          String?   @map("sub_category_id")
+  brand                  String?   @map("brand")
+  inventory              Int       @default(0) @map("inventory")
+  variantPrice           Json?     @map("variant_price")
+  wixProductId           String?   @map("wix_product_id")
+  newVariantPrice        Json?     @map("new_variant_price")
+  mrp                    Float?    @map("mrp")
+  onsalePrice            Float?    @map("onsale_price")
+  cod                    Float?    @map("cod")
+  upi                    Float?    @map("upi")
+  price                  Float?    @map("price")
+  discount               Json?     @map("discount")
+  status                 String?   @map("status")
+  deliveryCharges        Boolean?  @map("delivery_charges")
+  mainCategory           String?   @map("main_category")
+  sellerId               String?   @map("seller_id")
+  shippingWeight         Float?    @map("shipping_weight")
+  collections            String[]  @map("collections")
+  sellerPincode          String?   @map("seller_pincode")
+  createdDate            DateTime? @map("created_date")
+  updatedDate            DateTime? @map("updated_date")
+  owner                  String?   @map("owner")
+  productOptions         Json?     @map("product_options")
+  additionalInfoSections Json?     @map("additional_info_sections")
+  activeAd               Boolean?  @default(false) @map("active_ad")
+  averageCpc             Float?    @map("average_cpc")
+  priorityScore          Int?      @map("priority_score")
+  campaignId             String?   @map("campaign_id")
+  reach                  Int?      @map("reach")
+  impression             Int?      @map("impression")
+  clicks                 Int?      @map("clicks")
+  sales                  Int?      @map("sales")
+  revenue                Float?    @map("revenue")
+  categoryName           String[]  @map("category_name")
+  sku                    String?   @map("sku")
+  productType            String?   @map("product_type")
+  manageVariants         Boolean?  @map("manage_variants")
+  ribbon                 String?   @map("ribbon")
+  trackInventory         Boolean?  @map("track_inventory")
+  influencerBranding     Boolean?  @map("influencer_branding")
+  haatzaVerified         Boolean?  @map("haatza_verified")
+  promotionPhotos        String[]  @map("promotion_photos")
+  paymentType            String?   @map("payment_type")
+  productReturn          String?   @map("product_return")
+  sizeChart              String?   @map("size_chart")
+  description            String?   @map("description")
+  gstSeller              Float?    @map("gst_seller")
+  upiPaymentDiscount     Float?    @map("upi_payment_discount")
+  manageListingProducts  String?   @map("manage_listing_products")
+  sellAndEarnCommission  Float?    @map("sell_and_earn_commission")
+  sellAndEarn            String?   @map("sell_and_earn")
 
   @@index([sellerId])
-  @@index([categoryId])
+  @@index([subCategoryId])
   @@map("products")
 }
 
@@ -238,6 +286,9 @@ model SellerSubscription {
   @@index([sellerId])
   @@index([planId])
   @@index([status])
+  @@index([planId], map: "idx_seller_subscriptions_plan_id")
+  @@index([sellerId], map: "idx_seller_subscriptions_seller_id")
+  @@index([status], map: "idx_seller_subscriptions_status")
   @@map("seller_subscriptions")
 }
 
@@ -248,7 +299,7 @@ model SellerSubscriptionInvoice {
   invoiceDate       DateTime           @map("invoice_date")
   sellerName        String             @map("seller_name") @db.VarChar(100)
   gstin             String?            @db.VarChar(20)
-  address           String?            @db.Text
+  address           String?
   itemName          String             @map("item_name") @db.VarChar(100)
   rate              Decimal            @db.Decimal(12, 2)
   subtotal          Decimal            @db.Decimal(12, 2)
@@ -270,27 +321,29 @@ model SellerSubscriptionInvoice {
 
   @@index([subscriptionId])
   @@index([sellerId])
+  @@index([subscriptionId], map: "idx_seller_subscription_invoices_subscription_id")
   @@map("seller_subscription_invoices")
 }
 
 model SubscriptionCoupon {
-  id                String    @id @default(uuid()) @db.VarChar(36)
-  code              String    @unique @db.VarChar(50)
-  discountType      String    @map("discount_type") @db.VarChar(20)
-  discountValue     Decimal   @map("discount_value") @db.Decimal(12, 2)
-  minOrderAmount    Decimal?  @default(0.00) @map("min_order_amount") @db.Decimal(12, 2)
-  maxDiscountAmount Decimal?  @map("max_discount_amount") @db.Decimal(12, 2)
-  startDate         DateTime  @map("start_date")
-  endDate           DateTime  @map("end_date")
-  usageLimit        Int?      @map("usage_limit")
-  usageCount        Int          @default(0) @map("usage_count")
-  status            String       @default("ACTIVE") @db.VarChar(20)
-  applicablePlanId  String?      @map("applicable_plan_id") @db.VarChar(36)
-  description       String?      @db.Text
-  createdAt         DateTime     @default(now()) @map("created_at")
+  id                String   @id @default(uuid()) @db.VarChar(36)
+  code              String   @unique @db.VarChar(50)
+  discountType      String   @map("discount_type") @db.VarChar(20)
+  discountValue     Decimal  @map("discount_value") @db.Decimal(12, 2)
+  minOrderAmount    Decimal? @default(0.00) @map("min_order_amount") @db.Decimal(12, 2)
+  maxDiscountAmount Decimal? @map("max_discount_amount") @db.Decimal(12, 2)
+  startDate         DateTime @map("start_date")
+  endDate           DateTime @map("end_date")
+  usageLimit        Int?     @map("usage_limit")
+  usageCount        Int      @default(0) @map("usage_count")
+  status            String   @default("ACTIVE") @db.VarChar(20)
+  applicablePlanId  String?  @map("applicable_plan_id") @db.VarChar(36)
+  description       String?
+  createdAt         DateTime @default(now()) @map("created_at")
 
   @@index([code])
   @@index([status])
+  @@index([code], map: "idx_coupons_code")
   @@map("subscription_coupons")
 }
 
@@ -304,6 +357,7 @@ model SellerWallet {
   transactions WalletTransaction[]
 
   @@index([sellerId])
+  @@index([sellerId], map: "idx_seller_wallets_seller_id")
   @@map("seller_wallets")
 }
 
@@ -324,31 +378,32 @@ model WalletTransaction {
 }
 
 model SellerReferral {
-  id             String                @id @default(uuid()) @db.VarChar(36)
-  sellerId       String                @unique @map("seller_id") @db.VarChar(50)
-  referralCode   String                @unique @map("referral_code") @db.VarChar(50)
-  referralLink   String?               @map("referral_link") @db.VarChar(255)
-  pointsBalance  Decimal               @default(0.00) @map("points_balance") @db.Decimal(12, 2)
-  totalEarned    Decimal               @default(0.00) @map("total_earned") @db.Decimal(12, 2)
-  createdAt      DateTime              @default(now()) @map("created_at")
-  updatedAt      DateTime              @updatedAt @map("updated_at")
-  history        ReferralTransaction[]
+  id            String                @id @default(uuid()) @db.VarChar(36)
+  sellerId      String                @unique @map("seller_id") @db.VarChar(50)
+  referralCode  String                @unique @map("referral_code") @db.VarChar(50)
+  referralLink  String?               @map("referral_link") @db.VarChar(255)
+  pointsBalance Decimal               @default(0.00) @map("points_balance") @db.Decimal(12, 2)
+  totalEarned   Decimal               @default(0.00) @map("total_earned") @db.Decimal(12, 2)
+  createdAt     DateTime              @default(now()) @map("created_at")
+  updatedAt     DateTime              @updatedAt @map("updated_at")
+  history       ReferralTransaction[]
 
   @@index([sellerId])
   @@index([referralCode])
+  @@index([sellerId], map: "idx_seller_referrals_seller_id")
   @@map("seller_referrals")
 }
 
 model ReferralTransaction {
-  id              String         @id @default(uuid()) @db.VarChar(36)
-  referralId      String         @map("referral_id") @db.VarChar(36)
-  sellerId        String         @map("seller_id") @db.VarChar(50)
-  referredSellerId String?       @map("referred_seller_id") @db.VarChar(50)
-  points          Decimal        @db.Decimal(12, 2)
-  type            String         @db.VarChar(20)
-  description     String?        @db.VarChar(255)
-  createdAt       DateTime       @default(now()) @map("created_at")
-  referral        SellerReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
+  id               String         @id @default(uuid()) @db.VarChar(36)
+  referralId       String         @map("referral_id") @db.VarChar(36)
+  sellerId         String         @map("seller_id") @db.VarChar(50)
+  referredSellerId String?        @map("referred_seller_id") @db.VarChar(50)
+  points           Decimal        @db.Decimal(12, 2)
+  type             String         @db.VarChar(20)
+  description      String?        @db.VarChar(255)
+  createdAt        DateTime       @default(now()) @map("created_at")
+  referral         SellerReferral @relation(fields: [referralId], references: [id], onDelete: Cascade)
 
   @@index([referralId])
   @@index([sellerId])
@@ -369,11 +424,12 @@ model UserLoginHistory {
 
   @@index([userId])
   @@index([identifier])
+  @@index([userId], map: "idx_user_login_histories_user_id")
   @@map("user_login_histories")
 }
 
 model Dashboard {
-  id           String           @id @map("id")
+  id           String           @id @default(dbgenerated("fn_next_dashboard_id()")) @map("id")
   widgetType   String?          @map("widget_type")
   widgetId     String           @unique @map("widget_id")
   title        String?          @map("title")
@@ -443,6 +499,7 @@ model RolePageMaster {
   @@index([roleId])
   @@index([pageId])
   @@index([roleId], map: "idx_role_page_master_role_id")
+  @@index([pageId], map: "idx_role_page_master_page_id")
   @@map("role_page_master")
 }
 
@@ -474,27 +531,28 @@ model UserRoleMapping {
   @@unique([userId, roleId])
   @@index([userId])
   @@index([roleId])
+  @@index([roleId], map: "idx_user_role_role_id")
+  @@index([userId], map: "idx_user_role_user_id")
   @@map("user_role")
 }
 
 model CategoryMaster {
-  id               String         @id @default(uuid()) @map("id")
-  categoryId       String         @unique @map("category_id")
-  categoryName     String         @map("category_name")
-  parentCategoryId String?        @map("parent_category_id")
-  categoryType     CategoryType   @default(CATEGORY) @map("category_type")
-  categoryImage    String?        @map("category_image")
-  description      String?        @map("description")
-  sequence         Int            @default(0) @map("sequence")
-  status           CategoryStatus @default(ACTIVE) @map("status")
-  module           CategoryModule @default(HAATZA) @map("module")
-  createdBy        String?        @map("created_by")
-  updatedBy        String?        @map("updated_by")
-  createdAt        DateTime       @default(now()) @map("created_at")
-  updatedAt        DateTime       @updatedAt @map("updated_at")
-
-  parent   CategoryMaster?  @relation("CategoryHierarchy", fields: [parentCategoryId], references: [categoryId], onDelete: Cascade)
-  children CategoryMaster[] @relation("CategoryHierarchy")
+  id               String           @id @default(uuid()) @map("id")
+  categoryId       String           @unique @map("category_id")
+  categoryName     String           @map("category_name")
+  parentCategoryId String?          @map("parent_category_id")
+  categoryType     CategoryType     @default(CATEGORY) @map("category_type")
+  categoryImage    String?          @map("category_image")
+  description      String?          @map("description")
+  sequence         Int              @default(0) @map("sequence")
+  status           CategoryStatus   @default(ACTIVE) @map("status")
+  module           CategoryModule   @default(HAATZA) @map("module")
+  createdBy        String?          @map("created_by")
+  updatedBy        String?          @map("updated_by")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  parent           CategoryMaster?  @relation("CategoryHierarchy", fields: [parentCategoryId], references: [categoryId], onDelete: Cascade)
+  children         CategoryMaster[] @relation("CategoryHierarchy")
 
   @@unique([categoryName, parentCategoryId, module])
   @@index([parentCategoryId])
@@ -506,7 +564,7 @@ model CategoryMaster {
 
 model WarehouseMaster {
   id                           String   @id @default(uuid()) @map("id")
-  warehouseId                  String   @unique @map("warehouse_id")
+  warehouseId                  String   @unique(map: "idx_warehouse_master_id") @map("warehouse_id")
   warehouseName                String   @map("warehouse_name")
   warehouseType                String?  @map("warehouse_type")
   franchiseCode                String?  @map("franchise_code")
@@ -532,30 +590,57 @@ model WarehouseMaster {
   managerPhone                 String?  @map("manager_phone")
 
   @@index([status])
+  @@index([latitude, longitude], map: "idx_warehouse_master_location")
+  @@index([status], map: "idx_warehouse_master_status")
   @@map("warehouse_master")
 }
 
 model AppbarCategory {
-  id                String    @id @default(uuid()) @map("id")
-  categoryId        String    @map("category_id")
-  categoryName      String    @map("category_name")
-  warehouseId       String?   @map("warehouse_id")
-  image             String?   @map("image")
-  status            String    @default("ACTIVE") @map("status")
-  expireDate        DateTime? @map("expire_date")
+  id                   String    @id @default(uuid()) @map("id")
+  categoryId           String    @map("category_id")
+  categoryName         String    @map("category_name")
+  warehouseId          String?   @map("warehouse_id")
+  image                String?   @map("image")
+  status               String    @default("ACTIVE") @map("status")
+  expireDate           DateTime? @map("expire_date")
   primaryAppbarColor   String?   @map("primary_appbar_color")
   secondaryAppbarColor String?   @map("secondary_appbar_color")
   appbarImage          String?   @map("appbar_image")
-  categoryTextColor String?   @map("category_text_color")
-  appbarbackground  Boolean   @default(false) @map("appbarbackground")
-  module            String    @default("lite") @map("module")
-  createdDate       DateTime  @default(now()) @map("created_date")
-  updatedDate       DateTime  @default(now()) @updatedAt @map("updated_date")
-  owner             String?   @map("owner")
+  categoryTextColor    String?   @map("category_text_color")
+  appbarbackground     Boolean   @default(false) @map("appbarbackground")
+  module               String    @default("lite") @map("module")
+  createdDate          DateTime  @default(now()) @map("created_date")
+  updatedDate          DateTime  @default(now()) @updatedAt @map("updated_date")
+  owner                String?   @map("owner")
 
   @@index([module, status])
   @@index([warehouseId, module, status])
+  @@index([expireDate], map: "idx_appbar_categories_expire_date")
+  @@index([module, status], map: "idx_appbar_categories_module_status")
+  @@index([warehouseId, module, status], map: "idx_appbar_categories_wh_mod_stat")
   @@map("appbar_categories")
+}
+
+model GrowPlan {
+  id                     String    @id @default(uuid()) @map("id") @db.VarChar(36)
+  memberId               String?   @map("member_id")
+  orderId                String?   @map("order_id")
+  planName               String?   @map("plan_name")
+  nickname               String?   @map("nickname")
+  planId                 String?   @map("plan_id")
+  status                 String?   @map("status")
+  email                  String?   @map("email")
+  endedDate              DateTime? @map("ended_date")
+  startedDate            DateTime? @map("started_date")
+  paymentId              String?   @map("payment_id")
+  razorpayOrderId        String?   @map("razorpay_order_id")
+  manageGrowPlanPageLink String?   @map("manage_grow_plan_page_link")
+  phone                  String?   @map("phone")
+  sellerId               String?   @map("seller_id")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  @@map("grow_plan")
 }
 
 enum UserRole {
@@ -667,26 +752,3 @@ enum CategoryModule {
   LITE
   ALL
 }
-
-model GrowPlan {
-  id                     String    @id @default(uuid()) @map("id") @db.VarChar(36)
-  memberId               String?   @map("member_id") @db.Text
-  orderId                String?   @map("order_id") @db.Text
-  planName               String?   @map("plan_name") @db.Text
-  nickname               String?   @map("nickname") @db.Text
-  planId                 String?   @map("plan_id") @db.Text
-  status                 String?   @map("status") @db.Text
-  email                  String?   @map("email") @db.Text
-  endedDate              DateTime? @map("ended_date")
-  startedDate            DateTime? @map("started_date")
-  paymentId              String?   @map("payment_id") @db.Text
-  razorpayOrderId        String?   @map("razorpay_order_id") @db.Text
-  manageGrowPlanPageLink String?   @map("manage_grow_plan_page_link") @db.Text
-  phone                  String?   @map("phone") @db.Text
-  sellerId               String?   @map("seller_id") @db.Text
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
-
-  @@map("grow_plan")
-}
-

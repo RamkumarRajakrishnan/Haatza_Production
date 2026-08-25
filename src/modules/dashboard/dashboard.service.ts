@@ -61,8 +61,8 @@ export class DashboardService {
         if (typeof el === 'object' && el !== null) {
           if (Array.isArray(el.items)) {
             unwrapped.push(...this.formatProductArray(el.items));
-          } else if (el.Lite_Shopbycategory || el.shopbycategory) {
-            unwrapped.push(...this.formatProductArray(el.Lite_Shopbycategory || el.shopbycategory));
+          } else if (el.Lite_Shopbycategory || el.shopbycategory || el.shop_by_category) {
+            unwrapped.push(...this.formatProductArray(el.Lite_Shopbycategory || el.shopbycategory || el.shop_by_category));
           } else {
             unwrapped.push(el);
           }
@@ -214,10 +214,7 @@ export class DashboardService {
       }
 
       resultWidgets.push({
-        widgetType:
-          lowerKey === 'shopbycategory' || lowerKey === 'shop_by_category'
-            ? 'Lite_Shopbycategory'
-            : widgetType,
+        widgetType: widgetType,
         widget_Id,
         sequence,
         title,
