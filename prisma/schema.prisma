@@ -37,7 +37,6 @@ model User {
   role                UserRole           @default(BUYER) @map("role")
   isSeller            Boolean            @default(false) @map("is_seller")
   isEmployee          Boolean            @default(false) @map("is_employee")
-  password            String?
   refresh_token       String?
   buyer               Buyer?
   otps                OtpVerification[]
