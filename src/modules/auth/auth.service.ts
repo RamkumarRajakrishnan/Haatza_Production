@@ -256,30 +256,14 @@ export class AuthService {
       expiresAt: new Date(Date.now() + 15 * 60 * 1000), // expires in 15 minutes
     });
 
-    // Send OTP to mobile for verification
-    let otpData: any = null;
-    try {
-      const otpResult = await this.generateOtp({
-        identifier: data.mobile,
-        purpose: OtpPurpose.REGISTRATION,
-        channel: OtpChannel.SMS,
-      });
-      otpData = otpResult.data;
-    } catch (otpErr: any) {
-      this.pendingRegistrations.delete(data.mobile);
-      this.logger.warn(`Failed to generate registration OTP for ${data.mobile}: ${otpErr?.message}`);
-      throw new BadRequestException('Failed to send OTP. Please try again.');
-    }
-
     return {
       success: true,
       statusCode: 200,
-      message: 'OTP sent to your mobile number. Please verify to complete registration.',
+      message: 'Registration details submitted successfully. Please generate an OTP to verify your registration.',
       data: {
         mobile: data.mobile,
         email: trimmedEmail,
-        otp: otpData,
-        nextStep: 'VERIFY_OTP',
+        nextStep: 'GENERATE_OTP',
       },
       error: null,
     };
