@@ -430,8 +430,7 @@ describe('AuthService', () => {
 
       expect(result.success).toBe(true);
       expect(result.message).toBe('Registration successful.');
-      expect(result.data.accessToken).toBeDefined();
-      expect(result.data.user.status).toBe('ACTIVE');
+      expect(result.data).toEqual({});
     });
   });
 });

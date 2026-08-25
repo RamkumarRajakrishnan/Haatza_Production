@@ -1481,30 +1481,7 @@ export class AuthService {
       return {
         success: true,
         message: 'Registration successful.',
-        data: {
-          userId: createdUser.id || '',
-          mobile: createdUser.mobile || '',
-          email: createdUser.email || '',
-          buyer: isBuyerBool,
-          seller: isSellerBool,
-          employee: finalIsEmployeeBool,
-          accessToken: accessToken || '',
-          refreshToken: refreshToken || '',
-          expiresIn: expiresInSeconds || 0,
-          user: {
-            id: createdUser.id || '',
-            name: createdUser.name || '',
-            gender: createdUser.gender || '',
-            email: createdUser.email || '',
-            phoneNumber: createdUser.mobile || '',
-            status: createdUser.status || 'ACTIVE',
-            role: createdUser.role || 'SELLER',
-            isEmployee: createdUser.isEmployee ?? false,
-            isBuyer: createdUser.isBuyer ?? false,
-            isSeller: createdUser.isSeller ?? false,
-          },
-          nextStep: 'HOME',
-        },
+        data: {},
       };
     }
 
@@ -1931,60 +1908,7 @@ export class AuthService {
     return 'WEB';
   }
 
-  /**
-   * Returns the page-level permission matrix for a given user role.
-   * Used by the Employee Portal frontend for dynamic RBAC (sidebar, route guards, action buttons).
-   */
-  getUserPermissions(role: string): {
-    role: string;
-    pages: Array<{
-      pageCode: string;
-      pageName: string;
-      route: string;
-      canView: boolean;
-      canCreate: boolean;
-      canEdit: boolean;
-      canDelete: boolean;
-    }>;
-  } {
-    const normalizedRole = (role || 'EMPLOYEE').toUpperCase();
 
-    const isAdmin = normalizedRole === 'ADMIN';
-    const isHR = normalizedRole === 'HR';
-    const isManager = normalizedRole === 'MANAGER';
-
-    const pages = [
-      {
-        pageCode: 'DASHBOARD',
-        pageName: 'Dashboard',
-        route: '/dashboard',
-        canView: true,
-        canCreate: false,
-        canEdit: false,
-        canDelete: false,
-      },
-      {
-        pageCode: 'EMPLOYEES',
-        pageName: 'Employees',
-        route: '/employees',
-        canView: isAdmin || isHR || isManager,
-        canCreate: isAdmin || isHR,
-        canEdit: isAdmin || isHR,
-        canDelete: isAdmin,
-      },
-      {
-        pageCode: 'ROLES',
-        pageName: 'Roles & Permissions',
-        route: '/roles',
-        canView: isAdmin,
-        canCreate: isAdmin,
-        canEdit: isAdmin,
-        canDelete: isAdmin,
-      },
-    ];
-
-    return { role: normalizedRole, pages };
-  }
 
   // =========================================================================
   // RBAC ROLE SELECTION & PERMISSIONS ENGINE
