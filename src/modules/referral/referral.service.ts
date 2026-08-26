@@ -64,9 +64,9 @@ export class ReferralService {
   }
 
   /**
-   * GET /api/v1/referralCheck
+   * GET /api/v1/referral/balance
    */
-  async referralCheck(sellerId: string) {
+  async checkReferralBalance(sellerId: string) {
     const user = await this.databaseService.user.findFirst({
       where: { OR: [{ sellerId }, { id: sellerId }] },
     });
@@ -82,6 +82,32 @@ export class ReferralService {
         availableCredit: balance,
         currency: 'INR',
       },
+    };
+  }
+
+  /**
+   * GET /_functions/referralCheck?referralCode={code}
+   */
+  async verifyReferralCode(referralCode: string) {
+    const referral = await this.databaseService.sellerReferral.findUnique({
+      where: { referralCode },
+    });
+
+    if (!referral) {
+      return {
+        success: false,
+        message: 'Invalid or expired referral code',
+      };
+    }
+
+    return {
+      success: true,
+      data: {
+        valid: true,
+        sellerId: referral.sellerId,
+        referralCode: referral.referralCode,
+      },
+      message: 'Referral code is valid',
     };
   }
 

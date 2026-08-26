@@ -4,6 +4,7 @@ import {
   Post,
   Body,
   Req,
+  Query,
   UseGuards,
   HttpCode,
   HttpStatus,
@@ -28,14 +29,24 @@ export class ReferralController {
     return await this.referralService.getReferralCode(sellerId);
   }
 
-  @Get(['referralCheck', 'referral/check'])
+  @Get('referral/balance')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Check Available Referral Reward Points & Credit' })
-  async referralCheck(@Req() req: any) {
+  async checkReferralBalance(@Req() req: any) {
     const sellerId = req.user?.sellerId || req.user?.id || 'TEST_SELLER_001';
-    return await this.referralService.referralCheck(sellerId);
+    return await this.referralService.checkReferralBalance(sellerId);
+  }
+
+  @Get(['referralCheck', 'referral/verify'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify a Referral/Promo Code' })
+  async verifyReferralCode(@Query('referralCode') referralCode: string) {
+    if (!referralCode) {
+      return { success: false, message: 'referralCode is required' };
+    }
+    return await this.referralService.verifyReferralCode(referralCode);
   }
 
   @Post(['referralUpdate', 'referral/update'])
