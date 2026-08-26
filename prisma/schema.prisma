@@ -636,8 +636,9 @@ model GrowPlan {
   manageGrowPlanPageLink String?   @map("manage_grow_plan_page_link")
   phone                  String?   @map("phone")
   sellerId               String?   @map("seller_id")
-  createdAt              DateTime  @default(now()) @map("created_at")
-  updatedAt              DateTime  @updatedAt @map("updated_at")
+  owner                  String?   @map("owner")
+  createdDate            DateTime  @default(now()) @map("created_date")
+  updatedDate            DateTime  @updatedAt @map("updated_date")
 
   @@map("grow_plan")
 }

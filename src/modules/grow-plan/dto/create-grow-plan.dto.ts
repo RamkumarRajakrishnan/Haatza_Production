@@ -71,4 +71,9 @@ export class CreateGrowPlanDto {
   @IsOptional()
   @IsString()
   sellerId?: string;
+
+  @ApiPropertyOptional({ description: 'Owner' })
+  @IsOptional()
+  @IsString()
+  owner?: string;
 }

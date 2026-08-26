@@ -26,6 +26,7 @@ export class GrowPlanService {
       manageGrowPlanPageLink: dto.manageGrowPlanPageLink || null,
       phone: dto.phone || null,
       sellerId: dto.sellerId || null,
+      owner: dto.owner || null,
     };
 
     return await this.db.growPlan.create({ data });
@@ -45,7 +46,7 @@ export class GrowPlanService {
 
     return await this.db.growPlan.findMany({
       where,
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdDate: 'desc' },
     });
   }
 
@@ -79,6 +80,7 @@ export class GrowPlanService {
     if (dto.manageGrowPlanPageLink !== undefined) updateData.manageGrowPlanPageLink = dto.manageGrowPlanPageLink;
     if (dto.phone !== undefined) updateData.phone = dto.phone;
     if (dto.sellerId !== undefined) updateData.sellerId = dto.sellerId;
+    if (dto.owner !== undefined) updateData.owner = dto.owner;
 
     return await this.db.growPlan.update({
       where: { id: record.id },

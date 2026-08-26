@@ -101,7 +101,7 @@ export class SubscriptionService {
     try {
       const subscriptions = await this.databaseService.growPlan.findMany({
         where: { email: { equals: email, mode: 'insensitive' } },
-        orderBy: { createdAt: 'desc' },
+        orderBy: { createdDate: 'desc' },
       });
 
       const orders = subscriptions.map((sub) => ({
@@ -406,7 +406,7 @@ export class SubscriptionService {
         ],
         status: 'ACTIVE',
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdDate: 'desc' },
     });
 
     // Safely derive listings count from products table
