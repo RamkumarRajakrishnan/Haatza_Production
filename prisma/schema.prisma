@@ -757,3 +757,25 @@ enum CategoryModule {
   LITE
   ALL
 }
+
+model ReferralProgram {
+  id               String    @id @default(uuid()) @db.Uuid
+  sellerId         String    @map("seller_id") @db.VarChar(50)
+  referralCode     String?   @map("referral_code") @db.VarChar(100)
+  referredSellerId String?   @map("referred_seller_id") @db.VarChar(50)
+  referredEmail    String?   @map("referred_email") @db.VarChar(255)
+  referredPhone    String?   @map("referred_phone") @db.VarChar(50)
+  status           String?   @db.VarChar(50)
+  rewardEarned     Decimal?  @map("reward_earned") @db.Decimal(14, 2)
+  rewardType       String?   @map("reward_type") @db.VarChar(50)
+  dateReferred     DateTime? @map("date_referred") @db.Timestamptz
+  notes            String?   @db.Text
+  owner            String?   @db.Uuid
+  rewardAmount     Decimal?  @map("reward_amount") @db.Decimal(14, 2)
+  rewardUsed       Boolean?  @map("reward_used")
+  image            String?   @db.Text
+  createdDate      DateTime? @default(now()) @map("created_date") @db.Timestamptz
+  updatedDate      DateTime? @updatedAt @map("updated_date") @db.Timestamptz
+
+  @@map("referral_program")
+}

@@ -652,6 +652,26 @@ export class DatabaseService
           created_at timestamp DEFAULT now()
         );
 
+        CREATE TABLE IF NOT EXISTS public.referral_program (
+          id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+          seller_id VARCHAR(50) NOT NULL,
+          referral_code VARCHAR(100),
+          referred_seller_id VARCHAR(50),
+          referred_email VARCHAR(255),
+          referred_phone VARCHAR(50),
+          status VARCHAR(50),
+          reward_earned NUMERIC(14,2) DEFAULT 0.00,
+          reward_type VARCHAR(50),
+          date_referred TIMESTAMPTZ,
+          notes TEXT,
+          owner UUID,
+          reward_amount NUMERIC(14,2) DEFAULT 0.00,
+          reward_used BOOLEAN DEFAULT false,
+          image TEXT,
+          created_date TIMESTAMPTZ DEFAULT now(),
+          updated_date TIMESTAMPTZ DEFAULT now()
+        );
+
         CREATE INDEX IF NOT EXISTS idx_coupons_code ON public.subscription_coupons(code);
         CREATE INDEX IF NOT EXISTS idx_seller_wallet_seller_id ON public.seller_wallet(seller_id);
         CREATE INDEX IF NOT EXISTS idx_seller_referrals_seller_id ON public.seller_referrals(seller_id);
