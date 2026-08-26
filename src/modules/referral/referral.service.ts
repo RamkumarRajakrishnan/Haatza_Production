@@ -94,10 +94,7 @@ export class ReferralService {
     });
 
     if (!referral) {
-      return {
-        success: false,
-        message: 'Invalid or expired referral code',
-      };
+      throw new BadRequestException('Invalid or expired referral code');
     }
 
     return {
