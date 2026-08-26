@@ -347,31 +347,36 @@ model SubscriptionCoupon {
 }
 
 model SellerWallet {
-  id           String              @id @default(uuid()) @db.VarChar(36)
-  sellerId     String              @unique @map("seller_id") @db.VarChar(50)
-  balance      Decimal             @default(0.00) @db.Decimal(12, 2)
-  currency     String              @default("INR") @db.VarChar(10)
-  createdAt    DateTime            @default(now()) @map("created_at")
-  updatedAt    DateTime            @updatedAt @map("updated_at")
-  transactions WalletTransaction[]
+  id               String              @id @default(uuid()) @db.Uuid
+  sellerId         String              @unique @map("seller_id") @db.VarChar(50)
+  totalAddedAmount Decimal?            @map("total_added_amount") @db.Decimal(12, 2)
+  gstAmount        Decimal?            @map("gst_amount") @db.Decimal(12, 2)
+  usableBalance    Decimal?            @map("usable_balance") @db.Decimal(12, 2)
+  remainingBalance Decimal?            @map("remaining_balance") @db.Decimal(12, 2)
+  owner            String?             @map("owner") @db.Uuid
+  createdDate      DateTime?           @default(now()) @map("created_date") @db.Timestamptz
+  updatedDate      DateTime?           @updatedAt @map("updated_date") @db.Timestamptz
+  transactions     WalletTransaction[]
 
   @@index([sellerId])
-  @@index([sellerId], map: "idx_seller_wallets_seller_id")
-  @@map("seller_wallets")
+  @@index([sellerId], map: "idx_seller_wallet_seller_id")
+  @@map("seller_wallet")
 }
 
 model WalletTransaction {
-  id          String       @id @default(uuid()) @db.VarChar(36)
-  walletId    String       @map("wallet_id") @db.VarChar(36)
-  sellerId    String       @map("seller_id") @db.VarChar(50)
-  amount      Decimal      @db.Decimal(12, 2)
-  type        String       @db.VarChar(20)
-  description String?      @db.VarChar(255)
-  referenceId String?      @map("reference_id") @db.VarChar(100)
-  createdAt   DateTime     @default(now()) @map("created_at")
-  wallet      SellerWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  id                String        @id @default(uuid()) @db.Uuid
+  sellerId          String        @map("seller_id") @db.VarChar(50)
+  transactionType   String?       @map("transaction_type") @db.VarChar(20)
+  transactionAmount Decimal?      @map("transaction_amount") @db.Decimal(12, 2)
+  gstDeducted       Decimal?      @map("gst_deducted") @db.Decimal(12, 2)
+  remainingBalance  Decimal?      @map("remaining_balance") @db.Decimal(12, 2)
+  campaignId        String?       @map("campaign_id") @db.VarChar(100)
+  createdDate       DateTime?     @default(now()) @map("created_date") @db.Timestamptz
+  campaignSpends    Boolean?      @default(false) @map("campaign_spends")
+  total             Decimal?      @map("total") @db.Decimal(12, 2)
+  paymentId         String?       @map("payment_id") @db.VarChar(100)
+  sellerWallet      SellerWallet  @relation(fields: [sellerId], references: [sellerId], onDelete: Cascade)
 
-  @@index([walletId])
   @@index([sellerId])
   @@map("wallet_transactions")
 }

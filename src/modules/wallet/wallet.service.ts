@@ -18,11 +18,20 @@ export class WalletService {
    * GET /api/v1/checkWalletBalance
    * Fetch current available seller wallet balance.
    */
-  async checkWalletBalance(sellerId: string) {
+  async checkWalletBalance(sellerId: string, email?: string) {
     const user = await this.databaseService.user.findFirst({
-      where: { OR: [{ sellerId }, { id: sellerId }] },
+      where: {
+        OR: [
+          ...(sellerId ? [{ sellerId }, { id: sellerId }] : []),
+          ...(email ? [{ email }] : []),
+        ],
+      },
     });
     const effectiveSellerId = user?.sellerId || sellerId;
+
+    if (!effectiveSellerId) {
+      throw new BadRequestException('Seller ID or email is required.');
+    }
 
     let wallet = await this.databaseService.sellerWallet.findUnique({
       where: { sellerId: effectiveSellerId },
@@ -32,8 +41,10 @@ export class WalletService {
       wallet = await this.databaseService.sellerWallet.create({
         data: {
           sellerId: effectiveSellerId,
-          balance: 0.0,
-          currency: 'INR',
+          usableBalance: 0.0,
+          remainingBalance: 0.0,
+          totalAddedAmount: 0.0,
+          gstAmount: 0.0,
         },
       });
     }
@@ -41,8 +52,8 @@ export class WalletService {
     return {
       success: true,
       data: {
-        availableBalance: Number(wallet.balance),
-        currency: wallet.currency || 'INR',
+        availableBalance: Number(wallet.usableBalance ?? 0.0),
+        currency: 'INR',
       },
     };
   }
@@ -106,13 +117,15 @@ export class WalletService {
       wallet = await this.databaseService.sellerWallet.create({
         data: {
           sellerId: effectiveSellerId,
-          balance: 0.0,
-          currency: 'INR',
+          usableBalance: 0.0,
+          remainingBalance: 0.0,
+          totalAddedAmount: 0.0,
+          gstAmount: 0.0,
         },
       });
     }
 
-    const currentBalance = Number(wallet.balance);
+    const currentBalance = Number(wallet.usableBalance ?? 0.0);
 
     if (currentBalance < netPayable) {
       throw new BadRequestException(
@@ -126,19 +139,22 @@ export class WalletService {
       const updatedWallet = await tx.sellerWallet.update({
         where: { id: wallet.id },
         data: {
-          balance: { decrement: netPayable },
+          usableBalance: { decrement: netPayable },
+          remainingBalance: { decrement: netPayable },
         },
       });
 
       // Record wallet transaction
       const walletTx = await tx.walletTransaction.create({
         data: {
-          walletId: wallet.id,
           sellerId: effectiveSellerId,
-          amount: netPayable,
-          type: 'DEBIT',
-          description: `Subscription payment for ${plan.name} Plan`,
-          referenceId: `SUB_PAY_${Date.now()}`,
+          transactionType: 'Debit',
+          transactionAmount: netPayable,
+          gstDeducted: cgst + sgst,
+          remainingBalance: Number(updatedWallet.remainingBalance ?? 0.0),
+          campaignSpends: false,
+          total: netPayable,
+          paymentId: `SUB_PAY_${Date.now()}`,
         },
       });
 
@@ -210,7 +226,7 @@ export class WalletService {
         });
       }
 
-      return { subscription, invoice, newBalance: Number(updatedWallet.balance) };
+      return { subscription, invoice, newBalance: Number(updatedWallet.usableBalance ?? 0.0) };
     });
 
     return {

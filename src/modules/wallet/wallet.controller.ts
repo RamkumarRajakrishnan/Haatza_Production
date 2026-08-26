@@ -7,6 +7,7 @@ import {
   UseGuards,
   HttpCode,
   HttpStatus,
+  Query,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiBody, ApiBearerAuth } from '@nestjs/swagger';
 import { WalletService } from './wallet.service';
@@ -18,15 +19,26 @@ import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
-  @Get(['checkWalletBalance', 'wallet/balance'])
+  @Get('wallet/balance')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Check Available Seller Wallet Balance' })
+  @ApiOperation({ summary: 'Check Available Seller Wallet Balance (Internal Dashboard)' })
   @ApiResponse({ status: 200, description: 'Wallet balance fetched successfully' })
-  async checkWalletBalance(@Req() req: any) {
+  async checkWalletBalanceInternal(@Req() req: any) {
     const sellerId = req.user?.sellerId || req.user?.id || 'TEST_SELLER_001';
     return await this.walletService.checkWalletBalance(sellerId);
+  }
+
+  @Get('checkWalletBalance')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Check Available Seller Wallet Balance (Wix/Public API)' })
+  @ApiResponse({ status: 200, description: 'Wallet balance fetched successfully' })
+  async checkWalletBalancePublic(
+    @Query('sellerId') sellerId?: string,
+    @Query('email') email?: string,
+  ) {
+    return await this.walletService.checkWalletBalance(sellerId || '', email);
   }
 
   @Post(['payWithWallet', 'wallet/pay-subscription'])

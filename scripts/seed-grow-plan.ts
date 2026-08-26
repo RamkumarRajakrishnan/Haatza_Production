@@ -95,24 +95,31 @@ async function main() {
         created_at timestamp DEFAULT now()
       );
 
-      CREATE TABLE IF NOT EXISTS public.seller_wallets (
-        id varchar(36) PRIMARY KEY,
+      CREATE TABLE IF NOT EXISTS public.seller_wallet (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         seller_id varchar(50) NOT NULL UNIQUE,
-        balance numeric(12, 2) DEFAULT 0.00,
-        currency varchar(10) DEFAULT 'INR',
-        created_at timestamp DEFAULT now(),
-        updated_at timestamp DEFAULT now()
+        total_added_amount numeric(12, 2) DEFAULT 0.00,
+        gst_amount numeric(12, 2) DEFAULT 0.00,
+        usable_balance numeric(12, 2) DEFAULT 0.00,
+        remaining_balance numeric(12, 2) DEFAULT 0.00,
+        owner uuid,
+        created_date timestamptz DEFAULT now(),
+        updated_date timestamptz DEFAULT now()
       );
 
       CREATE TABLE IF NOT EXISTS public.wallet_transactions (
-        id varchar(36) PRIMARY KEY,
-        wallet_id varchar(36) NOT NULL,
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
         seller_id varchar(50) NOT NULL,
-        amount numeric(12, 2) NOT NULL,
-        type varchar(20) NOT NULL,
-        description varchar(255),
-        reference_id varchar(100),
-        created_at timestamp DEFAULT now()
+        transaction_type varchar(20),
+        transaction_amount numeric(12, 2) DEFAULT 0.00,
+        gst_deducted numeric(12, 2) DEFAULT 0.00,
+        remaining_balance numeric(12, 2) DEFAULT 0.00,
+        campaign_id varchar(100),
+        created_date timestamptz DEFAULT now(),
+        campaign_spends boolean DEFAULT false,
+        total numeric(12, 2) DEFAULT 0.00,
+        payment_id varchar(100),
+        FOREIGN KEY (seller_id) REFERENCES public.seller_wallet(seller_id) ON DELETE CASCADE
       );
 
       CREATE TABLE IF NOT EXISTS public.seller_referrals (
@@ -144,7 +151,7 @@ async function main() {
       CREATE INDEX IF NOT EXISTS idx_seller_subscription_invoices_subscription_id ON public.seller_subscription_invoices(subscription_id);
       CREATE INDEX IF NOT EXISTS idx_seller_subscription_invoices_seller_id ON public.seller_subscription_invoices(seller_id);
       CREATE INDEX IF NOT EXISTS idx_coupons_code ON public.subscription_coupons(code);
-      CREATE INDEX IF NOT EXISTS idx_seller_wallets_seller_id ON public.seller_wallets(seller_id);
+      CREATE INDEX IF NOT EXISTS idx_seller_wallet_seller_id ON public.seller_wallet(seller_id);
       CREATE INDEX IF NOT EXISTS idx_seller_referrals_seller_id ON public.seller_referrals(seller_id);
 
       INSERT INTO public.pricing_plans (id, name, price, period_unit, ribbon, benefits, status)
