@@ -48,6 +48,16 @@ export class DashboardController {
     return { status: 'ok', version: 'v2-raw-sql-active' };
   }
 
+  @Get('all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get All Dashboard Widgets',
+    description: 'Retrieves all dashboard widgets from the database without any category or module validation filters.',
+  })
+  async getAllWidgets() {
+    return this.dashboardService.getAllWidgets();
+  }
+
   @Post(['upsert', 'save'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({

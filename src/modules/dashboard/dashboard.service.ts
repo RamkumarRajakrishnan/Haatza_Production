@@ -376,4 +376,111 @@ export class DashboardService {
       data: { id: existing.id, widgetId: existing.widgetId },
     };
   }
+
+  /**
+   * Get all dashboard widgets without any validation filter.
+   */
+  async getAllWidgets() {
+    const sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt" 
+                 FROM public.dashboard 
+                 ORDER BY sequence ASC`;
+    const items = await this.db.queryRawDashboard(sql);
+
+    const resultWidgets = items.map((item) => {
+      const widgetType = item.widgetType || '';
+      const widget_Id = item.widgetId || (item as any).widget_id || item.id;
+      const sequence = item.sequence ?? 0;
+      const rawProductArray = this.formatProductArray(item.item);
+      const itemFieldAny = item.item as any;
+      const title =
+        item.title ||
+        (Array.isArray(itemFieldAny) && itemFieldAny[0]?.title) ||
+        (Array.isArray(itemFieldAny) && itemFieldAny[0]?.Title) ||
+        '';
+
+      const itemAny = item as any;
+      const mediaUrl = this.formatImageUrl(itemAny.Image || (Array.isArray(rawProductArray) && rawProductArray[0]?.banner_image) || (Array.isArray(rawProductArray) && rawProductArray[0]?.Image));
+      const isVideo =
+        /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
+
+      const lowerKey = widgetType.toLowerCase();
+      let formattedItems: any[] = [];
+
+      if (lowerKey === 'seasonal_picks') {
+        const catEntry: any = {
+          categoryId: item.categoryId || '',
+          categoryName: item.categoryName || '',
+          subcategory: [],
+        };
+        if (rawProductArray.length > 0) {
+          for (const storedItem of rawProductArray) {
+            if (typeof storedItem === 'object' && storedItem !== null) {
+              catEntry.subcategory.push(storedItem);
+            } else {
+              catEntry.subcategory.push({ Image: mediaUrl });
+            }
+          }
+        } else {
+          catEntry.subcategory.push({ Image: mediaUrl });
+        }
+        formattedItems = [catEntry];
+      } else if (rawProductArray.length > 0) {
+        for (const storedItem of rawProductArray) {
+          if (typeof storedItem === 'object' && storedItem !== null) {
+            formattedItems.push(storedItem);
+          } else {
+            formattedItems.push({
+              Image: mediaUrl,
+              categoryId: item.categoryId || '',
+              categoryName: item.categoryName || '',
+              Item: rawProductArray,
+            });
+            break;
+          }
+        }
+      } else {
+        if (lowerKey === 'special_offers') {
+          formattedItems.push({
+            image: isVideo ? '' : mediaUrl,
+            Title: item.title || '',
+          });
+        } else if (
+          ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(
+            lowerKey,
+          )
+        ) {
+          formattedItems.push({
+            banner_image: mediaUrl,
+            category_id: item.categoryId || '',
+          });
+        } else {
+          formattedItems.push({
+            Image: mediaUrl,
+            categoryId: item.categoryId || '',
+            categoryName: item.categoryName || '',
+          });
+        }
+      }
+
+      return {
+        id: item.id,
+        widgetType,
+        widget_Id,
+        sequence,
+        title,
+        status: item.status,
+        categoryId: item.categoryId,
+        categoryName: item.categoryName,
+        warehouseId: item.warehouseId,
+        module: item.module,
+        expiresAt: item.expiresAt || null,
+        item: formattedItems,
+      };
+    });
+
+    return {
+      status: 'success',
+      data: resultWidgets,
+    };
+  }
 }
