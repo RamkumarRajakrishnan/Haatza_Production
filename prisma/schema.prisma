@@ -430,7 +430,7 @@ model UserLoginHistory {
 model Dashboard {
   id           String           @id @default(dbgenerated("fn_next_dashboard_id()")) @map("id")
   widgetType   String?          @map("widget_type")
-  widgetId     String           @unique @map("widget_id")
+  widgetId     String           @map("widget_id")
   title        String?          @map("title")
   status       String?          @default("ACTIVE") @map("status")
   sequence     Int?             @map("sequence")

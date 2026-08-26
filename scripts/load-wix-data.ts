@@ -157,32 +157,35 @@ async function loadDataIntoPostgres() {
       }
     }
 
-    await prisma.dashboard.upsert({
-      where: { widgetId },
-      update: {
-        widgetType: row['Widget Type'] || null,
-        title: row['Title'] || null,
-        status: row['Status'] === 'TRUE' || row['Status'] === 'true' ? 'TRUE' : 'FALSE',
-        sequence: row['Sequence'] ? parseInt(row['Sequence'], 10) : null,
-        categoryId: row['Category ID'] || null,
-        categoryName: row['Category Name'] || null,
-        item: productValue,
-        warehouseId: row['warehouseID'] || null,
-        module: moduleEnum,
-      },
-      create: {
-        widgetId,
-        widgetType: row['Widget Type'] || null,
-        title: row['Title'] || null,
-        status: row['Status'] === 'TRUE' || row['Status'] === 'true' ? 'TRUE' : 'FALSE',
-        sequence: row['Sequence'] ? parseInt(row['Sequence'], 10) : null,
-        categoryId: row['Category ID'] || null,
-        categoryName: row['Category Name'] || null,
-        item: productValue,
-        warehouseId: row['warehouseID'] || null,
-        module: moduleEnum,
-      },
+    const existing = await prisma.dashboard.findFirst({
+      where: { widgetId, module: moduleEnum },
     });
+
+    const dashboardData = {
+      widgetType: row['Widget Type'] || null,
+      title: row['Title'] || null,
+      status: row['Status'] === 'TRUE' || row['Status'] === 'true' ? 'TRUE' : 'FALSE',
+      sequence: row['Sequence'] ? parseInt(row['Sequence'], 10) : null,
+      categoryId: row['Category ID'] || null,
+      categoryName: row['Category Name'] || null,
+      item: productValue,
+      warehouseId: row['warehouseID'] || null,
+    };
+
+    if (existing) {
+      await prisma.dashboard.update({
+        where: { id: existing.id },
+        data: dashboardData,
+      });
+    } else {
+      await prisma.dashboard.create({
+        data: {
+          widgetId,
+          module: moduleEnum,
+          ...dashboardData,
+        },
+      });
+    }
 
     count++;
   }

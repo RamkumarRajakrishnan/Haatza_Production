@@ -291,14 +291,14 @@ export class DashboardService {
       };
 
       const existingRec = await this.db.queryRawDashboard(
-        `SELECT id FROM public.dashboard WHERE widget_id = $1 LIMIT 1`,
-        [widgetId]
+        `SELECT id FROM public.dashboard WHERE widget_id = $1 AND module = $2 LIMIT 1`,
+        [widgetId, data.module]
       );
 
       let record: any;
       if (existingRec && existingRec.length > 0) {
         const updateRes = await this.db.queryRawDashboard(
-          `UPDATE public.dashboard SET widget_type = $1, title = $2, status = $3, sequence = $4, category_id = $5, category_name = $6, "Item" = $7, warehouse_id = $8, module = $9, expires_at = $10, updated_at = NOW() WHERE widget_id = $11 RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt"`,
+          `UPDATE public.dashboard SET widget_type = $1, title = $2, status = $3, sequence = $4, category_id = $5, category_name = $6, "Item" = $7, warehouse_id = $8, module = $9, expires_at = $10, updated_at = NOW() WHERE id = $11 RETURNING id, widget_type AS "widgetType", widget_id AS "widgetId", title, status, sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt"`,
           [
             data.widgetType,
             data.title,
@@ -310,7 +310,7 @@ export class DashboardService {
             data.warehouseId,
             data.module,
             data.expiresAt,
-            widgetId,
+            existingRec[0].id,
           ]
         );
         record = updateRes[0];

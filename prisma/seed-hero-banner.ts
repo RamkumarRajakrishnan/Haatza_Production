@@ -35,11 +35,35 @@ const WIDGET_DATA = {
 async function seedDashboardWidget() {
   console.log(`🌱 Seeding [${WIDGET_DATA.widgetType}] widget into Dashboard table...`);
 
-  const record = await prisma.dashboard.upsert({
-    where: { widgetId: WIDGET_DATA.widgetId },
-    update: { widgetType: WIDGET_DATA.widgetType, title: WIDGET_DATA.title, status: WIDGET_DATA.status, sequence: WIDGET_DATA.sequence, categoryId: WIDGET_DATA.categoryId, module: WIDGET_DATA.module },
-    create: { widgetId: WIDGET_DATA.widgetId, widgetType: WIDGET_DATA.widgetType, title: WIDGET_DATA.title, status: WIDGET_DATA.status, sequence: WIDGET_DATA.sequence, categoryId: WIDGET_DATA.categoryId, module: WIDGET_DATA.module },
+  const existing = await prisma.dashboard.findFirst({
+    where: { widgetId: WIDGET_DATA.widgetId, module: WIDGET_DATA.module },
   });
+
+  let record;
+  if (existing) {
+    record = await prisma.dashboard.update({
+      where: { id: existing.id },
+      data: { 
+        widgetType: WIDGET_DATA.widgetType, 
+        title: WIDGET_DATA.title, 
+        status: WIDGET_DATA.status, 
+        sequence: WIDGET_DATA.sequence, 
+        categoryId: WIDGET_DATA.categoryId 
+      },
+    });
+  } else {
+    record = await prisma.dashboard.create({
+      data: { 
+        widgetId: WIDGET_DATA.widgetId, 
+        widgetType: WIDGET_DATA.widgetType, 
+        title: WIDGET_DATA.title, 
+        status: WIDGET_DATA.status, 
+        sequence: WIDGET_DATA.sequence, 
+        categoryId: WIDGET_DATA.categoryId, 
+        module: WIDGET_DATA.module 
+      },
+    });
+  }
 
   console.log('✅ Dashboard Widget successfully saved to database!');
   console.log(record);
