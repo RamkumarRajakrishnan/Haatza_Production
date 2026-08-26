@@ -576,7 +576,7 @@ export class SubscriptionService {
       message: 'Invoice fetched successfully',
       data: {
         invoiceId: invoice.id,
-        invoiceDate: invoice.createdAt,
+        invoiceDate: invoice.createdDate,
         sellerName: user?.name ?? 'Seller',
         gstin: user?.gstin ?? 'N/A',
         address: user?.address ?? 'N/A',
