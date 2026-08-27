@@ -81,7 +81,7 @@ export class WixImageMigrationService {
   /**
    * Migrate a single Wix image reference to GCS/S3
    */
-  async migrateWixUrl(productId: string, wixUrl: string): Promise<string> {
+  async migrateWixUrl(productId: string, wixUrl: string, force = false): Promise<string> {
     if (!this.isWixUrl(wixUrl)) {
       return wixUrl; // Not a Wix URL, return unmodified
     }
@@ -94,16 +94,18 @@ export class WixImageMigrationService {
     const webpKey = `products/${productId}/${baseName}.webp`;
     const originalKey = `products/${productId}/${baseName}${originalExt}`;
 
-    // 1. Check if WebP version already exists in cloud storage
-    if (await this.mediaStorage.exists(webpKey)) {
-      this.logger.log(`[Idempotent Skip] Image already migrated: ${webpKey}`);
-      return this.mediaStorage.getPublicUrl(webpKey);
-    }
+    if (!force) {
+      // 1. Check if WebP version already exists in cloud storage
+      if (await this.mediaStorage.exists(webpKey)) {
+        this.logger.log(`[Idempotent Skip] Image already migrated: ${webpKey}`);
+        return this.mediaStorage.getPublicUrl(webpKey);
+      }
 
-    // 2. Check if original extension version exists in cloud storage
-    if (await this.mediaStorage.exists(originalKey)) {
-      this.logger.log(`[Idempotent Skip] Image already migrated: ${originalKey}`);
-      return this.mediaStorage.getPublicUrl(originalKey);
+      // 2. Check if original extension version exists in cloud storage
+      if (await this.mediaStorage.exists(originalKey)) {
+        this.logger.log(`[Idempotent Skip] Image already migrated: ${originalKey}`);
+        return this.mediaStorage.getPublicUrl(originalKey);
+      }
     }
 
     // 3. Download the image
@@ -174,18 +176,18 @@ export class WixImageMigrationService {
   /**
    * Recursively traverse and migrate JSON structures (arrays/objects) for productImages
    */
-  async migrateProductImagesJson(productId: string, json: any): Promise<any> {
+  async migrateProductImagesJson(productId: string, json: any, force = false): Promise<any> {
     if (!json) return json;
 
     if (typeof json === 'string') {
       if (this.isWixUrl(json)) {
-        return this.migrateWixUrl(productId, json);
+        return this.migrateWixUrl(productId, json, force);
       }
       // Check if it's stringified JSON itself
       if (json.trim().startsWith('[') || json.trim().startsWith('{')) {
         try {
           const parsed = JSON.parse(json);
-          const migrated = await this.migrateProductImagesJson(productId, parsed);
+          const migrated = await this.migrateProductImagesJson(productId, parsed, force);
           return migrated;
         } catch {
           return json;
@@ -197,7 +199,7 @@ export class WixImageMigrationService {
     if (Array.isArray(json)) {
       const migratedArray: any[] = [];
       for (const item of json) {
-        migratedArray.push(await this.migrateProductImagesJson(productId, item));
+        migratedArray.push(await this.migrateProductImagesJson(productId, item, force));
       }
       return migratedArray;
     }
@@ -207,9 +209,9 @@ export class WixImageMigrationService {
       for (const key of Object.keys(result)) {
         const value = result[key];
         if (typeof value === 'string' && this.isWixUrl(value)) {
-          result[key] = await this.migrateWixUrl(productId, value);
+          result[key] = await this.migrateWixUrl(productId, value, force);
         } else if (value && typeof value === 'object') {
-          result[key] = await this.migrateProductImagesJson(productId, value);
+          result[key] = await this.migrateProductImagesJson(productId, value, force);
         }
       }
       return result;
