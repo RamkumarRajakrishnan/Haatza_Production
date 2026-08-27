@@ -714,6 +714,62 @@ export class SubscriptionService {
         throw new BadRequestException('Invalid signature verification failed.');
       }
 
+      // If payment is verified, update/create the active subscription in seller_subscriptions table
+      const user = await this.databaseService.user.findFirst({
+        where: { sellerId: transaction.sellerId },
+        select: { email: true, mobile: true },
+      });
+
+      const email = user?.email || `seller_${transaction.sellerId}@haatza.com`;
+      const phone = user?.mobile || null;
+
+      // Find plan details
+      const plan = HARDCODED_PLANS.find(
+        p => p.name.toLowerCase() === transaction.planName.toLowerCase() ||
+             transaction.planName.toLowerCase().includes(p.name.toLowerCase())
+      ) || HARDCODED_PLANS[1]; // Fallback to Growth
+
+      const startedDate = new Date();
+      const endedDate = new Date();
+      endedDate.setDate(endedDate.getDate() + 30); // 30 days validity
+
+      // Upsert the subscription record
+      const existingSub = await this.databaseService.sellerSubscription.findFirst({
+        where: { sellerId: transaction.sellerId },
+      });
+
+      if (existingSub) {
+        await this.databaseService.sellerSubscription.update({
+          where: { id: existingSub.id },
+          data: {
+            email,
+            phone,
+            planId: plan.id,
+            planName: transaction.planName,
+            startedDate,
+            endedDate,
+            status: 'ACTIVE',
+            paymentId,
+            razorpayOrderId: orderId,
+          },
+        });
+      } else {
+        await this.databaseService.sellerSubscription.create({
+          data: {
+            sellerId: transaction.sellerId,
+            email,
+            phone,
+            planId: plan.id,
+            planName: transaction.planName,
+            startedDate,
+            endedDate,
+            status: 'ACTIVE',
+            paymentId,
+            razorpayOrderId: orderId,
+          },
+        });
+      }
+
       return {
         success: true,
         message: 'Subscription payment verified successfully',
