@@ -95,7 +95,6 @@ async function bootstrap() {
       exclude: [
         { path: '/', method: RequestMethod.GET },
         { path: 'health', method: RequestMethod.GET },
-        { path: 'media/(.*)', method: RequestMethod.GET },
         { path: 'uploads/(.*)', method: RequestMethod.ALL },
         { path: 'grow-plans', method: RequestMethod.ALL },
         { path: 'grow-plans/(.*)', method: RequestMethod.ALL },

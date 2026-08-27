@@ -328,6 +328,9 @@ export class MediaStorageService {
     if (key.startsWith('http://') || key.startsWith('https://')) {
       const legacyPrefixes = [
         'https://storage.googleapis.com/haatza-media-bucket',
+        'https://seller.haatza.com/api/v1/media',
+        'https://www.haatza.com/api/v1/media',
+        'https://seller.haatza.com/media',
         'https://www.haatza.com/media',
         'https://haatza.com/media'
       ];
@@ -361,6 +364,9 @@ export class MediaStorageService {
     }
     const legacyPrefixes = [
       'https://storage.googleapis.com/haatza-media-bucket',
+      'https://seller.haatza.com/api/v1/media',
+      'https://www.haatza.com/api/v1/media',
+      'https://seller.haatza.com/media',
       'https://www.haatza.com/media',
       'https://haatza.com/media'
     ];
