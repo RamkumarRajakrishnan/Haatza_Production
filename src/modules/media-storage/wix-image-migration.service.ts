@@ -90,9 +90,9 @@ export class WixImageMigrationService {
     const originalExt = path.extname(filename).toLowerCase() || '.jpg';
     const baseName = path.basename(filename, originalExt);
 
-    // GCS/S3 path structure: products/{productId}/{unique_wix_basename}.webp (or original extension)
-    const webpKey = `products/${productId}/${baseName}.webp`;
-    const originalKey = `products/${productId}/${baseName}${originalExt}`;
+    // GCS/S3 path structure: haatza/products/{productId}/{unique_wix_basename}.webp (or original extension)
+    const webpKey = `haatza/products/${productId}/${baseName}.webp`;
+    const originalKey = `haatza/products/${productId}/${baseName}${originalExt}`;
 
     if (!force) {
       // 1. Check if WebP version already exists in cloud storage
@@ -132,7 +132,7 @@ export class WixImageMigrationService {
       }
     }
 
-    const destKey = `products/${productId}/${baseName}${extension}`;
+    const destKey = `haatza/products/${productId}/${baseName}${extension}`;
 
     // 5. Upload to S3/GCS or Local directory
     this.logger.log(`Uploading to cloud: ${destKey}`);

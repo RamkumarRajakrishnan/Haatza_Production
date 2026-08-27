@@ -104,7 +104,7 @@ export class MediaStorageService {
     mimeType: string;
     folder?: string;
   }): Promise<{ signedUrl: string; key: string; publicUrl: string; expiresInSeconds: number }> {
-    const { filename, mimeType, folder = 'products' } = options;
+    const { filename, mimeType, folder = 'haatza/products' } = options;
 
     const ext = path.extname(filename).toLowerCase() || '.bin';
     const uuid = crypto.randomUUID();
@@ -149,7 +149,7 @@ export class MediaStorageService {
    * Validate file, detect image vs video, compress automatically, generate unique key, and upload to storage.
    */
   async upload(options: UploadFileOptions): Promise<MediaObjectMeta> {
-    const { file, folder = 'products', productId } = options;
+    const { file, folder = 'haatza/products', productId } = options;
 
     const fileBuffer = file?.buffer || (file?.path && fs.existsSync(file.path) ? fs.readFileSync(file.path) : null);
 
