@@ -326,10 +326,16 @@ export class MediaStorageService {
   getPublicUrl(key?: string | null): string {
     if (!key) return '';
     if (key.startsWith('http://') || key.startsWith('https://')) {
-      const legacyPrefix = 'https://storage.googleapis.com/haatza-media-bucket';
-      if (key.startsWith(legacyPrefix)) {
-        const cleanKey = key.replace(legacyPrefix, '').replace(/^\/+/, '');
-        return `${this.mediaBaseUrl}/${cleanKey}`;
+      const legacyPrefixes = [
+        'https://storage.googleapis.com/haatza-media-bucket',
+        'https://www.haatza.com/media',
+        'https://haatza.com/media'
+      ];
+      for (const prefix of legacyPrefixes) {
+        if (key.startsWith(prefix)) {
+          const cleanKey = key.replace(prefix, '').replace(/^\/+/, '');
+          return `${this.mediaBaseUrl}/${cleanKey}`;
+        }
       }
       return key; // Already a full URL
     }
@@ -353,9 +359,15 @@ export class MediaStorageService {
     if (urlOrKey.startsWith(this.mediaBaseUrl)) {
       return urlOrKey.replace(`${this.mediaBaseUrl}/`, '').replace(/^\/+/, '');
     }
-    const legacyPrefix = 'https://storage.googleapis.com/haatza-media-bucket';
-    if (urlOrKey.startsWith(legacyPrefix)) {
-      return urlOrKey.replace(`${legacyPrefix}/`, '').replace(/^\/+/, '');
+    const legacyPrefixes = [
+      'https://storage.googleapis.com/haatza-media-bucket',
+      'https://www.haatza.com/media',
+      'https://haatza.com/media'
+    ];
+    for (const prefix of legacyPrefixes) {
+      if (urlOrKey.startsWith(prefix)) {
+        return urlOrKey.replace(`${prefix}/`, '').replace(/^\/+/, '');
+      }
     }
     if (urlOrKey.startsWith('wix:image://')) {
       return urlOrKey;
