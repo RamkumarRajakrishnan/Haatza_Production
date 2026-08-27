@@ -36,7 +36,7 @@ export class MediaStorageController {
     return this.mediaStorageService.generateSignedUploadUrl({
       filename: dto.filename,
       mimeType: dto.mimeType,
-      folder: dto.folder || 'haatza/products',
+      folder: dto.folder || 'products',
     });
   }
 
