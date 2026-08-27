@@ -8,7 +8,7 @@ export class RazorpayIntegrationService {
 
   constructor(private readonly configService: ConfigService) {}
 
-  async createOrder(amountInPaise: number, currency: string = 'INR') {
+  async createOrder(amountInPaise: number, currency: string = 'INR', receipt?: string) {
     const keyId = this.configService.get<string>('RAZORPAY_KEY_ID') || 'rzp_test_mock';
     const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
 
@@ -16,31 +16,37 @@ export class RazorpayIntegrationService {
     if (keySecret && keyId !== 'rzp_test_mock') {
       try {
         const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+        const payload = {
+          amount: amountInPaise,
+          currency,
+          receipt: receipt || `receipt_${Date.now()}`,
+        };
+
         const response = await fetch('https://api.razorpay.com/v1/orders', {
           method: 'POST',
           headers: {
             Authorization: `Basic ${auth}`,
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({
-            amount: amountInPaise,
-            currency,
-            receipt: `receipt_${Date.now()}`,
-          }),
+          body: JSON.stringify(payload),
         });
 
-        if (response.ok) {
-          const data = await response.json();
-          return {
-            orderId: data.id,
-            amount: data.amount,
-            currency: data.currency,
-            status: data.status,
-            keyId,
-          };
+        const data: any = await response.json();
+
+        if (!response.ok) {
+          throw new Error(`Razorpay error: ${response.status} - ${data.error?.description || 'Unknown'}`);
         }
+
+        return {
+          orderId: data.id,
+          amount: data.amount,
+          currency: data.currency,
+          status: data.status,
+          keyId,
+        };
       } catch (err: any) {
-        this.logger.error(`Razorpay API call failed: ${err.message}. Falling back to mock order.`);
+        this.logger.error(`Razorpay API call failed: ${err.message}`);
+        throw err;
       }
     }
 
