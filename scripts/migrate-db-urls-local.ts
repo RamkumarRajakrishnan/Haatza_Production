@@ -34,6 +34,20 @@ async function main() {
       `;
       console.log(`✅ Updated rows: ${count}`);
     }
+
+    console.log('🧹 Cleaning up "haatza/" sub-prefix from new URLs...');
+    const searchPattern = 'http://haatza.com/uploads/haatza/';
+    const replacementPattern = 'http://haatza.com/uploads/';
+    const cleanLikePattern = `%${searchPattern}%`;
+    const cleanCount = await db.$executeRaw`
+      UPDATE products 
+      SET main_media = REPLACE(main_media, ${searchPattern}, ${replacementPattern}),
+          product_images = REPLACE(product_images::text, ${searchPattern}, ${replacementPattern})::json
+      WHERE main_media LIKE ${cleanLikePattern} 
+         OR product_images::text LIKE ${cleanLikePattern}
+    `;
+    console.log(`✅ Cleaned up rows: ${cleanCount}`);
+
     console.log('🎉 Migration completed successfully!');
   } catch (err: any) {
     console.error('❌ Migration failed:', err.message, err.stack);
