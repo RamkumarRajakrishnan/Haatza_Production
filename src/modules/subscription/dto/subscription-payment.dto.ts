@@ -68,3 +68,42 @@ export class CancelSubscriptionDto {
   @IsString()
   subscriptionId: string;
 }
+
+export class CreateSubscriptionOrderDto {
+  @ApiProperty({ example: 'seller_123', description: 'Seller ID' })
+  @IsNotEmpty()
+  @IsString()
+  sellerId: string;
+
+  @ApiProperty({ example: 'Growth', description: 'Plan Name' })
+  @IsNotEmpty()
+  @IsString()
+  planName: string;
+
+  @ApiProperty({ example: 299, description: 'Amount in INR' })
+  @IsNotEmpty()
+  @IsNumber()
+  amount: number;
+
+  @ApiPropertyOptional({ example: 'INR', default: 'INR' })
+  @IsOptional()
+  @IsString()
+  currency?: string;
+}
+
+export class VerifySubscriptionPaymentDto {
+  @ApiProperty({ example: 'order_Kxxxxx', description: 'Razorpay Order ID' })
+  @IsNotEmpty()
+  @IsString()
+  orderId: string;
+
+  @ApiProperty({ example: 'pay_Kxxxxx', description: 'Razorpay Payment ID' })
+  @IsNotEmpty()
+  @IsString()
+  paymentId: string;
+
+  @ApiProperty({ example: 'sig_Kxxxxx', description: 'Razorpay Signature' })
+  @IsNotEmpty()
+  @IsString()
+  signature: string;
+}

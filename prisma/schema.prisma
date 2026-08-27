@@ -831,3 +831,19 @@ model ReferralProgram {
 
   @@map("referral_program")
 }
+
+model SellerSubscriptionTransaction {
+  id                String   @id @default(uuid()) @map("id") @db.VarChar(36)
+  sellerId          String   @map("seller_id") @db.VarChar(50)
+  planName          String   @map("plan_name") @db.VarChar(50)
+  amount            Float    @map("amount")
+  currency          String   @map("currency") @db.VarChar(10)
+  razorpayOrderId   String   @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId String?  @map("razorpay_payment_id") @db.VarChar(100)
+  razorpaySignature String?  @map("razorpay_signature") @db.VarChar(255)
+  status            String   @default("created") @map("status") @db.VarChar(20)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("seller_subscription")
+}

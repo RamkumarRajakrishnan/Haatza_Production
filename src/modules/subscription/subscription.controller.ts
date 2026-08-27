@@ -19,6 +19,8 @@ import {
   VerifyRazorpayPaymentDto,
   ProcessSubscriptionOrderDto,
   CancelSubscriptionDto,
+  CreateSubscriptionOrderDto,
+  VerifySubscriptionPaymentDto,
 } from './dto/subscription-payment.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -69,6 +71,22 @@ export class SubscriptionController {
   @ApiResponse({ status: 200, description: 'Subscription created successfully' })
   async createSubscription(@Body() payload: CreateSubscriptionPayloadDto) {
     return await this.subscriptionService.createSubscription(payload);
+  }
+
+  @Post(['subscription/create-order'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Create Razorpay Subscription Order' })
+  @ApiBody({ type: CreateSubscriptionOrderDto })
+  async createSubscriptionOrder(@Body() dto: CreateSubscriptionOrderDto) {
+    return await this.subscriptionService.createSubscriptionOrder(dto);
+  }
+
+  @Post(['subscription/verify-payment'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Verify Razorpay Subscription Payment' })
+  @ApiBody({ type: VerifySubscriptionPaymentDto })
+  async verifySubscriptionPayment(@Body() dto: VerifySubscriptionPaymentDto) {
+    return await this.subscriptionService.verifySubscriptionPayment(dto);
   }
 
   @Post(['createRazorpayOrder', 'subscription/create-razorpay-order'])

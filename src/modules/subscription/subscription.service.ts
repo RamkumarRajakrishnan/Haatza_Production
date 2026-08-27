@@ -5,6 +5,7 @@ import {
   NotFoundException,
   ForbiddenException,
   ConflictException,
+  InternalServerErrorException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { CreateSubscriptionPayloadDto } from './dto/create-subscription.dto';
@@ -13,8 +14,13 @@ import {
   VerifyRazorpayPaymentDto,
   ProcessSubscriptionOrderDto,
   CancelSubscriptionDto,
+  CreateSubscriptionOrderDto,
+  VerifySubscriptionPaymentDto,
 } from './dto/subscription-payment.dto';
 import { RazorpayIntegrationService } from '../../integrations/razorpay/razorpay.service';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+import * as crypto from 'crypto';
 
 export const HARDCODED_PLANS = [
   {
@@ -44,6 +50,7 @@ export class SubscriptionService {
   constructor(
     private readonly databaseService: DatabaseService,
     private readonly razorpayService: RazorpayIntegrationService,
+    private readonly configService: ConfigService,
   ) { }
 
   /**
@@ -592,5 +599,132 @@ export class SubscriptionService {
         razorpayOrderId: invoice.razorpayOrderId,
       },
     };
+  }
+
+  /**
+   * Create Razorpay Order for Subscription and store details in seller_subscription_transaction
+   */
+  async createSubscriptionOrder(dto: CreateSubscriptionOrderDto) {
+    const { sellerId, planName, amount, currency = 'INR' } = dto;
+
+    const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
+    const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
+
+    if (!keyId || !keySecret) {
+      this.logger.error('Razorpay credentials are not configured in environment variables.');
+      throw new InternalServerErrorException('Razorpay credentials are not configured.');
+    }
+
+    try {
+      // 1. Create a Razorpay order via HTTPS POST using Basic auth
+      const auth = Buffer.from(`${keyId}:${keySecret}`).toString('base64');
+      const amountInPaise = Math.round(amount * 100);
+
+      const response = await axios.post(
+        'https://api.razorpay.com/v1/orders',
+        {
+          amount: amountInPaise,
+          currency,
+          receipt: `sub_receipt_${Date.now()}`,
+        },
+        {
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/json',
+          },
+        },
+      );
+
+      const razorpayOrder = response.data;
+
+      // 2. Save a new row in seller_subscription_transaction table
+      const transaction = await this.databaseService.sellerSubscriptionTransaction.create({
+        data: {
+          sellerId,
+          planName,
+          amount,
+          currency,
+          razorpayOrderId: razorpayOrder.id,
+          status: 'created',
+        },
+      });
+
+      // 3. Return order details and public key to frontend
+      return {
+        orderId: razorpayOrder.id,
+        amount: amountInPaise,
+        currency,
+        key: keyId,
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to create Razorpay subscription order: ${error.message}`, error.stack);
+      if (error.response) {
+        this.logger.error(`Razorpay Response Data: ${JSON.stringify(error.response.data)}`);
+        throw new BadRequestException(
+          `Razorpay error: ${error.response.status} - ${error.response.data?.error?.description || 'Unknown'}`,
+        );
+      }
+      throw new InternalServerErrorException(error.message || 'Failed to create subscription order.');
+    }
+  }
+
+  /**
+   * Verify Razorpay Payment Signature and update status in seller_subscription_transaction
+   */
+  async verifySubscriptionPayment(dto: VerifySubscriptionPaymentDto) {
+    const { orderId, paymentId, signature } = dto;
+
+    const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
+    if (!keySecret) {
+      throw new InternalServerErrorException('Razorpay secret key is not configured.');
+    }
+
+    // Find the matching transaction
+    const transaction = await this.databaseService.sellerSubscriptionTransaction.findFirst({
+      where: { razorpayOrderId: orderId },
+    });
+
+    if (!transaction) {
+      throw new NotFoundException(`No subscription transaction found for order ID: ${orderId}`);
+    }
+
+    try {
+      // Verify signature using HMAC-SHA256
+      const body = `${orderId}|${paymentId}`;
+      const expectedSignature = crypto
+        .createHmac('sha256', keySecret)
+        .update(body)
+        .digest('hex');
+
+      const isSignatureValid = expectedSignature === signature;
+
+      // Update status ('paid' or 'failed')
+      const updatedStatus = isSignatureValid ? 'paid' : 'failed';
+
+      await this.databaseService.sellerSubscriptionTransaction.update({
+        where: { id: transaction.id },
+        data: {
+          razorpayPaymentId: paymentId,
+          razorpaySignature: signature,
+          status: updatedStatus,
+        },
+      });
+
+      if (!isSignatureValid) {
+        throw new BadRequestException('Invalid signature verification failed.');
+      }
+
+      return {
+        success: true,
+        message: 'Subscription payment verified successfully',
+        status: updatedStatus,
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to verify Razorpay signature: ${error.message}`, error.stack);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException('Payment signature verification failed.');
+    }
   }
 }
