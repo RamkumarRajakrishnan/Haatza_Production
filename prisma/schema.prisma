@@ -845,5 +845,5 @@ model SellerSubscriptionTransaction {
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  @@map("seller_subscription")
+  @@map("seller_subscription_transaction")
 }
