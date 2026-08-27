@@ -182,7 +182,11 @@ export class MediaStorageService {
       // Step 1: Compress based on detected media type
       if (isImage) {
         this.logger.log(`Compressing image file: ${file.originalname}`);
-        const result = await this.imageCompressor.compress(fileBuffer);
+        const result = await this.imageCompressor.compress(
+          fileBuffer,
+          file.mimetype,
+          file.originalname,
+        );
         targetBuffer = result.buffer;
         extension = result.extension;
         contentType = result.contentType;

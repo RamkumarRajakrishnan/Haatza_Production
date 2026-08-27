@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import * as path from 'path';
 
 /**
  * ImageCompressorService
@@ -72,16 +73,54 @@ export class ImageCompressorService {
    *   4. If result > TARGET_SIZE_BYTES, re-compress at lower quality (multi-pass)
    *   5. Return the smallest buffer that still looks good
    */
-  async compress(fileBuffer: Buffer): Promise<ImageCompressionResult> {
+  async compress(
+    fileBuffer: Buffer,
+    originalMimetype?: string,
+    originalFilename?: string,
+  ): Promise<ImageCompressionResult> {
     const originalSize = fileBuffer.length;
+
+    // Helper to get fallback info
+    const getFallbackInfo = () => {
+      let extension = '.jpg';
+      let contentType = 'image/jpeg';
+
+      if (originalMimetype && originalMimetype.startsWith('image/')) {
+        contentType = originalMimetype;
+        if (originalMimetype === 'image/png') extension = '.png';
+        else if (originalMimetype === 'image/webp') extension = '.webp';
+        else if (originalMimetype === 'image/gif') extension = '.gif';
+        else if (originalMimetype === 'image/heic') extension = '.heic';
+        else if (originalMimetype === 'image/heif') extension = '.heif';
+        else if (originalMimetype === 'image/avif') extension = '.avif';
+        else if (originalMimetype === 'image/bmp') extension = '.bmp';
+        else if (originalMimetype === 'image/tiff') extension = '.tiff';
+      } else if (originalFilename) {
+        const ext = path.extname(originalFilename).toLowerCase();
+        if (ext) {
+          extension = ext;
+          if (ext === '.png') contentType = 'image/png';
+          else if (ext === '.webp') contentType = 'image/webp';
+          else if (ext === '.gif') contentType = 'image/gif';
+          else if (ext === '.heic') contentType = 'image/heic';
+          else if (ext === '.heif') contentType = 'image/heif';
+          else if (ext === '.avif') contentType = 'image/avif';
+          else if (ext === '.bmp') contentType = 'image/bmp';
+          else if (ext === '.tiff' || ext === '.tif') contentType = 'image/tiff';
+        }
+      }
+      return { extension, contentType };
+    };
+
+    const fallbackInfo = getFallbackInfo();
 
     // Fallback: if sharp is not loaded, return original
     if (!this.sharpModule) {
       this.logger.warn('Sharp not available — returning original image buffer.');
       return {
         buffer: fileBuffer,
-        extension: '.jpg',
-        contentType: 'image/jpeg',
+        extension: fallbackInfo.extension,
+        contentType: fallbackInfo.contentType,
         originalSize,
         compressedSize: originalSize,
         compressionPercent: '0%',
@@ -155,8 +194,8 @@ export class ImageCompressorService {
         this.logger.log('Compressed buffer larger than original file without resize — returning original.');
         return {
           buffer: fileBuffer,
-          extension: '.jpg',
-          contentType: 'image/jpeg',
+          extension: fallbackInfo.extension,
+          contentType: fallbackInfo.contentType,
           originalSize,
           compressedSize: originalSize,
           compressionPercent: '0%',
@@ -187,8 +226,8 @@ export class ImageCompressorService {
       // Graceful fallback — return original buffer
       return {
         buffer: fileBuffer,
-        extension: '.jpg',
-        contentType: 'image/jpeg',
+        extension: fallbackInfo.extension,
+        contentType: fallbackInfo.contentType,
         originalSize,
         compressedSize: originalSize,
         compressionPercent: '0%',
