@@ -6,6 +6,8 @@ import {
   UploadedFiles,
   BadRequestException,
   Req,
+  Get,
+  Res,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
@@ -13,7 +15,7 @@ import { diskStorage } from 'multer';
 import * as os from 'os';
 import * as path from 'path';
 import * as crypto from 'crypto';
-import { Request } from 'express';
+import { Request, Response } from 'express';
 import { MediaStorageService } from './media-storage.service';
 import { GenerateUploadUrlDto } from './dto/generate-upload-url.dto';
 
@@ -115,5 +117,16 @@ export class MediaStorageController {
     }
 
     return mediaItems;
+  }
+
+  @Get(['uploads/*', 'api/v1/uploads/*'])
+  @ApiOperation({ summary: 'Redirect missing local media files to Cloud Storage' })
+  async redirectToStorage(@Req() req: Request, @Res() res: Response) {
+    const filePath = req.path
+      .replace(/^\/api\/v1\/uploads\//, '')
+      .replace(/^\/uploads\//, '');
+    const bucketName = process.env.AWS_S3_BUCKET || 'haatza-media-bucket';
+    const redirectUrl = `https://storage.googleapis.com/${bucketName}/${filePath}`;
+    return res.redirect(redirectUrl);
   }
 }

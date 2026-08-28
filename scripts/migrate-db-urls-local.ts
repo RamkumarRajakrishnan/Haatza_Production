@@ -14,11 +14,9 @@ const OLD_PREFIXES = [
   'https://haatza.com/api/v1/media',
   'https://media.haatza.com',
   'http://haatza.com/uploads',
-  'http://haatza.com/media',
-  'https://haatza.com/media',
-  'https://haatza.com/uploads'
+  'http://haatza.com/media'
 ];
-const NEW_PREFIX = 'https://storage.googleapis.com/haatza-media-bucket';
+const NEW_PREFIX = 'http://haatza.com/uploads';
 
 async function main() {
   console.log('🔄 Initializing database client...');
@@ -26,78 +24,33 @@ async function main() {
   await db.onModuleInit();
 
   try {
-    console.log('📖 Fetching all products from database...');
-    const products = await db.product.findMany({
-      select: {
-        id: true,
-        mainMedia: true,
-        productImages: true
-      }
-    });
-    console.log(`✅ Fetched ${products.length} products. Processing replacements...`);
-
-    let updatedCount = 0;
-
-    for (const p of products) {
-      let isChanged = false;
-      let mainMedia = p.mainMedia;
-      let productImages = p.productImages;
-
-      // 1. Replace mainMedia
-      if (mainMedia) {
-        for (const prefix of OLD_PREFIXES) {
-          if (prefix === NEW_PREFIX) continue;
-          if (mainMedia.includes(prefix)) {
-            mainMedia = mainMedia.replace(prefix, NEW_PREFIX);
-            isChanged = true;
-          }
-        }
-        // Cleanup haatza/ sub-prefix
-        const badSub = 'https://storage.googleapis.com/haatza-media-bucket/haatza/';
-        const goodSub = 'https://storage.googleapis.com/haatza-media-bucket/';
-        if (mainMedia.includes(badSub)) {
-          mainMedia = mainMedia.replace(badSub, goodSub);
-          isChanged = true;
-        }
-      }
-
-      // 2. Replace productImages JSON
-      if (productImages && typeof productImages === 'object') {
-        let stringified = JSON.stringify(productImages);
-        let imgChanged = false;
-        for (const prefix of OLD_PREFIXES) {
-          if (prefix === NEW_PREFIX) continue;
-          if (stringified.includes(prefix)) {
-            stringified = stringified.replace(new RegExp(prefix, 'g'), NEW_PREFIX);
-            imgChanged = true;
-          }
-        }
-        const badSub = 'https://storage.googleapis.com/haatza-media-bucket/haatza/';
-        const goodSub = 'https://storage.googleapis.com/haatza-media-bucket/';
-        if (stringified.includes(badSub)) {
-          stringified = stringified.replace(new RegExp(badSub, 'g'), goodSub);
-          imgChanged = true;
-        }
-
-        if (imgChanged) {
-          productImages = JSON.parse(stringified);
-          isChanged = true;
-        }
-      }
-
-      if (isChanged) {
-        await db.product.update({
-          where: { id: p.id },
-          data: {
-            mainMedia,
-            productImages: productImages ?? undefined
-          }
-        });
-        updatedCount++;
-      }
+    for (const prefix of OLD_PREFIXES) {
+      console.log(`Replacing '${prefix}' -> '${NEW_PREFIX}'...`);
+      const likePattern = `%${prefix}%`;
+      const count = await db.$executeRaw`
+        UPDATE products 
+        SET main_media = REPLACE(main_media, ${prefix}, ${NEW_PREFIX}),
+            product_images = REPLACE(product_images::text, ${prefix}, ${NEW_PREFIX})::json
+        WHERE main_media LIKE ${likePattern} 
+           OR product_images::text LIKE ${likePattern}
+      `;
+      console.log(`✅ Updated rows: ${count}`);
     }
 
-    console.log(`🎉 Migration completed! Updated ${updatedCount} products.`);
+    console.log('🧹 Cleaning up "haatza/" sub-prefix from new URLs...');
+    const searchPattern = 'http://haatza.com/uploads/haatza/';
+    const replacementPattern = 'http://haatza.com/uploads/';
+    const cleanLikePattern = `%${searchPattern}%`;
+    const cleanCount = await db.$executeRaw`
+      UPDATE products 
+      SET main_media = REPLACE(main_media, ${searchPattern}, ${replacementPattern}),
+          product_images = REPLACE(product_images::text, ${searchPattern}, ${replacementPattern})::json
+      WHERE main_media LIKE ${cleanLikePattern} 
+         OR product_images::text LIKE ${cleanLikePattern}
+    `;
+    console.log(`✅ Cleaned up rows: ${cleanCount}`);
+
+    console.log('🎉 Migration completed successfully!');
   } catch (err: any) {
     console.error('❌ Migration failed:', err.message, err.stack);
   } finally {
