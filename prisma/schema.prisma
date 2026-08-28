@@ -322,8 +322,8 @@ model SellerSubscription {
   phone              String?                     @db.VarChar(20)
   planId             String                      @map("plan_id") @db.VarChar(36)
   planName           String                      @map("plan_name") @db.VarChar(50)
-  startedDate        DateTime                    @map("started_date")
-  endedDate          DateTime                    @map("ended_date")
+  startedDate        DateTime                    @map("started_date") @db.Timestamptz
+  endedDate          DateTime                    @map("ended_date") @db.Timestamptz
   gracePeriodDays    Int                         @default(0) @map("grace_period_days")
   gracePeriodEndDate DateTime?                   @map("grace_period_end_date")
   status             String                      @default("ACTIVE") @db.VarChar(20)
@@ -331,7 +331,7 @@ model SellerSubscription {
   razorpayOrderId    String?                     @map("razorpay_order_id") @db.VarChar(100)
   autoRenew          Boolean                     @default(true) @map("auto_renew")
   cancelledAt        DateTime?                   @map("cancelled_at")
-  createdAt          DateTime                    @default(now()) @map("created_at")
+  createdAt          DateTime                    @default(now()) @map("created_at") @db.Timestamptz
   invoices           SellerSubscriptionInvoice[]
 
   @@index([sellerId])
@@ -869,8 +869,8 @@ model SellerSubscriptionTransaction {
   razorpayPaymentId String?  @map("razorpay_payment_id") @db.VarChar(100)
   razorpaySignature String?  @map("razorpay_signature") @db.VarChar(255)
   status            String   @default("created") @map("status") @db.VarChar(20)
-  createdAt         DateTime @default(now()) @map("created_at")
-  updatedAt         DateTime @updatedAt @map("updated_at")
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("seller_subscription_transaction")
 }
