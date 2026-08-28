@@ -94,6 +94,16 @@ export class CreateSubscriptionOrderDto {
   @IsOptional()
   @IsString()
   email?: string;
+
+  @ApiPropertyOptional({ example: '2026-09-01T00:00:00.000+05:30', description: 'Custom Start Date from Frontend UI' })
+  @IsOptional()
+  @IsString()
+  startedDate?: string;
+
+  @ApiPropertyOptional({ example: 1, default: 1, description: 'Subscription Duration in Months' })
+  @IsOptional()
+  @IsNumber()
+  durationMonths?: number;
 }
 
 export class VerifySubscriptionPaymentDto {

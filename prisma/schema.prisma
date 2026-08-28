@@ -859,18 +859,20 @@ model ReferralProgram {
 }
 
 model SellerSubscriptionTransaction {
-  id                String   @id @default(uuid()) @map("id") @db.VarChar(36)
-  sellerId          String   @map("seller_id") @db.VarChar(50)
-  email             String?  @map("email") @db.VarChar(100)
-  planName          String   @map("plan_name") @db.VarChar(50)
-  amount            Float    @map("amount")
-  currency          String   @map("currency") @db.VarChar(10)
-  razorpayOrderId   String   @map("razorpay_order_id") @db.VarChar(100)
-  razorpayPaymentId String?  @map("razorpay_payment_id") @db.VarChar(100)
-  razorpaySignature String?  @map("razorpay_signature") @db.VarChar(255)
-  status            String   @default("created") @map("status") @db.VarChar(20)
-  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz
-  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz
+  id                String    @id @default(uuid()) @map("id") @db.VarChar(36)
+  sellerId          String    @map("seller_id") @db.VarChar(50)
+  email             String?   @map("email") @db.VarChar(100)
+  planName          String    @map("plan_name") @db.VarChar(50)
+  amount            Float     @map("amount")
+  currency          String    @map("currency") @db.VarChar(10)
+  razorpayOrderId   String    @map("razorpay_order_id") @db.VarChar(100)
+  razorpayPaymentId String?   @map("razorpay_payment_id") @db.VarChar(100)
+  razorpaySignature String?   @map("razorpay_signature") @db.VarChar(255)
+  status            String    @default("created") @map("status") @db.VarChar(20)
+  startedDate       DateTime? @map("started_date") @db.Timestamptz
+  durationMonths    Int?      @map("duration_months")
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz
+  updatedAt         DateTime  @updatedAt @map("updated_at") @db.Timestamptz
 
   @@map("seller_subscription_transaction")
 }

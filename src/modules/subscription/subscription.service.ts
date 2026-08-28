@@ -631,7 +631,7 @@ export class SubscriptionService {
    * Create Razorpay Order for Subscription and store details in seller_subscription_transaction
    */
   async createSubscriptionOrder(dto: CreateSubscriptionOrderDto) {
-    const { sellerId, planName, amount, currency = 'INR', email } = dto;
+    const { sellerId, planName, amount, currency = 'INR', email, startedDate, durationMonths } = dto;
 
     const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
     const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -673,6 +673,8 @@ export class SubscriptionService {
           currency,
           razorpayOrderId: razorpayOrder.id,
           status: 'created',
+          startedDate: startedDate ? new Date(startedDate) : null,
+          durationMonths: durationMonths ? Number(durationMonths) : null,
         },
       });
 
@@ -774,16 +776,25 @@ export class SubscriptionService {
       let endedDate: Date;
       let subStatus: string;
 
-      if (latestSub && latestSub.endedDate > new Date()) {
+      // Determine duration in days (default 30 days, or durationMonths * 30 days)
+      const durationDays = transaction.durationMonths ? transaction.durationMonths * 30 : 30;
+
+      if (transaction.startedDate) {
+        // Use user-selected start date from the calendar
+        startedDate = new Date(transaction.startedDate);
+        endedDate = new Date(startedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        // If start date is in the future, mark as Scheduled, otherwise Active
+        subStatus = startedDate > new Date() ? 'Scheduled' : 'Active';
+      } else if (latestSub && latestSub.endedDate > new Date()) {
         // Queue the subscription: start date is when the previous one ends
         startedDate = new Date(latestSub.endedDate);
-        endedDate = new Date(latestSub.endedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        endedDate = new Date(latestSub.endedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
         subStatus = 'Scheduled';
       } else {
         // Start immediately
         startedDate = new Date();
         endedDate = new Date();
-        endedDate.setDate(endedDate.getDate() + 30);
+        endedDate.setDate(endedDate.getDate() + durationDays);
         subStatus = 'Active';
       }
 
