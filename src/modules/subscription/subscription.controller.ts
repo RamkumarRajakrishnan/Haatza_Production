@@ -73,7 +73,7 @@ export class SubscriptionController {
     return await this.subscriptionService.createSubscription(payload);
   }
 
-  @Post(['subscription/create-order'])
+  @Post(['subscription/create-order', 'seller-subscription/create-order'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Create Razorpay Subscription Order' })
   @ApiBody({ type: CreateSubscriptionOrderDto })
@@ -81,7 +81,7 @@ export class SubscriptionController {
     return await this.subscriptionService.createSubscriptionOrder(dto);
   }
 
-  @Post(['subscription/verify-payment'])
+  @Post(['subscription/verify-payment', 'seller-subscription/process-order', 'seller-subscription/verify-payment'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify Razorpay Subscription Payment' })
   @ApiBody({ type: VerifySubscriptionPaymentDto })
