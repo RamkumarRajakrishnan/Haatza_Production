@@ -96,6 +96,14 @@ export class SubscriptionService {
     }
   }
 
+  private toISTString(date: Date | null | undefined): string {
+    if (!date) return '';
+    // IST is UTC + 5:30
+    const istOffsetMs = 5.5 * 60 * 60 * 1000;
+    const istDate = new Date(date.getTime() + istOffsetMs);
+    return istDate.toISOString().replace('Z', '+05:30');
+  }
+
   /**
    * 2. GET /_functions/sellersubscription?email={email}
    * Fetches the seller's active plan subscription as well as previous subscription history.
@@ -124,8 +132,8 @@ export class SubscriptionService {
           planId: sub.planId || '',
           status: sub.status || '',
           email: sub.email || '',
-          startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
-          endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
+          startedDate: this.toISTString(sub.startedDate),
+          endedDate: this.toISTString(sub.endedDate),
           orderId: sub.razorpayOrderId || sub.paymentId || '',
         })),
         ...growPlans.map((sub) => ({
@@ -134,8 +142,8 @@ export class SubscriptionService {
           planId: sub.planId || '',
           status: sub.status || '',
           email: sub.email || '',
-          startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
-          endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
+          startedDate: this.toISTString(sub.startedDate),
+          endedDate: this.toISTString(sub.endedDate),
           orderId: sub.razorpayOrderId || sub.paymentId || sub.orderId || '',
         })),
       ];
