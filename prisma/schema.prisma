@@ -618,6 +618,32 @@ model CategoryMaster {
   @@map("category_master")
 }
 
+model CategoryList {
+  id               String          @id @default(uuid()) @map("id")
+  categoryId       String          @unique @map("category_id")
+  categoryName     String          @map("category_name")
+  parentCategoryId String?         @map("parent_category_id")
+  categoryType     CategoryType    @default(CATEGORY) @map("category_type")
+  categoryImage    String?         @map("category_image")
+  description      String?         @map("description")
+  sequence         Int             @default(0) @map("sequence")
+  status           CategoryStatus  @default(ACTIVE) @map("status")
+  module           CategoryModule  @default(HAATZA) @map("module")
+  createdBy        String?         @map("created_by")
+  updatedBy        String?         @map("updated_by")
+  createdAt        DateTime        @default(now()) @map("created_at")
+  updatedAt        DateTime        @updatedAt @map("updated_at")
+  parent           CategoryList?   @relation("CategoryListHierarchy", fields: [parentCategoryId], references: [categoryId], onDelete: Cascade)
+  children         CategoryList[]  @relation("CategoryListHierarchy")
+
+  @@unique([categoryName, parentCategoryId, module])
+  @@index([parentCategoryId])
+  @@index([module])
+  @@index([status])
+  @@index([sequence])
+  @@map("category_list")
+}
+
 model WarehouseMaster {
   id                           String   @id @default(uuid()) @map("id")
   warehouseId                  String   @unique(map: "idx_warehouse_master_id") @map("warehouse_id")
@@ -835,6 +861,7 @@ model ReferralProgram {
 model SellerSubscriptionTransaction {
   id                String   @id @default(uuid()) @map("id") @db.VarChar(36)
   sellerId          String   @map("seller_id") @db.VarChar(50)
+  email             String?  @map("email") @db.VarChar(100)
   planName          String   @map("plan_name") @db.VarChar(50)
   amount            Float    @map("amount")
   currency          String   @map("currency") @db.VarChar(10)

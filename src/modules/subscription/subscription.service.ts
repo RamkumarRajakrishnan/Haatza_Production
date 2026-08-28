@@ -623,7 +623,7 @@ export class SubscriptionService {
    * Create Razorpay Order for Subscription and store details in seller_subscription_transaction
    */
   async createSubscriptionOrder(dto: CreateSubscriptionOrderDto) {
-    const { sellerId, planName, amount, currency = 'INR' } = dto;
+    const { sellerId, planName, amount, currency = 'INR', email } = dto;
 
     const keyId = this.configService.get<string>('RAZORPAY_KEY_ID');
     const keySecret = this.configService.get<string>('RAZORPAY_KEY_SECRET');
@@ -659,6 +659,7 @@ export class SubscriptionService {
       const transaction = await this.databaseService.sellerSubscriptionTransaction.create({
         data: {
           sellerId,
+          email: email || null,
           planName,
           amount,
           currency,
@@ -733,13 +734,18 @@ export class SubscriptionService {
       }
 
       // If payment is verified, update/create the active subscription in seller_subscriptions table
+      let email = transaction.email;
+      let phone: string | null = null;
+
       const user = await this.databaseService.user.findFirst({
         where: { sellerId: transaction.sellerId },
         select: { email: true, mobile: true },
       });
 
-      const email = user?.email || `seller_${transaction.sellerId}@haatza.com`;
-      const phone = user?.mobile || null;
+      if (!email) {
+        email = user?.email || `seller_${transaction.sellerId}@haatza.com`;
+      }
+      phone = user?.mobile || null;
 
       // Find plan details
       const plan = HARDCODED_PLANS.find(
@@ -747,46 +753,47 @@ export class SubscriptionService {
              transaction.planName.toLowerCase().includes(p.name.toLowerCase())
       ) || HARDCODED_PLANS[1]; // Fallback to Growth
 
-      const startedDate = new Date();
-      const endedDate = new Date();
-      endedDate.setDate(endedDate.getDate() + 30); // 30 days validity
-
-      // Upsert the subscription record
-      const existingSub = await this.databaseService.sellerSubscription.findFirst({
-        where: { sellerId: transaction.sellerId },
+      // Find the latest valid active/scheduled subscription to determine started date for the new plan
+      const latestSub = await this.databaseService.sellerSubscription.findFirst({
+        where: {
+          sellerId: transaction.sellerId,
+          status: { in: ['ACTIVE', 'Active', 'Scheduled', 'SCHEDULED'] }
+        },
+        orderBy: { endedDate: 'desc' }
       });
 
-      if (existingSub) {
-        await this.databaseService.sellerSubscription.update({
-          where: { id: existingSub.id },
-          data: {
-            email,
-            phone,
-            planId: plan.id,
-            planName: transaction.planName,
-            startedDate,
-            endedDate,
-            status: 'ACTIVE',
-            paymentId,
-            razorpayOrderId: orderId,
-          },
-        });
+      let startedDate: Date;
+      let endedDate: Date;
+      let subStatus: string;
+
+      if (latestSub && latestSub.endedDate > new Date()) {
+        // Queue the subscription: start date is when the previous one ends
+        startedDate = new Date(latestSub.endedDate);
+        endedDate = new Date(latestSub.endedDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+        subStatus = 'Scheduled';
       } else {
-        await this.databaseService.sellerSubscription.create({
-          data: {
-            sellerId: transaction.sellerId,
-            email,
-            phone,
-            planId: plan.id,
-            planName: transaction.planName,
-            startedDate,
-            endedDate,
-            status: 'ACTIVE',
-            paymentId,
-            razorpayOrderId: orderId,
-          },
-        });
+        // Start immediately
+        startedDate = new Date();
+        endedDate = new Date();
+        endedDate.setDate(endedDate.getDate() + 30);
+        subStatus = 'Active';
       }
+
+      // Always create a new subscription record representing this transaction
+      await this.databaseService.sellerSubscription.create({
+        data: {
+          sellerId: transaction.sellerId,
+          email,
+          phone,
+          planId: plan.id,
+          planName: transaction.planName,
+          startedDate,
+          endedDate,
+          status: subStatus,
+          paymentId,
+          razorpayOrderId: orderId,
+        },
+      });
 
       return {
         success: true,

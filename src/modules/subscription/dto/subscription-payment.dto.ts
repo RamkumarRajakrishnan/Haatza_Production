@@ -89,6 +89,11 @@ export class CreateSubscriptionOrderDto {
   @IsOptional()
   @IsString()
   currency?: string;
+
+  @ApiPropertyOptional({ example: 'seller@example.com', description: 'Seller Email' })
+  @IsOptional()
+  @IsString()
+  email?: string;
 }
 
 export class VerifySubscriptionPaymentDto {
