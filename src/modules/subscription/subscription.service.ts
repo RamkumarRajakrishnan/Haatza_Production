@@ -106,21 +106,39 @@ export class SubscriptionService {
     }
 
     try {
-      const subscriptions = await this.databaseService.growPlan.findMany({
-        where: { email: { equals: email, mode: 'insensitive' } },
-        orderBy: { createdDate: 'desc' },
-      });
+      const [growPlans, newSubs] = await Promise.all([
+        this.databaseService.growPlan.findMany({
+          where: { email: { equals: email, mode: 'insensitive' } },
+          orderBy: { createdDate: 'desc' },
+        }),
+        this.databaseService.sellerSubscription.findMany({
+          where: { email: { equals: email, mode: 'insensitive' } },
+          orderBy: { createdAt: 'desc' },
+        }),
+      ]);
 
-      const orders = subscriptions.map((sub) => ({
-        TableID: sub.id,
-        planName: sub.planName || '',
-        planId: sub.planId || '',
-        status: sub.status || '',
-        email: sub.email || '',
-        startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
-        endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
-        orderId: sub.razorpayOrderId || sub.paymentId || sub.orderId || '',
-      }));
+      const orders = [
+        ...newSubs.map((sub) => ({
+          TableID: sub.id,
+          planName: sub.planName || '',
+          planId: sub.planId || '',
+          status: sub.status || '',
+          email: sub.email || '',
+          startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
+          endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
+          orderId: sub.razorpayOrderId || sub.paymentId || '',
+        })),
+        ...growPlans.map((sub) => ({
+          TableID: sub.id,
+          planName: sub.planName || '',
+          planId: sub.planId || '',
+          status: sub.status || '',
+          email: sub.email || '',
+          startedDate: sub.startedDate ? sub.startedDate.toISOString() : '',
+          endedDate: sub.endedDate ? sub.endedDate.toISOString() : '',
+          orderId: sub.razorpayOrderId || sub.paymentId || sub.orderId || '',
+        })),
+      ];
 
       return {
         status: 'success',

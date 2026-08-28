@@ -40,7 +40,7 @@ export class SubscriptionController {
     return await this.subscriptionService.getPlans();
   }
 
-  @Get(['sellersubscription', 'seller-subscription'])
+  @Get(['sellersubscription', 'seller-subscription', 'subscription/seller-subscription'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Seller Subscriptions',
