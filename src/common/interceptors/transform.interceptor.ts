@@ -54,7 +54,7 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
           message,
           data: responseData,
           meta: {
-            timestamp: new Date().toISOString(),
+            timestamp: new Date(Date.now() + 5.5 * 60 * 60 * 1000).toISOString().replace('Z', '+05:30'),
             requestId,
           },
         };
