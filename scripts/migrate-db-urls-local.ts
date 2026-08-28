@@ -12,9 +12,10 @@ const OLD_PREFIXES = [
   'https://www.haatza.com/media',
   'https://haatza.com/media',
   'https://haatza.com/api/v1/media',
-  'https://media.haatza.com'
+  'https://media.haatza.com',
+  'http://haatza.com/uploads'
 ];
-const NEW_PREFIX = 'http://haatza.com/uploads';
+const NEW_PREFIX = 'http://haatza.com/media';
 
 async function main() {
   console.log('🔄 Initializing database client...');
@@ -36,8 +37,8 @@ async function main() {
     }
 
     console.log('🧹 Cleaning up "haatza/" sub-prefix from new URLs...');
-    const searchPattern = 'http://haatza.com/uploads/haatza/';
-    const replacementPattern = 'http://haatza.com/uploads/';
+    const searchPattern = 'http://haatza.com/media/haatza/';
+    const replacementPattern = 'http://haatza.com/media/';
     const cleanLikePattern = `%${searchPattern}%`;
     const cleanCount = await db.$executeRaw`
       UPDATE products 
