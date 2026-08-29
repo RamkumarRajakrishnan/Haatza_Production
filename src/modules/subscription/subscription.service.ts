@@ -127,6 +127,7 @@ export class SubscriptionService {
       const orders = [
         ...newSubs.map((sub) => ({
           TableID: sub.id,
+          subscriptionId: sub.id,
           planName: sub.planName || '',
           planId: sub.planId || '',
           status: sub.status || '',
@@ -137,6 +138,7 @@ export class SubscriptionService {
         })),
         ...growPlans.map((sub) => ({
           TableID: sub.id,
+          subscriptionId: sub.id,
           planName: sub.planName || '',
           planId: sub.planId || '',
           status: sub.status || '',
