@@ -828,11 +828,8 @@ export class SubscriptionService {
     }
   }
 
-  /**
-   * Reschedule an existing seller subscription start and end dates
-   */
   async rescheduleSubscription(dto: RescheduleSubscriptionDto) {
-    const { subscriptionId, startedDate: startedDateInput } = dto;
+    const { subscriptionId, startedDate: startedDateInput, endedDate: endedDateInput } = dto;
 
     const subscription = await this.databaseService.sellerSubscription.findUnique({
       where: { id: subscriptionId },
@@ -843,12 +840,9 @@ export class SubscriptionService {
     }
 
     try {
-      // Calculate the exact duration of the plan from old dates
-      const durationMs = subscription.endedDate.getTime() - subscription.startedDate.getTime();
-
-      // Shift the new start date by 5.5 hours to represent the local IST time numbers in the DB
+      // Shift the new start and end dates by 5.5 hours to represent the local IST time numbers in the DB
       const newStartedDate = new Date(new Date(startedDateInput).getTime() + 5.5 * 60 * 60 * 1000);
-      const newEndedDate = new Date(newStartedDate.getTime() + durationMs);
+      const newEndedDate = new Date(new Date(endedDateInput).getTime() + 5.5 * 60 * 60 * 1000);
 
       // Determine status of the plan
       const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);

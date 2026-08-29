@@ -133,4 +133,9 @@ export class RescheduleSubscriptionDto {
   @IsNotEmpty()
   @IsString()
   startedDate: string;
+
+  @ApiProperty({ example: '2026-10-20T00:00:00.000+05:30', description: 'New End Date' })
+  @IsNotEmpty()
+  @IsString()
+  endedDate: string;
 }
