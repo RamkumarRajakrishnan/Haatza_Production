@@ -21,6 +21,7 @@ import {
   CancelSubscriptionDto,
   CreateSubscriptionOrderDto,
   VerifySubscriptionPaymentDto,
+  RescheduleSubscriptionDto,
 } from './dto/subscription-payment.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
@@ -87,6 +88,14 @@ export class SubscriptionController {
   @ApiBody({ type: VerifySubscriptionPaymentDto })
   async verifySubscriptionPayment(@Body() dto: VerifySubscriptionPaymentDto) {
     return await this.subscriptionService.verifySubscriptionPayment(dto);
+  }
+
+  @Post(['subscription/reschedule', 'seller-subscription/reschedule'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reschedule an existing seller subscription start and end dates' })
+  @ApiBody({ type: RescheduleSubscriptionDto })
+  async rescheduleSubscription(@Body() dto: RescheduleSubscriptionDto) {
+    return await this.subscriptionService.rescheduleSubscription(dto);
   }
 
   @Post(['createRazorpayOrder', 'subscription/create-razorpay-order'])

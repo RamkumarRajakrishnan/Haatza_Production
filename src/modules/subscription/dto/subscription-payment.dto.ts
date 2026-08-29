@@ -122,3 +122,15 @@ export class VerifySubscriptionPaymentDto {
   @IsString()
   signature: string;
 }
+
+export class RescheduleSubscriptionDto {
+  @ApiProperty({ example: 'sub_123456', description: 'Seller Subscription ID' })
+  @IsNotEmpty()
+  @IsString()
+  subscriptionId: string;
+
+  @ApiProperty({ example: '2026-09-20T00:00:00.000+05:30', description: 'New Start Date' })
+  @IsNotEmpty()
+  @IsString()
+  startedDate: string;
+}

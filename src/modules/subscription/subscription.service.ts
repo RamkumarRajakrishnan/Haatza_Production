@@ -16,6 +16,7 @@ import {
   CancelSubscriptionDto,
   CreateSubscriptionOrderDto,
   VerifySubscriptionPaymentDto,
+  RescheduleSubscriptionDto,
 } from './dto/subscription-payment.dto';
 import { RazorpayIntegrationService } from '../../integrations/razorpay/razorpay.service';
 import { ConfigService } from '@nestjs/config';
@@ -824,6 +825,57 @@ export class SubscriptionService {
         throw error;
       }
       throw new InternalServerErrorException('Payment signature verification failed.');
+    }
+  }
+
+  /**
+   * Reschedule an existing seller subscription start and end dates
+   */
+  async rescheduleSubscription(dto: RescheduleSubscriptionDto) {
+    const { subscriptionId, startedDate: startedDateInput } = dto;
+
+    const subscription = await this.databaseService.sellerSubscription.findUnique({
+      where: { id: subscriptionId },
+    });
+
+    if (!subscription) {
+      throw new NotFoundException(`No subscription found for ID: ${subscriptionId}`);
+    }
+
+    try {
+      // Calculate the exact duration of the plan from old dates
+      const durationMs = subscription.endedDate.getTime() - subscription.startedDate.getTime();
+
+      // Shift the new start date by 5.5 hours to represent the local IST time numbers in the DB
+      const newStartedDate = new Date(new Date(startedDateInput).getTime() + 5.5 * 60 * 60 * 1000);
+      const newEndedDate = new Date(newStartedDate.getTime() + durationMs);
+
+      // Determine status of the plan
+      const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+      const subStatus = newStartedDate > nowIST ? 'Scheduled' : 'Active';
+
+      const updated = await this.databaseService.sellerSubscription.update({
+        where: { id: subscriptionId },
+        data: {
+          startedDate: newStartedDate,
+          endedDate: newEndedDate,
+          status: subStatus,
+        },
+      });
+
+      return {
+        success: true,
+        message: 'Subscription rescheduled successfully',
+        data: {
+          subscriptionId: updated.id,
+          status: updated.status,
+          startedDate: this.toISTString(updated.startedDate),
+          endedDate: this.toISTString(updated.endedDate),
+        },
+      };
+    } catch (error: any) {
+      this.logger.error(`Failed to reschedule subscription: ${error.message}`, error.stack);
+      throw new InternalServerErrorException(error.message || 'Failed to reschedule subscription.');
     }
   }
 }
