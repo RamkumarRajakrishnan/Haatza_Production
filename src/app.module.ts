@@ -23,6 +23,7 @@ import { CouponModule } from './modules/coupon/coupon.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { ReferralModule } from './modules/referral/referral.module';
 import { GrowPlanModule } from './modules/grow-plan/grow-plan.module';
+import { ProductModule } from './modules/product/product.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -78,6 +79,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     WalletModule,
     ReferralModule,
     GrowPlanModule,
+    ProductModule,
   ],
 
   controllers: [AppController],
