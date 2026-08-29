@@ -98,10 +98,8 @@ export class SubscriptionService {
 
   private toISTString(date: Date | null | undefined): string {
     if (!date) return '';
-    // IST is UTC + 5:30
-    const istOffsetMs = 5.5 * 60 * 60 * 1000;
-    const istDate = new Date(date.getTime() + istOffsetMs);
-    return istDate.toISOString().replace('Z', '+05:30');
+    // Since dates are stored with local IST numbers in the DB, we just format it as +05:30 offset
+    return date.toISOString().replace('Z', '+05:30');
   }
 
   /**
@@ -673,7 +671,7 @@ export class SubscriptionService {
           currency,
           razorpayOrderId: razorpayOrder.id,
           status: 'created',
-          startedDate: startedDate ? new Date(startedDate) : null,
+          startedDate: startedDate ? new Date(new Date(startedDate).getTime() + 5.5 * 60 * 60 * 1000) : null,
           durationMonths: durationMonths ? Number(durationMonths) : null,
         },
       });
@@ -779,22 +777,22 @@ export class SubscriptionService {
       // Determine duration in days (default 30 days, or durationMonths * 30 days)
       const durationDays = transaction.durationMonths ? transaction.durationMonths * 30 : 30;
 
+      const nowIST = new Date(Date.now() + 5.5 * 60 * 60 * 1000);
+
       if (transaction.startedDate) {
-        // Use user-selected start date from the calendar
+        // Use user-selected start date from the calendar (already shifted to IST numbers)
         startedDate = new Date(transaction.startedDate);
         endedDate = new Date(startedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
-        // If start date is in the future, mark as Scheduled, otherwise Active
-        subStatus = startedDate > new Date() ? 'Scheduled' : 'Active';
-      } else if (latestSub && latestSub.endedDate > new Date()) {
-        // Queue the subscription: start date is when the previous one ends
+        subStatus = startedDate > nowIST ? 'Scheduled' : 'Active';
+      } else if (latestSub && latestSub.endedDate > nowIST) {
+        // Queue the subscription: start date is when the previous one ends (already shifted)
         startedDate = new Date(latestSub.endedDate);
-        endedDate = new Date(latestSub.endedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
+        endedDate = new Date(startedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
         subStatus = 'Scheduled';
       } else {
-        // Start immediately
-        startedDate = new Date();
-        endedDate = new Date();
-        endedDate.setDate(endedDate.getDate() + durationDays);
+        // Start immediately in IST
+        startedDate = nowIST;
+        endedDate = new Date(startedDate.getTime() + durationDays * 24 * 60 * 60 * 1000);
         subStatus = 'Active';
       }
 
@@ -811,6 +809,7 @@ export class SubscriptionService {
           status: subStatus,
           paymentId,
           razorpayOrderId: orderId,
+          createdAt: nowIST, // Explicitly save local IST time as creation date
         },
       });
 
