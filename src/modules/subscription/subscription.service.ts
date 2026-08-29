@@ -103,6 +103,12 @@ export class SubscriptionService {
     return date.toISOString().replace('Z', '+05:30');
   }
 
+  private toISTDate(dateInput: Date | string | number | null | undefined): Date | null {
+    if (!dateInput) return null;
+    const d = new Date(dateInput);
+    return new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+  }
+
   /**
    * 2. GET /_functions/sellersubscription?email={email}
    * Fetches the seller's active plan subscription as well as previous subscription history.
@@ -202,8 +208,8 @@ export class SubscriptionService {
               status: subDto.status || 'Active',
               email: subDto.email,
               phone: subDto.phone || existing.phone,
-              startedDate: new Date(subDto.startedDate),
-              endedDate: new Date(subDto.endedDate),
+              startedDate: this.toISTDate(subDto.startedDate)!,
+              endedDate: this.toISTDate(subDto.endedDate)!,
               paymentId: subDto.paymentId || existing.paymentId,
               razorpayOrderId: subDto.razorpayOrderId || existing.razorpayOrderId,
             },
@@ -220,8 +226,9 @@ export class SubscriptionService {
             phone: subDto.phone || null,
             planId: subDto.planId,
             planName: subDto.planName,
-            startedDate: new Date(subDto.startedDate),
-            endedDate: new Date(subDto.endedDate),
+            startedDate: this.toISTDate(subDto.startedDate)!,
+            endedDate: this.toISTDate(subDto.endedDate)!,
+            createdDate: this.toISTDate(new Date())!,
             status: subDto.status || 'Active',
             paymentId: subDto.paymentId || null,
             razorpayOrderId: subDto.razorpayOrderId || null,
@@ -378,7 +385,7 @@ export class SubscriptionService {
     const address = user?.address || null;
     const gstin = user?.gstin || null;
 
-    const startedDate = new Date();
+    const startedDate = this.toISTDate(new Date())!;
     const endedDate = this.calculateEndDate(startedDate, plan.periodUnit);
 
     const subTotal = Number(plan.price);
@@ -397,6 +404,7 @@ export class SubscriptionService {
           planName: plan.name,
           startedDate,
           endedDate,
+          createdDate: startedDate,
           status: 'ACTIVE',
           paymentId: dto.razorpay_payment_id,
           razorpayOrderId: dto.razorpay_order_id,

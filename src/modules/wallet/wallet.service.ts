@@ -8,6 +8,12 @@ import { DatabaseService } from '../../database/database.service';
 import { PayWithWalletDto } from './dto/wallet.dto';
 import { HARDCODED_PLANS } from '../subscription/subscription.service';
 
+const toISTDate = (dateInput: Date | string | number | null | undefined): Date | null => {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  return new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+};
+
 @Injectable()
 export class WalletService {
   private readonly logger = new Logger(WalletService.name);
@@ -158,7 +164,7 @@ export class WalletService {
         },
       });
 
-      const startedDate = new Date();
+      const startedDate = toISTDate(new Date())!;
       const endedDate = new Date(startedDate);
       const unit = (plan.periodUnit || 'MONTH').toUpperCase();
       if (unit === 'YEAR' || unit === 'ANNUAL') {
@@ -182,6 +188,7 @@ export class WalletService {
           status: 'ACTIVE',
           paymentId: walletTx.id,
           autoRenew: true,
+          createdAt: startedDate, // Explicitly save creation time as IST
         },
       });
 
@@ -190,7 +197,7 @@ export class WalletService {
         data: {
           subscriptionId: subscription.id,
           sellerId: effectiveSellerId,
-          invoiceDate: new Date(),
+          invoiceDate: toISTDate(new Date())!,
           sellerName: user?.companyName || user?.name || 'Valued Seller',
           address: user?.address || null,
           gstin: user?.gstin || null,

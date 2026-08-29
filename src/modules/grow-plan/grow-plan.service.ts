@@ -3,6 +3,12 @@ import { DatabaseService } from '../../database/database.service';
 import { CreateGrowPlanDto } from './dto/create-grow-plan.dto';
 import { UpdateGrowPlanDto } from './dto/update-grow-plan.dto';
 
+const toISTDate = (dateInput: Date | string | number | null | undefined): Date | null => {
+  if (!dateInput) return null;
+  const d = new Date(dateInput);
+  return new Date(d.getTime() + 5.5 * 60 * 60 * 1000);
+};
+
 @Injectable()
 export class GrowPlanService {
   private readonly logger = new Logger(GrowPlanService.name);
@@ -19,8 +25,9 @@ export class GrowPlanService {
       planId: dto.planId || null,
       status: dto.status || 'ACTIVE',
       email: dto.email || null,
-      endedDate: dto.endedDate ? new Date(dto.endedDate) : null,
-      startedDate: dto.startedDate ? new Date(dto.startedDate) : null,
+      endedDate: toISTDate(dto.endedDate),
+      startedDate: toISTDate(dto.startedDate),
+      createdDate: toISTDate(new Date())!,
       paymentId: dto.paymentId || null,
       razorpayOrderId: dto.razorpayOrderId || null,
       manageGrowPlanPageLink: dto.manageGrowPlanPageLink || null,
@@ -73,8 +80,8 @@ export class GrowPlanService {
     if (dto.planId !== undefined) updateData.planId = dto.planId;
     if (dto.status !== undefined) updateData.status = dto.status;
     if (dto.email !== undefined) updateData.email = dto.email;
-    if (dto.endedDate !== undefined) updateData.endedDate = dto.endedDate ? new Date(dto.endedDate) : null;
-    if (dto.startedDate !== undefined) updateData.startedDate = dto.startedDate ? new Date(dto.startedDate) : null;
+    if (dto.endedDate !== undefined) updateData.endedDate = toISTDate(dto.endedDate);
+    if (dto.startedDate !== undefined) updateData.startedDate = toISTDate(dto.startedDate);
     if (dto.paymentId !== undefined) updateData.paymentId = dto.paymentId;
     if (dto.razorpayOrderId !== undefined) updateData.razorpayOrderId = dto.razorpayOrderId;
     if (dto.manageGrowPlanPageLink !== undefined) updateData.manageGrowPlanPageLink = dto.manageGrowPlanPageLink;
