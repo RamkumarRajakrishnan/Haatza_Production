@@ -7,7 +7,7 @@ import { Prisma } from '@prisma/client';
 export class ProductService {
   private readonly logger = new Logger(ProductService.name);
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   async getProductsList(query: ProductListQueryDto, authenticatedSellerId?: string) {
     const {
@@ -35,7 +35,7 @@ export class ProductService {
           isSeller: true,
         },
       });
-      
+
       if (user) {
         targetSellerId = user.sellerId || user.id;
       }
@@ -136,18 +136,18 @@ export class ProductService {
     const mappedProducts = rawProducts.map((p) => ({
       brand: p.brand || '',
       name: p.name || '',
-      ProductID: p.id,
-      Productoption: p.productOptions || {},
+      productId: p.id,
+      productOption: p.productOptions || {},
       image: p.mainMedia || '',
       activeAd: p.activeAd || false,
       averageRating: 0,
-      IsWhishlist: false,
-      WishlistTableID: '',
+      isWhishlist: false,
+      wishlistTableId: '',
       sellerId: p.sellerId || '',
       campaignId: p.campaignId || '',
       deliveryCharges: p.deliveryCharges ?? true,
-      maincategoreid: p.mainCategory || '',
-      subcategoryid: p.subCategoryId || '',
+      maincategoryId: p.mainCategory || '',
+      subcategoryId: p.subCategoryId || '',
       finalPricing: {
         codFinal: p.cod || 0,
         upiFinal: p.upi || 0,
@@ -172,93 +172,7 @@ export class ProductService {
   }
 
 
-  /**
-   * GET /api/v1/seller_products
-   * Wix-compatible get seller products list
-   */
-  async getSellerProducts(query: any, authenticatedSellerId?: string) {
-    const email = query.email;
-    const page = parseInt(query.page || '1', 10);
-    const limit = parseInt(query.limit || '10', 10);
-    const type = query.type; // 'mylisting' or 'inprogress'
-    const searchText = query.searchText;
 
-    let targetSellerId = authenticatedSellerId;
-
-    if (!targetSellerId && email) {
-      const user = await this.db.user.findFirst({
-        where: {
-          email: { equals: email, mode: 'insensitive' },
-          isSeller: true,
-        },
-      });
-      if (user) {
-        targetSellerId = user.sellerId || user.id;
-      }
-    }
-
-    if (!targetSellerId) {
-      return {
-        sellerProducts: [],
-        pagination: {
-          total: 0,
-          page,
-          limit,
-          totalPages: 0,
-        },
-      };
-    }
-
-    const where: Prisma.ProductWhereInput = {
-      sellerId: targetSellerId,
-    };
-
-    if (type === 'mylisting') {
-      where.status = { in: ['Approved', 'Out of Stock'] };
-    } else if (type === 'inprogress') {
-      where.status = { equals: 'Under Review' };
-    }
-
-    if (searchText?.trim()) {
-      where.name = {
-        contains: searchText.trim(),
-        mode: 'insensitive',
-      };
-    }
-
-    const skip = (page - 1) * limit;
-
-    const [total, products] = await Promise.all([
-      this.db.product.count({ where }),
-      this.db.product.findMany({
-        where,
-        orderBy: { createdDate: 'desc' },
-        skip,
-        take: limit,
-      }),
-    ]);
-
-    const totalPages = Math.ceil(total / limit);
-
-    const formattedProducts = products.map((p) => ({
-      mainmedia: p.mainMedia || '',
-      name: p.name,
-      price: p.price || 0,
-      discount: p.discount ? (typeof p.discount === 'string' ? p.discount : JSON.stringify(p.discount)) : '',
-      status: p.status || '',
-      Table_ID: p.id,
-    }));
-
-    return {
-      sellerProducts: formattedProducts,
-      pagination: {
-        total,
-        page,
-        limit,
-        totalPages,
-      },
-    };
-  }
 
   /**
    * GET /api/v1/sellerProductDetails
@@ -277,50 +191,7 @@ export class ProductService {
       throw new NotFoundException(`Product with ID ${tableId} not found`);
     }
 
-    const productImagesArray = Array.isArray(p.productImages)
-      ? (p.productImages as any[]).map((img) => ({
-          description: img.description || '',
-          id: img.slug || img.id || '',
-          src: img.src,
-          type: img.type || 'image',
-        }))
-      : [];
-
-    return {
-      mainmedia: p.mainMedia || '',
-      productImages: productImagesArray,
-      name: p.name,
-      description: p.description || '',
-      brand: p.brand || '',
-      shippingWeight: p.shippingWeight || 0,
-      price: p.price || 0,
-      discount: p.discount || null,
-      ribbon: p.ribbon || '',
-      productOptions: p.productOptions || null,
-      additionalInfoSections: p.additionalInfoSections || [],
-      sellerId: p.sellerId || '',
-      varientPrice: p.variantPrice || null,
-      status: p.status || '',
-      manageVariants: p.manageVariants || false,
-      trackInventory: p.trackInventory || false,
-      categoryName: p.categoryName || [],
-      categoryId: p.collections || [],
-      inventory: p.inventory || 0,
-      sku: p.sku || '',
-      productId: p.wixProductId || '',
-      mainCategory: p.mainCategory || '',
-      subCategory: p.subCategory || '',
-      promotionPhotos: p.promotionPhotos || [],
-      haatzaverified: p.haatzaVerified || false,
-      paymentType: p.paymentType || '',
-      productReturn: p.productReturn || '',
-      subCategoryId: p.subCategoryId || '',
-      deliveryCharges: p.deliveryCharges || false,
-      sizeChart: p.sizeChart || '',
-      search_keywords: p.searchKeywords || [],
-      sellAndEarnCommission: p.sellAndEarnCommission || null,
-      sellAndEarn: p.sellAndEarn || 'FALSE',
-    };
+    return mapPrismaToWixSellerListing(p);
   }
 
   /**
@@ -387,10 +258,8 @@ export class ProductService {
 
     return {
       status: 'success',
-      message: {
-        message: 'Product has been updated sucessfully and sent for review',
-        updatedData: updated,
-      },
+      message: 'Product has been updated sucessfully and sent for review',
+      updatedData: mapPrismaToWixSellerListing(updated),
     };
   }
 
@@ -444,16 +313,8 @@ export class ProductService {
 
     return {
       status: 'success',
-      message: {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-        message: 'Product submitted successfully',
-        data: created,
-      },
+      message: 'Product submitted successfully',
+      data: mapPrismaToWixSellerListing(created),
     };
   }
 
@@ -498,8 +359,8 @@ export class ProductService {
       const colArray = Array.isArray(query.collections)
         ? query.collections
         : typeof query.collections === 'string'
-        ? query.collections.split(',')
-        : [query.collections];
+          ? query.collections.split(',')
+          : [query.collections];
       where.collections = { hasSome: colArray };
     }
 
@@ -729,6 +590,213 @@ export class ProductService {
     });
     return mapPrismaToRestOutput(updated);
   }
+
+  async getProductsByCategory(query: { categoryId: string, page: string, count: string, userId: string, toPincode: string }) {
+    const categoryId = query.categoryId;
+    const page = parseInt(query.page || '1', 10);
+    const limit = parseInt(query.count || '20', 10);
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.ProductWhereInput = {};
+
+    if (categoryId) {
+      where.OR = [
+        { subCategory: categoryId },
+        { collections: { hasSome: [categoryId] } },
+      ];
+    }
+
+    const [total, products] = await Promise.all([
+      this.db.product.count({ where }),
+      this.db.product.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdDate: 'desc' },
+      }),
+    ]);
+
+    // calculate category filters (all matching active products, not just paginated)
+    const allMatchingProducts = await this.db.product.findMany({
+      where,
+      select: {
+        price: true,
+        mrp: true,
+        brand: true,
+        additionalInfoSections: true,
+      }
+    });
+
+    let minPrice = Infinity;
+    let maxPrice = -Infinity;
+    const brandSet = new Set<string>();
+    const specMap = new Map<string, Set<string>>();
+    
+    allMatchingProducts.forEach(p => {
+      const pPrice = Number(p.price || p.mrp || 0);
+      if (pPrice < minPrice) minPrice = pPrice;
+      if (pPrice > maxPrice) maxPrice = pPrice;
+      if (p.brand && typeof p.brand === 'string') {
+         const trimmedBrand = p.brand.trim();
+         if (trimmedBrand) {
+           brandSet.add(trimmedBrand);
+         }
+      }
+      if (Array.isArray(p.additionalInfoSections)) {
+        p.additionalInfoSections.forEach((info: any) => {
+          if (info && typeof info === 'object' && info.title && info.description) {
+            const title = String(info.title).trim();
+            const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim(); // Remove HTML if any
+            if (title && desc) {
+              if (!specMap.has(title)) {
+                specMap.set(title, new Set());
+              }
+              specMap.get(title)!.add(desc);
+            }
+          }
+        });
+      }
+    });
+
+    if (minPrice === Infinity) minPrice = 0;
+    if (maxPrice === -Infinity) maxPrice = 0;
+
+    const specficationList: Record<string, string>[] = [];
+    specMap.forEach((values, title) => {
+      Array.from(values).sort().forEach(val => {
+        specficationList.push({ [title]: val });
+      });
+    });
+
+    const categoryFilters = {
+      categoryId: categoryId || "",
+      lastUpdated: new Date().toISOString(),
+      productOptions: {},
+      brands: Array.from(brandSet).sort(),
+      priceRange: { min: minPrice, max: maxPrice },
+      specfication: specficationList,
+      ratingCounts: { "1+": 0, "2+": 0, "3+": 0, "4+": 0 }
+    };
+
+    const totalPages = Math.ceil(total / limit);
+
+    const mappedProducts = products.map(p => {
+       let image = p.mainMedia || "";
+       if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+         const firstMedia: any = p.productImages[0];
+         image = typeof firstMedia === 'string' ? firstMedia : firstMedia.src || "";
+       }
+       return {
+         brand: p.brand || "",
+         name: p.name || "",
+         ProductID: p.id,
+         Productoption: p.productOptions || {},
+         image,
+         activeAd: p.activeAd || false,
+         averageRating: 0,
+         IsWhishlist: false,
+         WishlistTableID: "",
+         sellerId: p.sellerId || "",
+         campaignId: p.campaignId || "",
+         deliveryCharges: p.deliveryCharges || false,
+         maincategoreid: p.mainCategory || "",
+         subcategoryid: p.subCategory || "",
+         finalPricing: {
+           codFinal: p.price || p.mrp || 0,
+           upiFinal: p.price || p.mrp || 0
+         }
+       };
+    });
+
+    return {
+      status: "success",
+      message: {
+        categoryId: categoryId || "",
+        totalItems: total,
+        totalPages,
+        currentPage: page,
+        lastFetched: limit,
+        products: mappedProducts,
+        categoryFilters,
+        sortfilter: [
+          { label: "Popularity", value: "popularity" },
+          { label: "Price: Low to High", value: "price_low_high" },
+          { label: "Price: High to Low", value: "price_high_low" },
+          { label: "Newest First", value: "newest" }
+        ]
+      }
+    };
+  }
+
+  async getCategoryLegacy() {
+    const desiredOrder = [
+        'Men Fashion',
+        'Women Fashion',
+        'Kids & Toys',
+        'Beauty & Personal Care',
+        'Home & Kitchen',
+        'Books',
+        'Musical Instruments'
+    ];
+
+    const records = await this.db.categoryMaster.findMany({
+      where: {
+        categoryName: { in: desiredOrder },
+      }
+    });
+
+    const filteredItems = records.map(item => ({
+        mainMedia: (item as any).imageUrl || (item as any).image || '',
+        name: item.categoryName,
+        CategoryID: item.categoryId || item.id
+    }));
+
+    const sortedItems = filteredItems.sort((a, b) => {
+        return desiredOrder.indexOf(a.name) - desiredOrder.indexOf(b.name);
+    });
+
+    return sortedItems;
+  }
+
+  async getSubcategoryListLegacy(query: { search: string, page: string, count: string }) {
+    const search = query.search || null;
+    const page = parseInt(query.page || '1', 10);
+    const count = parseInt(query.count || '10', 10);
+    const skip = (page - 1) * count;
+
+    const where: Prisma.CategoryMasterWhereInput = {
+      categoryType: 'SUBCATEGORY',
+      status: 'ACTIVE'
+    };
+
+    if (search) {
+      where.categoryName = { contains: search, mode: 'insensitive' };
+    }
+
+    const [total, records] = await Promise.all([
+      this.db.categoryMaster.count({ where }),
+      this.db.categoryMaster.findMany({
+        where,
+        skip,
+        take: count
+      })
+    ]);
+
+    const items = records.map(item => ({
+        categoryId: item.parentCategoryId || '',
+        categoryName: (item as any).parentCategoryName || '',
+        subCategoryId: item.categoryId || item.id,
+        subCategory: item.categoryName
+    }));
+
+    return {
+        status: "success",
+        currentPage: page,
+        totalPages: Math.ceil(total / count),
+        totalItems: total,
+        data: items
+    };
+  }
 }
 
 // ==========================================
@@ -877,5 +945,59 @@ function mapPrismaToRestOutput(p: any): any {
     manage_listing_products: p.manageListingProducts,
     sell_and_earn_commission: p.sellAndEarnCommission,
     sell_and_earn: p.sellAndEarn,
+  };
+}
+
+function mapPrismaToWixSellerListing(p: any) {
+  const productImagesArray = Array.isArray(p.productImages)
+    ? (p.productImages as any[]).map((img) => ({
+      description: img.description || '',
+      id: img.slug || img.id || '',
+      src: img.src,
+      type: img.type || 'image',
+    }))
+    : [];
+
+  return {
+    _id: p.id,
+    Id: p.id,
+    mainmedia: p.mainMedia || '',
+    productImages: productImagesArray,
+    name: p.name,
+    description: p.description || '',
+    brand: p.brand || '',
+    shippingWeight: p.shippingWeight || 0,
+    price: p.price || 0,
+    discount: p.discount || null,
+    ribbon: p.ribbon || '',
+    productOptions: p.productOptions || null,
+    additionalInfoSections: p.additionalInfoSections || [],
+    sellerId: p.sellerId || '',
+    varientPrice: p.variantPrice || null,
+    status: p.status || '',
+    manageVariants: p.manageVariants || false,
+    trackInventory: p.trackInventory || false,
+    categoryName: p.categoryName || [],
+    collections: p.collections || [],
+    categoryId: p.collections || [],
+    inventory: p.inventory || 0,
+    sku: p.sku || '',
+    productId: p.wixProductId || '',
+    mainCategory: p.mainCategory || '',
+    subCategory: p.subCategory || '',
+    promotionPhotos: p.promotionPhotos || [],
+    haatzaverified: p.haatzaVerified || false,
+    paymentType: p.paymentType || '',
+    productReturn: p.productReturn || '',
+    subCategoryId: p.subCategoryId || '',
+    deliveryCharges: p.deliveryCharges || false,
+    sizeChart: p.sizeChart || '',
+    search_keywords: p.searchKeywords || [],
+    sellAndEarnCommission: p.sellAndEarnCommission || null,
+    sellAndEarn: p.sellAndEarn || 'FALSE',
+    productType: p.productType || 'physical',
+    sellerPinCode: p.sellerPincode || '',
+    _createdDate: p.createdDate,
+    _updatedDate: p.updatedDate,
   };
 }

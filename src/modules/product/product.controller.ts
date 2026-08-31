@@ -25,13 +25,7 @@ export class ProductController {
     return this.productService.getProductsList(query, authenticatedSellerId);
   }
 
-  @ApiOperation({ summary: 'Wix-compatible get seller products list (GET)' })
-  @Get('seller_products')
-  @HttpCode(HttpStatus.OK)
-  async getSellerProducts(@Query() query: any, @Req() req: any) {
-    const authenticatedSellerId = req.user?.sellerId || req.user?.id;
-    return this.productService.getSellerProducts(query, authenticatedSellerId);
-  }
+
 
   @ApiOperation({ summary: 'Wix-compatible get product details by Table_ID (GET)' })
   @Get('sellerProductDetails')
@@ -59,6 +53,30 @@ export class ProductController {
   async createSellerListing(@Body() body: any, @Req() req: any) {
     const authenticatedSellerId = req.user?.sellerId || req.user?.id;
     return this.productService.createSellerListing(body, authenticatedSellerId);
+  }
+
+  @ApiOperation({ summary: 'Wix-compatible get categories (GET/POST)' })
+  @Get('category')
+  @Post('category')
+  @HttpCode(HttpStatus.OK)
+  async getCategoryLegacy() {
+    return this.productService.getCategoryLegacy();
+  }
+
+  @ApiOperation({ summary: 'Wix-compatible get subcategory list (GET/POST)' })
+  @Get('subcategorylist')
+  @Post('subcategorylist')
+  @HttpCode(HttpStatus.OK)
+  async getSubcategoryListLegacy(
+    @Query('search') search: string,
+    @Query('page') page: string,
+    @Query('count') count: string,
+    @Body() body: any,
+  ) {
+    const s = search || body?.search;
+    const p = page || body?.page;
+    const c = count || body?.count;
+    return this.productService.getSubcategoryListLegacy({ search: s, page: p, count: c });
   }
 
   // ==========================================
@@ -155,5 +173,26 @@ export class ProductController {
   @HttpCode(HttpStatus.OK)
   async updatePricing(@Param('product_id') productId: string, @Body() dto: PricingUpdateDto) {
     return this.productService.updatePricing(productId, dto);
+  }
+
+  @ApiOperation({ summary: 'Wix-compatible get products by category with filters (GET/POST)' })
+  @Get('productsByCategory')
+  @Post('productsByCategory')
+  @HttpCode(HttpStatus.OK)
+  async getProductsByCategory(
+    @Query('categoryId') categoryId: string,
+    @Query('page') page: string,
+    @Query('count') count: string,
+    @Query('userId') userId: string,
+    @Query('toPincode') toPincode: string,
+    @Body() body: any,
+  ) {
+    return this.productService.getProductsByCategory({ 
+      categoryId: categoryId || body?.categoryId, 
+      page: page || body?.page, 
+      count: count || body?.count, 
+      userId: userId || body?.userId, 
+      toPincode: toPincode || body?.toPincode 
+    });
   }
 }

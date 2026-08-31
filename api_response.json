@@ -1,0 +1,46 @@
+{
+  "status": "success",
+  "message": {
+    "categoryId": "81d80f72-82d0-e1f8-3f63-7eb863efbb70",
+    "totalItems": 0,
+    "totalPages": 0,
+    "currentPage": 1,
+    "lastFetched": 20,
+    "products": [],
+    "categoryFilters": {
+      "categoryId": "81d80f72-82d0-e1f8-3f63-7eb863efbb70",
+      "lastUpdated": "2026-08-31T13:18:47.79Z",
+      "productOptions": {},
+      "brands": [],
+      "priceRange": {
+        "min": 0,
+        "max": 0
+      },
+      "specfication": [],
+      "ratingCounts": {
+        "1+": 0,
+        "2+": 0,
+        "3+": 0,
+        "4+": 0
+      }
+    },
+    "sortfilter": [
+      {
+        "label": "Popularity",
+        "value": "popularity"
+      },
+      {
+        "label": "Price: Low to High",
+        "value": "price_low_high"
+      },
+      {
+        "label": "Price: High to Low",
+        "value": "price_high_low"
+      },
+      {
+        "label": "Newest First",
+        "value": "newest"
+      }
+    ]
+  }
+}
