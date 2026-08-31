@@ -73,23 +73,24 @@ export class ProductService {
     orderBy[sortField] = sortOrder.toLowerCase();
 
     // Execute queries in parallel
-    const [total, products] = await Promise.all([
+    const [total, rawProducts] = await Promise.all([
       this.db.product.count({ where }),
       this.db.product.findMany({
         where,
         select: {
           id: true,
           name: true,
-          price: true,
-          discount: true,
-          status: true,
-          mainMedia: true,
-          sku: true,
-          inventory: true,
           brand: true,
-          mrp: true,
-          onsalePrice: true,
-          createdDate: true,
+          productOptions: true,
+          mainMedia: true,
+          activeAd: true,
+          sellerId: true,
+          campaignId: true,
+          deliveryCharges: true,
+          mainCategory: true,
+          subCategoryId: true,
+          cod: true,
+          upi: true,
         },
         orderBy,
         skip,
@@ -99,11 +100,32 @@ export class ProductService {
 
     const totalPages = Math.ceil(total / limit);
 
+    const mappedProducts = rawProducts.map((p) => ({
+      brand: p.brand || '',
+      name: p.name || '',
+      ProductID: p.id,
+      Productoption: p.productOptions || {},
+      image: p.mainMedia || '',
+      activeAd: p.activeAd || false,
+      averageRating: 0,
+      IsWhishlist: false,
+      WishlistTableID: '',
+      sellerId: p.sellerId || '',
+      campaignId: p.campaignId || '',
+      deliveryCharges: p.deliveryCharges ?? true,
+      maincategoreid: p.mainCategory || '',
+      subcategoryid: p.subCategoryId || '',
+      finalPricing: {
+        codFinal: p.cod || 0,
+        upiFinal: p.upi || 0,
+      },
+    }));
+
     return {
       status: 'success',
       message: 'Products list retrieved successfully',
       data: {
-        products,
+        products: mappedProducts,
         pagination: {
           total,
           page,
@@ -115,6 +137,7 @@ export class ProductService {
       },
     };
   }
+
 
   /**
    * GET /api/v1/seller_products
