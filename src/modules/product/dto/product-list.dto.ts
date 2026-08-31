@@ -8,6 +8,11 @@ export enum SortOrder {
 }
 
 export class ProductListQueryDto {
+  @ApiPropertyOptional({ description: 'Filter by seller email', example: 'seller@example.com' })
+  @IsOptional()
+  @IsString()
+  email?: string;
+
   @ApiPropertyOptional({ description: 'Filter by seller ID', example: 'seller_123' })
   @IsOptional()
   @IsString()

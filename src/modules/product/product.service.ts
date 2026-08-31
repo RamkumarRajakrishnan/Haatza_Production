@@ -11,6 +11,7 @@ export class ProductService {
 
   async getProductsList(query: ProductListQueryDto, authenticatedSellerId?: string) {
     const {
+      email,
       sellerId,
       search,
       category,
@@ -24,14 +25,46 @@ export class ProductService {
 
     const skip = (page - 1) * limit;
 
+    let targetSellerId = authenticatedSellerId || sellerId;
+
+    // If an email is provided instead of a sellerId, validate it belongs to a seller
+    if (!targetSellerId && email) {
+      const user = await this.db.user.findFirst({
+        where: {
+          email: { equals: email, mode: 'insensitive' },
+          isSeller: true,
+        },
+      });
+      
+      if (user) {
+        targetSellerId = user.sellerId || user.id;
+      }
+    }
+
+    // STRICT SELLER CHECK: If we still don't have a valid seller, return empty
+    // This prevents buyers or non-seller employees from fetching the full product list
+    if (!targetSellerId) {
+      return {
+        status: 'success',
+        message: 'Products list retrieved successfully (No valid seller provided)',
+        data: {
+          products: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 0,
+            hasNextPage: false,
+            hasPreviousPage: false,
+          },
+        },
+      };
+    }
+
     // Build the query filter object
     const where: Prisma.ProductWhereInput = {};
 
-    // Prioritize active JWT session sellerId if present
-    const targetSellerId = authenticatedSellerId || sellerId;
-    if (targetSellerId) {
-      where.sellerId = targetSellerId;
-    }
+    where.sellerId = targetSellerId;
 
     if (status) {
       where.status = {
