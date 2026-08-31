@@ -143,17 +143,12 @@ export class ProductService {
 
     if (!targetSellerId) {
       return {
-        status: 'success',
-        message: {
-          body: {
-            sellerProducts: [],
-            pagination: {
-              total: 0,
-              page,
-              limit,
-              totalPages: 0,
-            },
-          },
+        sellerProducts: [],
+        pagination: {
+          total: 0,
+          page,
+          limit,
+          totalPages: 0,
         },
       };
     }
@@ -199,17 +194,12 @@ export class ProductService {
     }));
 
     return {
-      status: 'success',
-      message: {
-        body: {
-          sellerProducts: formattedProducts,
-          pagination: {
-            total,
-            page,
-            limit,
-            totalPages,
-          },
-        },
+      sellerProducts: formattedProducts,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages,
       },
     };
   }
