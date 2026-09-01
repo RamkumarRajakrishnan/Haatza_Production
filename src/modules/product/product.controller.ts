@@ -180,19 +180,33 @@ export class ProductController {
   @Post('productsByCategory')
   @HttpCode(HttpStatus.OK)
   async getProductsByCategory(
-    @Query('categoryId') categoryId: string,
-    @Query('page') page: string,
-    @Query('count') count: string,
-    @Query('userId') userId: string,
-    @Query('toPincode') toPincode: string,
-    @Body() body: any,
+    @Query('categoryId') categoryId?: string,
+    @Query('page') page?: string,
+    @Query('count') count?: string,
+    @Query('userId') userId?: string,
+    @Query('toPincode') toPincode?: string,
+    @Query('brands') brands?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('productOptions') productOptions?: string,
+    @Query('specfication') specfication?: string,
+    @Query('rating') rating?: string,
+    @Query('sort') sort?: string,
+    @Body() body?: any,
   ) {
     return this.productService.getProductsByCategory({ 
       categoryId: categoryId || body?.categoryId, 
       page: page || body?.page, 
       count: count || body?.count, 
       userId: userId || body?.userId, 
-      toPincode: toPincode || body?.toPincode 
+      toPincode: toPincode || body?.toPincode,
+      brands: brands || body?.brands,
+      minPrice: minPrice || body?.minPrice,
+      maxPrice: maxPrice || body?.maxPrice,
+      productOptions: productOptions || body?.productOptions,
+      specfication: specfication || body?.specfication,
+      rating: rating || body?.rating,
+      sort: sort || body?.sort,
     });
   }
 }

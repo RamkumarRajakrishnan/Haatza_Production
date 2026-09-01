@@ -199,7 +199,7 @@ export class ProductService {
    * Wix-compatible update product
    */
   async updateSellerProduct(body: any) {
-    const id = body.Id || body.id;
+    const id = body.Id || body.id || body._id;
     if (!id) {
       throw new BadRequestException('Product Id is required');
     }
@@ -216,12 +216,20 @@ export class ProductService {
 
     if (body.name !== undefined) updateData.name = body.name;
     if (body.sku !== undefined) updateData.sku = body.sku;
-    if (body.sellAndEarnCommission !== undefined) updateData.sellAndEarnCommission = body.sellAndEarnCommission;
+    if (body.sellAndEarnCommission !== undefined) updateData.sellAndEarnCommission = parseFloat(body.sellAndEarnCommission) || 0;
     if (body.inventory !== undefined) updateData.inventory = parseInt(body.inventory, 10) || 0;
-    if (body.sellAndEarn !== undefined) updateData.sellAndEarn = body.sellAndEarn;
-    if (body.search_keywords !== undefined) updateData.searchKeywords = body.search_keywords;
-    if (body.searchKeywords !== undefined) updateData.searchKeywords = body.searchKeywords;
-    if (body.promotionPhotos !== undefined) updateData.promotionPhotos = body.promotionPhotos;
+    if (body.sellAndEarn !== undefined) {
+      updateData.sellAndEarn = body.sellAndEarn === true || body.sellAndEarn === 'true' || body.sellAndEarn === 'TRUE' ? 'TRUE' : 'FALSE';
+    }
+    if (body.search_keywords !== undefined) {
+      updateData.searchKeywords = typeof body.search_keywords === 'string'
+        ? body.search_keywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+        : (Array.isArray(body.search_keywords) ? body.search_keywords : []);
+    }
+    if (body.searchKeywords !== undefined) {
+      updateData.searchKeywords = Array.isArray(body.searchKeywords) ? body.searchKeywords : [body.searchKeywords];
+    }
+    if (body.promotionPhotos !== undefined) updateData.promotionPhotos = Array.isArray(body.promotionPhotos) ? body.promotionPhotos : [];
     if (body.productImages !== undefined) updateData.productImages = body.productImages;
     if (body.description !== undefined) updateData.description = body.description;
     if (body.shippingWeight !== undefined) updateData.shippingWeight = parseFloat(body.shippingWeight) || 0;
@@ -258,8 +266,10 @@ export class ProductService {
 
     return {
       status: 'success',
-      message: 'Product has been updated sucessfully and sent for review',
-      updatedData: mapPrismaToWixSellerListing(updated),
+      message: {
+        message: 'Product has been updated sucessfully and sent for review',
+        updatedData: mapPrismaToWixSellerListing(updated),
+      },
     };
   }
 
@@ -273,19 +283,32 @@ export class ProductService {
     }
 
     const sellerId = authenticatedSellerId || body.sellerId;
+    const mediaList = body.mediaItems || body.productImages || [];
+    const firstMedia = Array.isArray(mediaList) && mediaList.length > 0
+      ? (mediaList[0]?.src || (typeof mediaList[0] === 'string' ? mediaList[0] : ''))
+      : '';
+
+    const searchKeywordsList = typeof body.search_keywords === 'string'
+      ? body.search_keywords.split(',').map((s: string) => s.trim()).filter(Boolean)
+      : (Array.isArray(body.search_keywords) ? body.search_keywords : (body.searchKeywords || []));
+
+    const isSellAndEarn = body.sellAndEarn === true || body.sellAndEarn === 'true' || body.sellAndEarn === 'TRUE' ? 'TRUE' : 'FALSE';
 
     const insertData: Prisma.ProductCreateInput = {
       name: body.name,
       price: parseFloat(body.price) || 0,
       sellerId: sellerId || '',
       status: body.status || 'Under Review',
-      inventory: body.totalQuantity !== undefined ? parseInt(body.totalQuantity, 10) : (body.inventory !== undefined ? parseInt(body.inventory, 10) : 0),
-      mainMedia: body.mainmedia || body.mainMedia || '',
-      productImages: body.mediaItems || body.productImages || [],
+      inventory: body.totalQuantity !== undefined
+        ? parseInt(body.totalQuantity, 10)
+        : (body.inventory !== undefined ? parseInt(body.inventory, 10) : 0),
+      mainMedia: body.mainmedia || body.mainMedia || firstMedia,
+      productImages: mediaList,
       shippingWeight: body.shippingWeight !== undefined ? parseFloat(body.shippingWeight) : 0,
       brand: body.brand || '',
       productOptions: body.productOptions || {},
-      collections: body.categoryId ? [body.categoryId] : (body.collections || []),
+      collections: body.categoryId ? (Array.isArray(body.categoryId) ? body.categoryId : [body.categoryId]) : (body.collections || []),
+      categoryName: body.categoryName ? (Array.isArray(body.categoryName) ? body.categoryName : [body.categoryName]) : [],
       productType: body.productType || 'physical',
       discount: body.discount || null,
       manageVariants: body.manageVariants === true || body.manageVariants === 'true',
@@ -294,15 +317,15 @@ export class ProductService {
       mainCategory: body.mainCategory || '',
       subCategory: body.subCategory || '',
       subCategoryId: body.subCategoryId || '',
-      promotionPhotos: body.promotionPhotos || [],
+      promotionPhotos: Array.isArray(body.promotionPhotos) ? body.promotionPhotos : [],
       paymentType: body.paymentType || '',
       productReturn: body.productReturn || '',
       deliveryCharges: body.deliveryCharges === true || body.deliveryCharges === 'true',
       sizeChart: body.sizeChart || '',
       sellerPincode: body.sellerPinCode || body.sellerPincode || '',
-      searchKeywords: body.search_keywords || body.searchKeywords || [],
-      sellAndEarnCommission: body.sellAndEarnCommission !== undefined ? parseFloat(body.sellAndEarnCommission) : null,
-      sellAndEarn: body.sellAndEarn || 'FALSE',
+      searchKeywords: searchKeywordsList,
+      sellAndEarnCommission: body.sellAndEarnCommission !== undefined ? parseFloat(body.sellAndEarnCommission) : 0,
+      sellAndEarn: isSellAndEarn,
       createdDate: new Date(),
       updatedDate: new Date(),
     };
@@ -313,8 +336,11 @@ export class ProductService {
 
     return {
       status: 'success',
-      message: 'Product submitted successfully',
-      data: mapPrismaToWixSellerListing(created),
+      message: {
+        headers: {},
+        message: 'Product submitted successfully',
+        data: mapPrismaToWixSellerListing(created),
+      },
     };
   }
 
@@ -591,10 +617,23 @@ export class ProductService {
     return mapPrismaToRestOutput(updated);
   }
 
-  async getProductsByCategory(query: { categoryId: string, page: string, count: string, userId: string, toPincode: string }) {
+  async getProductsByCategory(query: {
+    categoryId?: string;
+    page?: string;
+    count?: string;
+    userId?: string;
+    toPincode?: string;
+    brands?: string;
+    minPrice?: string;
+    maxPrice?: string;
+    productOptions?: string;
+    specfication?: string;
+    rating?: string;
+    sort?: string;
+  }) {
     const categoryId = query.categoryId;
-    const page = parseInt(query.page || '1', 10);
-    const limit = parseInt(query.count || '20', 10);
+    const page = parseInt(String(query.page || '1'), 10) || 1;
+    const limit = parseInt(String(query.count || '10'), 10) || 10;
     const skip = (page - 1) * limit;
 
     const where: Prisma.ProductWhereInput = {};
@@ -602,8 +641,42 @@ export class ProductService {
     if (categoryId) {
       where.OR = [
         { subCategory: categoryId },
+        { subCategoryId: categoryId },
         { collections: { hasSome: [categoryId] } },
+        { mainCategory: categoryId },
       ];
+    }
+
+    if (query.brands) {
+      const brandList = typeof query.brands === 'string'
+        ? query.brands.split(',').map((b) => b.trim()).filter(Boolean)
+        : (Array.isArray(query.brands) ? query.brands : [query.brands]);
+      if (brandList.length > 0) {
+        where.brand = { in: brandList, mode: 'insensitive' };
+      }
+    }
+
+    if (query.minPrice !== undefined || query.maxPrice !== undefined) {
+      const priceFilter: Prisma.FloatNullableFilter = {};
+      if (query.minPrice !== undefined && query.minPrice !== '') {
+        priceFilter.gte = parseFloat(String(query.minPrice));
+      }
+      if (query.maxPrice !== undefined && query.maxPrice !== '') {
+        priceFilter.lte = parseFloat(String(query.maxPrice));
+      }
+      where.price = priceFilter;
+    }
+
+    let orderBy: any = [{ priorityScore: 'desc' }, { createdDate: 'desc' }];
+    if (query.sort === 'price_low_high') {
+      orderBy = { price: 'asc' };
+    } else if (query.sort === 'price_high_low') {
+      orderBy = { price: 'desc' };
+    } else if (query.sort === 'newest') {
+      orderBy = { createdDate: 'desc' };
+    } else {
+      // default popularity
+      orderBy = [{ priorityScore: 'desc' }, { createdDate: 'desc' }];
     }
 
     const [total, products] = await Promise.all([
@@ -612,41 +685,51 @@ export class ProductService {
         where,
         skip,
         take: limit,
-        orderBy: { createdDate: 'desc' },
+        orderBy,
       }),
     ]);
 
-    // calculate category filters (all matching active products, not just paginated)
+    // calculate category filters (all matching products for category)
+    const categoryBaseWhere: Prisma.ProductWhereInput = {};
+    if (categoryId) {
+      categoryBaseWhere.OR = [
+        { subCategory: categoryId },
+        { subCategoryId: categoryId },
+        { collections: { hasSome: [categoryId] } },
+        { mainCategory: categoryId },
+      ];
+    }
+
     const allMatchingProducts = await this.db.product.findMany({
-      where,
+      where: categoryBaseWhere,
       select: {
         price: true,
         mrp: true,
         brand: true,
         additionalInfoSections: true,
-      }
+      },
     });
 
     let minPrice = Infinity;
     let maxPrice = -Infinity;
     const brandSet = new Set<string>();
     const specMap = new Map<string, Set<string>>();
-    
-    allMatchingProducts.forEach(p => {
+
+    allMatchingProducts.forEach((p) => {
       const pPrice = Number(p.price || p.mrp || 0);
       if (pPrice < minPrice) minPrice = pPrice;
       if (pPrice > maxPrice) maxPrice = pPrice;
       if (p.brand && typeof p.brand === 'string') {
-         const trimmedBrand = p.brand.trim();
-         if (trimmedBrand) {
-           brandSet.add(trimmedBrand);
-         }
+        const trimmedBrand = p.brand.trim();
+        if (trimmedBrand) {
+          brandSet.add(trimmedBrand);
+        }
       }
       if (Array.isArray(p.additionalInfoSections)) {
         p.additionalInfoSections.forEach((info: any) => {
           if (info && typeof info === 'object' && info.title && info.description) {
             const title = String(info.title).trim();
-            const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim(); // Remove HTML if any
+            const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim();
             if (title && desc) {
               if (!specMap.has(title)) {
                 specMap.set(title, new Set());
@@ -663,68 +746,66 @@ export class ProductService {
 
     const specficationList: Record<string, string>[] = [];
     specMap.forEach((values, title) => {
-      Array.from(values).sort().forEach(val => {
+      Array.from(values).sort().forEach((val) => {
         specficationList.push({ [title]: val });
       });
     });
 
     const categoryFilters = {
-      categoryId: categoryId || "",
-      lastUpdated: new Date().toISOString(),
-      productOptions: {},
       brands: Array.from(brandSet).sort(),
       priceRange: { min: minPrice, max: maxPrice },
+      productOptions: {},
+      ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
       specfication: specficationList,
-      ratingCounts: { "1+": 0, "2+": 0, "3+": 0, "4+": 0 }
     };
 
     const totalPages = Math.ceil(total / limit);
 
-    const mappedProducts = products.map(p => {
-       let image = p.mainMedia || "";
-       if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
-         const firstMedia: any = p.productImages[0];
-         image = typeof firstMedia === 'string' ? firstMedia : firstMedia.src || "";
-       }
-       return {
-         brand: p.brand || "",
-         name: p.name || "",
-         ProductID: p.id,
-         Productoption: p.productOptions || {},
-         image,
-         activeAd: p.activeAd || false,
-         averageRating: 0,
-         IsWhishlist: false,
-         WishlistTableID: "",
-         sellerId: p.sellerId || "",
-         campaignId: p.campaignId || "",
-         deliveryCharges: p.deliveryCharges || false,
-         maincategoreid: p.mainCategory || "",
-         subcategoryid: p.subCategory || "",
-         finalPricing: {
-           codFinal: p.price || p.mrp || 0,
-           upiFinal: p.price || p.mrp || 0
-         }
-       };
+    const mappedProducts = products.map((p) => {
+      let image = p.mainMedia || '';
+      if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+        const firstMedia: any = p.productImages[0];
+        image = typeof firstMedia === 'string' ? firstMedia : firstMedia?.src || '';
+      }
+      return {
+        brand: p.brand || '',
+        name: p.name || '',
+        ProductID: p.id,
+        Productoption: p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {},
+        image,
+        activeAd: p.activeAd || false,
+        averageRating: 0,
+        IsWhishlist: false,
+        WishlistTableID: '',
+        sellerId: p.sellerId || '',
+        campaignId: p.campaignId || '',
+        deliveryCharges: p.deliveryCharges || false,
+        maincategoreid: p.mainCategory || '',
+        subcategoryid: p.subCategoryId || p.subCategory || '',
+        finalPricing: {
+          codFinal: p.cod || p.price || p.mrp || 0,
+          upiFinal: p.upi || p.price || p.mrp || 0,
+        },
+      };
     });
 
     return {
-      status: "success",
+      status: 'success',
       message: {
-        categoryId: categoryId || "",
+        categoryId: categoryId || '',
         totalItems: total,
         totalPages,
         currentPage: page,
-        lastFetched: limit,
+        lastFetched: mappedProducts.length,
         products: mappedProducts,
         categoryFilters,
         sortfilter: [
-          { label: "Popularity", value: "popularity" },
-          { label: "Price: Low to High", value: "price_low_high" },
-          { label: "Price: High to Low", value: "price_high_low" },
-          { label: "Newest First", value: "newest" }
-        ]
-      }
+          { label: 'Popularity', value: 'popularity' },
+          { label: 'Price: Low to High', value: 'price_low_high' },
+          { label: 'Price: High to Low', value: 'price_high_low' },
+          { label: 'Newest First', value: 'newest' },
+        ],
+      },
     };
   }
 
@@ -950,51 +1031,70 @@ function mapPrismaToRestOutput(p: any): any {
 
 function mapPrismaToWixSellerListing(p: any) {
   const productImagesArray = Array.isArray(p.productImages)
-    ? (p.productImages as any[]).map((img) => ({
-      description: img.description || '',
-      id: img.slug || img.id || '',
-      src: img.src,
-      type: img.type || 'image',
-    }))
+    ? (p.productImages as any[]).map((img) => {
+      if (typeof img === 'string') {
+        return { description: '', id: '', src: img, type: 'image' };
+      }
+      return {
+        description: img?.description || '',
+        id: img?.slug || img?.id || '',
+        src: img?.src || '',
+        type: img?.type || 'image',
+      };
+    })
     : [];
+
+  const categoryId = Array.isArray(p.collections) && p.collections.length > 0
+    ? p.collections[0]
+    : (typeof p.collections === 'string' ? p.collections : '');
+
+  const categoryName = Array.isArray(p.categoryName) && p.categoryName.length > 0
+    ? p.categoryName[0]
+    : (typeof p.categoryName === 'string' ? p.categoryName : '');
+
+  const searchKeywordsStr = Array.isArray(p.searchKeywords)
+    ? p.searchKeywords.join(', ')
+    : (typeof p.searchKeywords === 'string' ? p.searchKeywords : '');
+
+  const isSellAndEarn = p.sellAndEarn === true || p.sellAndEarn === 'true' || p.sellAndEarn === 'TRUE';
 
   return {
     _id: p.id,
     Id: p.id,
     mainmedia: p.mainMedia || '',
     productImages: productImagesArray,
-    name: p.name,
+    name: p.name || '',
     description: p.description || '',
     brand: p.brand || '',
     shippingWeight: p.shippingWeight || 0,
     price: p.price || 0,
-    discount: p.discount || null,
+    discount: p.discount && typeof p.discount === 'object' && Object.keys(p.discount).length > 0 ? p.discount : {},
     ribbon: p.ribbon || '',
-    productOptions: p.productOptions || null,
-    additionalInfoSections: p.additionalInfoSections || [],
+    productOptions: p.productOptions && typeof p.productOptions === 'object' && Object.keys(p.productOptions).length > 0 ? p.productOptions : {},
+    additionalInfoSections: Array.isArray(p.additionalInfoSections) ? p.additionalInfoSections : [],
     sellerId: p.sellerId || '',
-    varientPrice: p.variantPrice || null,
+    varientPrice: p.variantPrice && typeof p.variantPrice === 'object' && Object.keys(p.variantPrice).length > 0 ? p.variantPrice : {},
     status: p.status || '',
     manageVariants: p.manageVariants || false,
     trackInventory: p.trackInventory || false,
-    categoryName: p.categoryName || [],
-    collections: p.collections || [],
-    categoryId: p.collections || [],
+    categoryName,
+    categoryId,
     inventory: p.inventory || 0,
     sku: p.sku || '',
-    productId: p.wixProductId || '',
+    productId: p.wixProductId || p.id || '',
     mainCategory: p.mainCategory || '',
     subCategory: p.subCategory || '',
-    promotionPhotos: p.promotionPhotos || [],
+    promotionPhotos: Array.isArray(p.promotionPhotos) ? p.promotionPhotos : [],
     haatzaverified: p.haatzaVerified || false,
     paymentType: p.paymentType || '',
     productReturn: p.productReturn || '',
     subCategoryId: p.subCategoryId || '',
     deliveryCharges: p.deliveryCharges || false,
     sizeChart: p.sizeChart || '',
-    search_keywords: p.searchKeywords || [],
-    sellAndEarnCommission: p.sellAndEarnCommission || null,
-    sellAndEarn: p.sellAndEarn || 'FALSE',
+    search_keywords: searchKeywordsStr,
+    sellAndEarnCommission: p.sellAndEarnCommission || 0,
+    sellAndEarn: isSellAndEarn,
+    collections: p.collections || [],
     productType: p.productType || 'physical',
     sellerPinCode: p.sellerPincode || '',
     _createdDate: p.createdDate,

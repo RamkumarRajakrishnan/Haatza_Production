@@ -1,0 +1,625 @@
+{
+  "status": "success",
+  "message": {
+    "categoryId": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+    "totalItems": 208,
+    "totalPages": 11,
+    "currentPage": 1,
+    "lastFetched": 20,
+    "products": [
+      {
+        "brand": "",
+        "name": "New Product 001",
+        "ProductID": "528d6ec4-126b-44a9-a880-5185f0272dd5",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/0c689f81.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1245",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "",
+        "subcategoryid": "",
+        "finalPricing": {
+          "codFinal": 999,
+          "upiFinal": 999
+        }
+      },
+      {
+        "brand": "",
+        "name": "New Product 001",
+        "ProductID": "804eb5fe-49dd-4d2f-8d8e-5651b4606dc4",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/0c689f81.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1245",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "",
+        "subcategoryid": "",
+        "finalPricing": {
+          "codFinal": 999,
+          "upiFinal": 999
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Women Cotton Pyjama Knee Length Comfortable Sleepwear",
+        "ProductID": "391f27de-68b9-40a2-9f61-af6ab83bb288",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=S; inStock=False; visible=False; mediaItems=System.Object[]; description=S}",
+              "@{value=M; inStock=False; visible=False; mediaItems=System.Object[]; description=M}",
+              "@{value=L; inStock=False; visible=False; mediaItems=System.Object[]; description=L}",
+              "@{value=XL; inStock=False; visible=False; mediaItems=System.Object[]; description=XL}",
+              "@{value=XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=XXL}",
+              "@{value=XXXL; inStock=False; visible=False; mediaItems=System.Object[]; description=XXXL}",
+              "@{value=4XL; inStock=False; visible=False; mediaItems=System.Object[]; description=4XL}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/2d1dc69a.jpg",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1471",
+        "campaignId": "",
+        "deliveryCharges": true,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Women's Pyjamas",
+        "finalPricing": {
+          "codFinal": 599,
+          "upiFinal": 599
+        }
+      },
+      {
+        "brand": "Kundan bangles",
+        "name": "Purple Kundan Bangles Pack of 2 Festive Ethnic Jewelry",
+        "ProductID": "73989963-0e54-4fc5-b914-ac9391420ae3",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=2.4; inStock=False; visible=False; mediaItems=System.Object[]; description=2.4}",
+              "@{value=2.6; inStock=False; visible=False; mediaItems=System.Object[]; description=2.6}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/44f81b8e.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1472",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Bracelet & Bangles",
+        "finalPricing": {
+          "codFinal": 250,
+          "upiFinal": 250
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Wooden Hair Stick Bun Pin Pack of 2 Brown Hair Accessories",
+        "ProductID": "91e8bba1-e3bc-4264-a24e-cff1d45e9e18",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/126d3ac6.jpg",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1302",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Hair Buns",
+        "finalPricing": {
+          "codFinal": 135,
+          "upiFinal": 135
+        }
+      },
+      {
+        "brand": "Kundan bangles",
+        "name": "Kundan Bangles for Women Green Traditional Ethnic Jewelry",
+        "ProductID": "552ed6da-6464-42cf-a66d-47ac5c39b2fa",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=2.4; inStock=False; visible=False; mediaItems=System.Object[]; description=2.4}",
+              "@{value=2.5; inStock=False; visible=False; mediaItems=System.Object[]; description=2.5}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/6a43b3bb.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1472",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Bracelet & Bangles",
+        "finalPricing": {
+          "codFinal": 400,
+          "upiFinal": 400
+        }
+      },
+      {
+        "brand": "Kundan bangles ",
+        "name": "Green Kundan Bangles Handcrafted Festive Traditional Jewelry",
+        "ProductID": "d55f4ff1-f687-4c7f-9ef6-be035cc310b8",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=2.4; inStock=False; visible=False; mediaItems=System.Object[]; description=2.4}",
+              "@{value=2.5; inStock=False; visible=False; mediaItems=System.Object[]; description=2.5}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/84eb936d.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1472",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Bracelet & Bangles",
+        "finalPricing": {
+          "codFinal": 400,
+          "upiFinal": 400
+        }
+      },
+      {
+        "brand": "Mg ",
+        "name": "Women Yellow Cotton Short Kurti Printed Casual Wear Top",
+        "ProductID": "92606d25-8750-407f-90ad-9bf12aef790f",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=K -14-15Y/ P - XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=K -14-15Y/ P - XXL}",
+              "@{value=K -15-16Y/ P - XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=K -15-16Y/ P - XXL}",
+              "@{value=K -10-11Y/ P - XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=K -10-11Y/ P - XXL}",
+              "@{value=K -14-15Y/ P - L; inStock=False; visible=False; mediaItems=System.Object[]; description=K -14-15Y/ P - L}",
+              "@{value=K -15-16Y/ P - L; inStock=False; visible=False; mediaItems=System.Object[]; description=K -15-16Y/ P - L}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/540d56aa.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1358",
+        "campaignId": "",
+        "deliveryCharges": true,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Mother Kid Tshirt",
+        "finalPricing": {
+          "codFinal": 500,
+          "upiFinal": 500
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Komal Ethnic Bangles Pack of 2 Brass and Copper Jewelry",
+        "ProductID": "b296d7e0-fddb-4bf1-9f4a-9ec36aa2df85",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/896c05d7.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1268",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Jewellery Set",
+        "finalPricing": {
+          "codFinal": 595,
+          "upiFinal": 595
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "3 Drawer Plastic Organizer Box Pack of 2  with Free 500g Detergent Powder",
+        "ProductID": "c703fa25-d707-4952-b81f-9ff857bf0fe0",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/4e620c72.jpg",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1390",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Jewellery Organizer Box",
+        "finalPricing": {
+          "codFinal": 999,
+          "upiFinal": 999
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Womens Cotton Bra Pack of 4 Comfortable Daily Wear Innerwear",
+        "ProductID": "971b37fd-b4d4-46f5-8605-ca918cdfa375",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=30B; inStock=False; visible=False; mediaItems=System.Object[]; description=30B}",
+              "@{value=32B; inStock=False; visible=False; mediaItems=System.Object[]; description=32B}",
+              "@{value=34B; inStock=False; visible=False; mediaItems=System.Object[]; description=34B}",
+              "@{value=36B; inStock=False; visible=False; mediaItems=System.Object[]; description=36B}",
+              "@{value=38B; inStock=False; visible=False; mediaItems=System.Object[]; description=38B}",
+              "@{value=40B; inStock=False; visible=False; mediaItems=System.Object[]; description=40B}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/a99b43d7.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1403",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Women's Bra",
+        "finalPricing": {
+          "codFinal": 450,
+          "upiFinal": 450
+        }
+      },
+      {
+        "brand": "AR",
+        "name": "AR Hair Clip Fashion Hair Clutcher for Women and Girls",
+        "ProductID": "ffd74eeb-d659-4b85-870b-8c8707af0053",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/21c834f3.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1324",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Hair Clips & Hair Pins",
+        "finalPricing": {
+          "codFinal": 60,
+          "upiFinal": 60
+        }
+      },
+      {
+        "brand": "AR mart",
+        "name": "AR Hair Clips Stylish Hair Accessories for Women and Girls",
+        "ProductID": "2e1414e1-9fc5-4a87-a204-54cf2abf2b6a",
+        "Productoption": {},
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/f2d505a1.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1324",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Hair Clips & Hair Pins",
+        "finalPricing": {
+          "codFinal": 50,
+          "upiFinal": 50
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Womens Cotton Printed Nighty Comfortable Full Length Night Dress",
+        "ProductID": "9ab429ba-7ffe-4b60-964b-0823adeed4be",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=XXL}",
+              "@{value=XL; inStock=False; visible=False; mediaItems=System.Object[]; description=XL}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/f9940904.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1386",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Maternity Sleepwear Nightdress",
+        "finalPricing": {
+          "codFinal": 300,
+          "upiFinal": 300
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Comfortable Cotton Nighty for Women Soft Breathable Full Length Sleepwear",
+        "ProductID": "543f8794-fcf3-4cf5-9aa2-38ad1dbcd6c4",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=XXL}",
+              "@{value=XL; inStock=False; visible=False; mediaItems=System.Object[]; description=XL}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/f39643e4.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1386",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Feeding Nightwear Nightdress",
+        "finalPricing": {
+          "codFinal": 350,
+          "upiFinal": 350
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Elegant Saree with Lace Border Traditional Womens Party Wear Saree",
+        "ProductID": "84d18897-87ae-49e8-88b5-6f54c886b070",
+        "Productoption": {
+          "Color": {
+            "name": "Color",
+            "choices": [
+              "@{value=#FF0000; inStock=False; visible=False; mediaItems=System.Object[]; description=Red}",
+              "@{value=#294BFF; inStock=False; visible=False; mediaItems=System.Object[]; description=Ultramarine Blue}",
+              "@{value=#008000; inStock=False; visible=False; mediaItems=System.Object[]; description=Green}"
+            ],
+            "optionType": "color"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/4d3a9f2d.jpg",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1371",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Sarees",
+        "finalPricing": {
+          "codFinal": 600,
+          "upiFinal": 600
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Red Rayon Hand embroidery Chikankari kurti",
+        "ProductID": "845525fc-c1d5-43e0-8cba-b61db4401b53",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXS; inStock=False; visible=False; mediaItems=System.Object[]; description=XXS}",
+              "@{value=XS; inStock=False; visible=False; mediaItems=System.Object[]; description=XS}",
+              "@{value=S; inStock=False; visible=False; mediaItems=System.Object[]; description=S}",
+              "@{value=M; inStock=False; visible=False; mediaItems=System.Object[]; description=M}",
+              "@{value=L; inStock=False; visible=False; mediaItems=System.Object[]; description=L}",
+              "@{value=XL; inStock=False; visible=False; mediaItems=System.Object[]; description=XL}",
+              "@{value=XXL; inStock=False; visible=False; mediaItems=System.Object[]; description=XXL}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/10866837.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1316",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Kurtis",
+        "finalPricing": {
+          "codFinal": 999,
+          "upiFinal": 999
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Chiffon Hand embroidery Chikankari kurti ",
+        "ProductID": "025f8a64-8773-4aae-80ac-cbcf9697f8cd",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXS; inStock=False; visible=False; mediaItems=System.Object[]; description=XXS}",
+              "@{value=XS; inStock=False; visible=False; mediaItems=System.Object[]; description=XS}",
+              "@{value=S; inStock=False; visible=False; mediaItems=System.Object[]; description=S}",
+              "@{value=M; inStock=False; visible=False; mediaItems=System.Object[]; description=M}",
+              "@{value=L; inStock=False; visible=False; mediaItems=System.Object[]; description=L}",
+              "@{value=XL; inStock=False; visible=False; mediaItems=System.Object[]; description=XL}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/7b1551f3.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1316",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Kurtis",
+        "finalPricing": {
+          "codFinal": 999,
+          "upiFinal": 999
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Yellow Chikankari Short Top for Women Cotton Embroidered Kurti",
+        "ProductID": "a6d7a450-1754-45d1-8de9-901607221a7d",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXS; inStock=False; visible=False; mediaItems=System.Object[]; description=XXS}",
+              "@{value=XS; inStock=False; visible=False; mediaItems=System.Object[]; description=XS}",
+              "@{value=SM; inStock=False; visible=False; mediaItems=System.Object[]; description=SM}",
+              "@{value=S; inStock=False; visible=False; mediaItems=System.Object[]; description=S}",
+              "@{value=M; inStock=False; visible=False; mediaItems=System.Object[]; description=M}",
+              "@{value=L; inStock=False; visible=False; mediaItems=System.Object[]; description=L}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/cc512a37.jpg",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1316",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Active Topwear",
+        "finalPricing": {
+          "codFinal": 499,
+          "upiFinal": 499
+        }
+      },
+      {
+        "brand": "Generic",
+        "name": "Rani Chikankari Short Top for Women Cotton Embroidered Kurti",
+        "ProductID": "a0c90bdc-3cb9-47f3-bca1-6f5b1e751cd4",
+        "Productoption": {
+          "Size": {
+            "name": "Size",
+            "choices": [
+              "@{value=XXS; inStock=False; visible=False; mediaItems=System.Object[]; description=XXS}",
+              "@{value=SM; inStock=False; visible=False; mediaItems=System.Object[]; description=SM}",
+              "@{value=XS; inStock=False; visible=False; mediaItems=System.Object[]; description=XS}",
+              "@{value=M; inStock=False; visible=False; mediaItems=System.Object[]; description=M}",
+              "@{value=L; inStock=False; visible=False; mediaItems=System.Object[]; description=L}"
+            ],
+            "optionType": "drop_down"
+          }
+        },
+        "image": "https://storage.googleapis.com/haatza-media-bucket/p/9183d7de.webp",
+        "activeAd": false,
+        "averageRating": 0,
+        "IsWhishlist": false,
+        "WishlistTableID": "",
+        "sellerId": "HS1316",
+        "campaignId": "",
+        "deliveryCharges": false,
+        "maincategoreid": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+        "subcategoryid": "Active Topwear",
+        "finalPricing": {
+          "codFinal": 499,
+          "upiFinal": 499
+        }
+      }
+    ],
+    "categoryFilters": {
+      "categoryId": "94ee6af0-ee34-85d6-9f45-8c60223d3805",
+      "lastUpdated": "2026-08-31T13:34:34.571Z",
+      "productOptions": {},
+      "brands": [
+        "AR",
+        "AR mart",
+        "AWA",
+        "Annaiapparels",
+        "Arivuvadivum Fashion",
+        "CHIKU ACCESSORIES & COSMETIC HUB",
+        "Dharshana jewellery",
+        "FANCY SAREE",
+        "Generic",
+        "Grace full",
+        "Harshni boutique",
+        "Invisible chain",
+        "Invisible jewellery",
+        "KANHA",
+        "Kundan bangles",
+        "Lakshana",
+        "Mg",
+        "NA",
+        "Navi fashion and creations",
+        "No",
+        "Omaki",
+        "Royal",
+        "Sandhiya BUTTERFLY COLLECTIONS",
+        "Satin and tissue",
+        "Sri ram textiles",
+        "Sri valli",
+        "Thanis premiumpicks",
+        "Thilaga fashion",
+        "Unstitched blouse piece",
+        "VS boutique",
+        "WUGO"
+      ],
+      "priceRange": {
+        "min": 50,
+        "max": 1500
+      },
+      "specfication": [],
+      "ratingCounts": {
+        "1+": 0,
+        "2+": 0,
+        "3+": 0,
+        "4+": 0
+      }
+    },
+    "sortfilter": [
+      {
+        "label": "Popularity",
+        "value": "popularity"
+      },
+      {
+        "label": "Price: Low to High",
+        "value": "price_low_high"
+      },
+      {
+        "label": "Price: High to Low",
+        "value": "price_high_low"
+      },
+      {
+        "label": "Newest First",
+        "value": "newest"
+      }
+    ]
+  }
+}
