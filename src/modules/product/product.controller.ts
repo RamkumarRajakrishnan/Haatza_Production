@@ -5,9 +5,51 @@ import { ProductListQueryDto } from './dto/product-list.dto';
 import { CreateProductDto, UpdateProductDto, InventoryUpdateDto, CollectionsUpdateDto, MediaUpdateDto, StatusUpdateDto, PricingUpdateDto, AdStatsUpdateDto } from './dto/product-rest.dto';
 
 @ApiTags('Products')
-@Controller(['_functions', 'api/v1', ''])
+@Controller(['_functions', 'api/v1', 'api', ''])
 export class ProductController {
   constructor(private readonly productService: ProductService) {}
+
+  @ApiOperation({
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET /api/v1/ProductsBySubCategoryId)',
+    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by sub_category_id in parallel and returns interleaved products with limit=20 per page.',
+  })
+  @Get([
+    'ProductsBySubCategoryId',
+    'productsBySubCategoryId',
+    'ProductsBySubCategoryId/:subCategoryId',
+    'productsBySubCategoryId/:subCategoryId',
+    'products/category/:categoryId',
+    'api/products/category/:categoryId',
+    'category/:categoryId/products',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async getProductsBySubCategoryId(
+    @Param('subCategoryId') paramSubCategoryId?: string,
+    @Param('categoryId') paramCategoryId?: string,
+    @Query('sub_category_id') querySnakeSubCategoryId?: string,
+    @Query('subCategoryId') queryCamelSubCategoryId?: string,
+    @Query('Sub_Category_ID') queryPascalSubCategoryId?: string,
+    @Query('categoryId') queryCategoryId?: string,
+    @Query('category_id') querySnakeCategoryId?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+  ) {
+    const targetSubCategoryId =
+      paramSubCategoryId ||
+      paramCategoryId ||
+      querySnakeSubCategoryId ||
+      queryCamelSubCategoryId ||
+      queryPascalSubCategoryId ||
+      queryCategoryId ||
+      querySnakeCategoryId;
+
+    return this.productService.getProductsBySubCategoryIdInterleaved({
+      subCategoryId: targetSubCategoryId || '',
+      page,
+      limit: limit || count,
+    });
+  }
 
   @ApiOperation({ summary: 'Get list of products with pagination and filters (GET)' })
   @Get(['products-list', 'Products-list'])

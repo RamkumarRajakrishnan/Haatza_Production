@@ -152,7 +152,6 @@ async function run() {
         // 3. Construct clean DB object
         const data = {
           mainMedia,
-          oneRsStore: safeParseBoolean(row['1 Rs Store']),
           productImages: productImages ?? undefined,
           name: row['Name'] || '',
           searchKeywords: safeParseStringArray(row['search_keywords']),
@@ -161,7 +160,7 @@ async function run() {
           brand: row['Brand'] || null,
           inventory: safeParseInt(row['Inventory']) || 0,
           variantPrice: safeParseJson(row['varient Price']),
-          wixProductId: row['Product ID'] || null,
+          productId: row['Product ID'] || null,
           newVariantPrice: safeParseJson(row['New Varient Price']),
           mrp: safeParseFloat(row['MRP']),
           onsalePrice: safeParseFloat(row['onsalePrice']),

@@ -131,7 +131,6 @@ async function main() {
     const productData = {
       id: row['ID'] || undefined,
       mainMedia: parseString(row['Mainmedia']),
-      oneRsStore: parseBoolean(row['1 Rs Store'], false),
       productImages: parseJson(row['Product Images']),
       name: row['Name'] || 'Unnamed Product',
       searchKeywords: parseStringArray(row['search_keywords']),
@@ -140,7 +139,7 @@ async function main() {
       brand: parseString(row['Brand']),
       inventory: parseIntVal(row['Inventory'], 0) || 0,
       variantPrice: parseJson(row['varient Price']),
-      wixProductId: parseString(row['Product ID']),
+      productId: parseString(row['Product ID']),
       newVariantPrice: parseJson(row['New Varient Price']),
       mrp: parseFloatVal(row['MRP']),
       onsalePrice: parseFloatVal(row['onsalePrice']),

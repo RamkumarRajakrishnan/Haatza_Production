@@ -169,18 +169,18 @@ model Buyer {
 }
 
 model Product {
-  id                     String    @id @default(uuid()) @map("product_id")
+  id                     String    @id @default(uuid()) @map("id")
+  productId              String?   @map("product_id")
   mainMedia              String?   @map("main_media")
-  oneRsStore             Boolean?  @default(false) @map("one_rs_store")
   productImages          Json?     @map("product_images")
   name                   String    @map("name")
   searchKeywords         String[]  @map("search_keywords")
+  categoryId             String?   @map("category_id")
   subCategory            String?   @map("sub_category")
   subCategoryId          String?   @map("sub_category_id")
   brand                  String?   @map("brand")
   inventory              Int       @default(0) @map("inventory")
   variantPrice           Json?     @map("variant_price")
-  wixProductId           String?   @map("wix_product_id")
   newVariantPrice        Json?     @map("new_variant_price")
   mrp                    Float?    @map("mrp")
   onsalePrice            Float?    @map("onsale_price")
@@ -876,3 +876,19 @@ model SellerSubscriptionTransaction {
 
   @@map("seller_subscription_transaction")
 }
+
+model CategoryFilters {
+  id                String    @id @default(uuid()) @map("id")
+  categoryId        String    @unique @map("category_id")
+  brands            String[]  @map("brands")
+  priceRange        Json?     @map("price_range")
+  productOptions    Json?     @map("product_options")
+  ratingCounts      Json?     @map("rating_counts")
+  discountAvailable Boolean?  @default(false) @map("discount_available")
+  lastUpdated       DateTime? @default(now()) @map("last_updated")
+  specification     Json?     @map("specification")
+
+  @@index([categoryId])
+  @@map("category_filters")
+}
+

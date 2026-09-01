@@ -231,6 +231,8 @@ export class ProductService {
     if (body.searchKeywords !== undefined) {
       updateData.searchKeywords = Array.isArray(body.searchKeywords) ? body.searchKeywords : [body.searchKeywords];
     }
+    if (body.categoryId !== undefined) updateData.categoryId = body.categoryId;
+    if (body.category_id !== undefined) updateData.categoryId = body.category_id;
     if (body.promotionPhotos !== undefined) updateData.promotionPhotos = Array.isArray(body.promotionPhotos) ? body.promotionPhotos : [];
     if (body.productImages !== undefined) updateData.productImages = body.productImages;
     if (body.description !== undefined) updateData.description = body.description;
@@ -326,6 +328,7 @@ export class ProductService {
       sizeChart: body.sizeChart || '',
       sellerPincode: body.sellerPinCode || body.sellerPincode || '',
       searchKeywords: searchKeywordsList,
+      categoryId: body.categoryId || body.category_id || (Array.isArray(body.collections) && body.collections.length > 0 ? body.collections[0] : (typeof body.collections === 'string' ? body.collections : null)),
       sellAndEarnCommission: body.sellAndEarnCommission !== undefined ? parseFloat(body.sellAndEarnCommission) : 0,
       sellAndEarn: isSellAndEarn,
       createdDate: new Date(),
@@ -644,6 +647,7 @@ export class ProductService {
 
     if (categoryId) {
       where.OR = [
+        { categoryId: categoryId },
         { subCategory: categoryId },
         { subCategoryId: categoryId },
         { collections: { hasSome: [categoryId] } },
@@ -815,6 +819,170 @@ export class ProductService {
     };
   }
 
+  /**
+   * GET /api/v1/ProductsBySubCategoryId
+   * 
+   * Parallel execution of Bucket A (Ads) and Bucket B (Organic) by sub_category_id
+   * Interleaved 2-Ad / 2-Organic / 2-Ad / 2-Organic repeating cycle with default limit=20 per page.
+   */
+  async getProductsBySubCategoryIdInterleaved(params: {
+    subCategoryId: string;
+    page?: string | number;
+    limit?: string | number;
+  }) {
+    const rawSubCategoryId = params.subCategoryId?.trim();
+    if (!rawSubCategoryId) {
+      throw new BadRequestException('sub_category_id is required');
+    }
+
+    // 1. Input validation & normalization: default page 1, default limit 20
+    let page = parseInt(String(params.page || '1'), 10);
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+
+    let limit = parseInt(String(params.limit || '20'), 10);
+    if (isNaN(limit) || limit < 1) {
+      limit = 20;
+    }
+
+    // 2. Validate subcategory existence in CategoryMaster
+    const categoryExists = await this.db.categoryMaster.findFirst({
+      where: {
+        OR: [
+          { categoryId: rawSubCategoryId },
+          { id: rawSubCategoryId },
+          { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    const subCategoryFilter: Prisma.ProductWhereInput = {
+      OR: [
+        { subCategoryId: rawSubCategoryId },
+        { subCategory: rawSubCategoryId },
+        { categoryId: rawSubCategoryId },
+        { collections: { hasSome: [rawSubCategoryId] } },
+        { mainCategory: rawSubCategoryId },
+        { categoryName: { hasSome: [rawSubCategoryId] } },
+      ],
+    };
+
+    const whereAds: Prisma.ProductWhereInput = {
+      AND: [
+        subCategoryFilter,
+        { activeAd: true },
+      ],
+    };
+
+    const whereOrganic: Prisma.ProductWhereInput = {
+      AND: [
+        subCategoryFilter,
+        {
+          OR: [
+            { activeAd: false },
+            { activeAd: null },
+          ],
+        },
+      ],
+    };
+
+    const takeCount = page * limit;
+
+    // 3. Parallel database query execution
+    const [totalAds, totalOrganic, ads, organic] = await Promise.all([
+      this.db.product.count({ where: whereAds }),
+      this.db.product.count({ where: whereOrganic }),
+      this.db.product.findMany({
+        where: whereAds,
+        orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+        take: takeCount,
+      }),
+      this.db.product.findMany({
+        where: whereOrganic,
+        orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+        take: takeCount,
+      }),
+    ]);
+
+    const totalItems = totalAds + totalOrganic;
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    if (totalItems === 0 && !categoryExists) {
+      throw new NotFoundException(`SubCategory '${rawSubCategoryId}' not found.`);
+    }
+
+    // 4. Interleaving pattern: 2-Ad / 2-Organic / 2-Ad / 2-Organic (8 items per cycle)
+    const interleavedList: any[] = [];
+    let adIdx = 0;
+    let orgIdx = 0;
+
+    while (adIdx < ads.length || orgIdx < organic.length) {
+      // Sub-block 1: 2 Ads (or fallback to Organic)
+      for (let i = 0; i < 2; i++) {
+        if (adIdx < ads.length) {
+          interleavedList.push(ads[adIdx++]);
+        } else if (orgIdx < organic.length) {
+          interleavedList.push(organic[orgIdx++]);
+        }
+      }
+
+      // Sub-block 2: 2 Organic (or fallback to Ads)
+      for (let i = 0; i < 2; i++) {
+        if (orgIdx < organic.length) {
+          interleavedList.push(organic[orgIdx++]);
+        } else if (adIdx < ads.length) {
+          interleavedList.push(ads[adIdx++]);
+        }
+      }
+
+      // Sub-block 3: 2 Ads (or fallback to Organic)
+      for (let i = 0; i < 2; i++) {
+        if (adIdx < ads.length) {
+          interleavedList.push(ads[adIdx++]);
+        } else if (orgIdx < organic.length) {
+          interleavedList.push(organic[orgIdx++]);
+        }
+      }
+
+      // Sub-block 4: 2 Organic (or fallback to Ads)
+      for (let i = 0; i < 2; i++) {
+        if (orgIdx < organic.length) {
+          interleavedList.push(organic[orgIdx++]);
+        } else if (adIdx < ads.length) {
+          interleavedList.push(ads[adIdx++]);
+        }
+      }
+    }
+
+    // 5. Slice exact page window
+    const startIndex = (page - 1) * limit;
+    const pagedProducts = interleavedList.slice(startIndex, startIndex + limit);
+
+    return {
+      page,
+      limit,
+      totalAds,
+      totalOrganic,
+      totalItems,
+      totalPages,
+      data: pagedProducts.map(mapPrismaToRestOutput),
+    };
+  }
+
+  // Alias for backward compatibility
+  async getCategoryProductsInterleaved(params: {
+    categoryId: string;
+    page?: string | number;
+    limit?: string | number;
+  }) {
+    return this.getProductsBySubCategoryIdInterleaved({
+      subCategoryId: params.categoryId,
+      page: params.page,
+      limit: params.limit,
+    });
+  }
+
   async getCategoryLegacy() {
     const desiredOrder = [
         'Men Fashion',
@@ -920,9 +1088,6 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
   if (dto.mainMedia !== undefined) data.mainMedia = dto.mainMedia;
   else if (dto.main_media !== undefined) data.mainMedia = dto.main_media;
 
-  if (dto.oneRsStore !== undefined) data.oneRsStore = dto.oneRsStore === true || dto.oneRsStore === 'true';
-  else if (dto.one_rs_store !== undefined) data.oneRsStore = dto.one_rs_store === true || dto.one_rs_store === 'true';
-
   if (dto.productImages !== undefined) data.productImages = dto.productImages;
   else if (dto.product_images !== undefined) data.productImages = dto.product_images;
 
@@ -933,6 +1098,9 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
       ? dto.search_keywords
       : (typeof dto.search_keywords === 'string' ? dto.search_keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
   }
+
+  if (dto.categoryId !== undefined) data.categoryId = dto.categoryId;
+  else if (dto.category_id !== undefined) data.categoryId = dto.category_id;
 
   if (dto.subCategory !== undefined) data.subCategory = dto.subCategory;
   else if (dto.sub_category !== undefined) data.subCategory = dto.sub_category;
@@ -946,8 +1114,10 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
   if (dto.variantPrice !== undefined) data.variantPrice = dto.variantPrice;
   else if (dto.variant_price !== undefined) data.variantPrice = dto.variant_price;
 
-  if (dto.wixProductId !== undefined) data.wixProductId = dto.wixProductId;
-  else if (dto.wix_product_id !== undefined) data.wixProductId = dto.wix_product_id;
+  if (dto.productId !== undefined) data.productId = dto.productId;
+  else if (dto.product_id !== undefined) data.productId = dto.product_id;
+  else if (dto.wixProductId !== undefined) data.productId = dto.wixProductId;
+  else if (dto.wix_product_id !== undefined) data.productId = dto.wix_product_id;
 
   if (dto.newVariantPrice !== undefined) data.newVariantPrice = dto.newVariantPrice;
   else if (dto.new_variant_price !== undefined) data.newVariantPrice = dto.new_variant_price;
@@ -1060,18 +1230,18 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
 function mapPrismaToRestOutput(p: any): any {
   if (!p) return p;
   return {
-    productId: p.id,
+    id: p.id,
+    productId: p.productId || p.id,
     mainMedia: p.mainMedia,
-    oneRsStore: p.oneRsStore,
     productImages: p.productImages,
     name: p.name,
     searchKeywords: p.searchKeywords,
+    categoryId: p.categoryId || (Array.isArray(p.collections) && p.collections.length > 0 ? p.collections[0] : (typeof p.collections === 'string' ? p.collections : null)),
     subCategory: p.subCategory,
     subCategoryId: p.subCategoryId,
     brand: p.brand,
     inventory: p.inventory,
     variantPrice: p.variantPrice,
-    wixProductId: p.wixProductId,
     newVariantPrice: p.newVariantPrice,
     mrp: p.mrp,
     onsalePrice: p.onsalePrice,
@@ -1138,9 +1308,9 @@ function mapPrismaToWixSellerListing(p: any) {
     })
     : [];
 
-  const categoryId = Array.isArray(p.collections) && p.collections.length > 0
+  const categoryId = p.categoryId || (Array.isArray(p.collections) && p.collections.length > 0
     ? p.collections[0]
-    : (typeof p.collections === 'string' ? p.collections : '');
+    : (typeof p.collections === 'string' ? p.collections : ''));
 
   const categoryName = Array.isArray(p.categoryName) && p.categoryName.length > 0
     ? p.categoryName[0]
@@ -1154,7 +1324,7 @@ function mapPrismaToWixSellerListing(p: any) {
 
   return {
     id: p.id,
-    productId: p.wixProductId || p.id || '',
+    productId: p.productId || p.id || '',
     mainMedia: p.mainMedia || '',
     productImages: productImagesArray,
     name: p.name || '',

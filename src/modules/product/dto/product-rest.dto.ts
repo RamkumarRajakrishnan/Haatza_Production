@@ -25,10 +25,15 @@ export class CreateProductDto {
   @IsString()
   main_media?: string;
 
-  @ApiPropertyOptional({ description: 'Is one Rs store product' })
+  @ApiPropertyOptional({ description: 'Product ID' })
   @IsOptional()
-  @IsBoolean()
-  one_rs_store?: boolean;
+  @IsString()
+  product_id?: string;
+
+  @ApiPropertyOptional({ description: 'Product ID (camelCase)' })
+  @IsOptional()
+  @IsString()
+  productId?: string;
 
   @ApiPropertyOptional({ description: 'Product Images list' })
   @IsOptional()
@@ -40,6 +45,16 @@ export class CreateProductDto {
   @IsArray()
   @IsString({ each: true })
   search_keywords?: string[];
+
+  @ApiPropertyOptional({ description: 'Category ID' })
+  @IsOptional()
+  @IsString()
+  category_id?: string;
+
+  @ApiPropertyOptional({ description: 'Category ID (camelCase)' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 
   @ApiPropertyOptional({ description: 'Sub Category Name' })
   @IsOptional()
@@ -65,11 +80,6 @@ export class CreateProductDto {
   @ApiPropertyOptional({ description: 'Variant Price structure' })
   @IsOptional()
   variant_price?: any;
-
-  @ApiPropertyOptional({ description: 'Wix Product ID link' })
-  @IsOptional()
-  @IsString()
-  wix_product_id?: string;
 
   @ApiPropertyOptional({ description: 'New Variant Price structure' })
   @IsOptional()
@@ -303,10 +313,15 @@ export class UpdateProductDto {
   @IsString()
   main_media?: string;
 
-  @ApiPropertyOptional({ description: 'Is one Rs store product' })
+  @ApiPropertyOptional({ description: 'Product ID' })
   @IsOptional()
-  @IsBoolean()
-  one_rs_store?: boolean;
+  @IsString()
+  product_id?: string;
+
+  @ApiPropertyOptional({ description: 'Product ID (camelCase)' })
+  @IsOptional()
+  @IsString()
+  productId?: string;
 
   @ApiPropertyOptional({ description: 'Product Images list' })
   @IsOptional()
@@ -318,6 +333,16 @@ export class UpdateProductDto {
   @IsArray()
   @IsString({ each: true })
   search_keywords?: string[];
+
+  @ApiPropertyOptional({ description: 'Category ID' })
+  @IsOptional()
+  @IsString()
+  category_id?: string;
+
+  @ApiPropertyOptional({ description: 'Category ID (camelCase)' })
+  @IsOptional()
+  @IsString()
+  categoryId?: string;
 
   @ApiPropertyOptional({ description: 'Sub Category Name' })
   @IsOptional()
@@ -343,11 +368,6 @@ export class UpdateProductDto {
   @ApiPropertyOptional({ description: 'Variant Price structure' })
   @IsOptional()
   variant_price?: any;
-
-  @ApiPropertyOptional({ description: 'Wix Product ID link' })
-  @IsOptional()
-  @IsString()
-  wix_product_id?: string;
 
   @ApiPropertyOptional({ description: 'New Variant Price structure' })
   @IsOptional()
