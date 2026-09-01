@@ -75,7 +75,7 @@ export class SubscriptionService {
         }
 
         return {
-          _id: plan.id,
+          id: plan.id,
           name: plan.name,
           price: plan.price.toString(),
           currency: 'INR',

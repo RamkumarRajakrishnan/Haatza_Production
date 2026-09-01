@@ -105,7 +105,7 @@ export class AppbarCategoriesService {
         secondaryAppbarColor: cat.secondaryAppbarColor || '',
         appbarImage: cat.appbarImage || '',
         categoryTextColor: cat.categoryTextColor || '',
-        appbarbackground: Boolean(cat.appbarbackground),
+        appbarBackground: Boolean(cat.appbarbackground),
         warehouseId: cat.warehouseId || '',
         nearestWarehouseDistanceKm: 0,
       }));
@@ -275,7 +275,7 @@ export class AppbarCategoriesService {
       secondaryAppbarColor: cat.secondaryAppbarColor || '',
       appbarImage: cat.appbarImage || '',
       categoryTextColor: cat.categoryTextColor || '',
-      appbarbackground: Boolean(cat.appbarbackground),
+      appbarBackground: Boolean(cat.appbarbackground),
       warehouseId: nearestWh.warehouseId,
       nearestWarehouseDistanceKm: nearestWh.distance,
     }));

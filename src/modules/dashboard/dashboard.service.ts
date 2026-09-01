@@ -122,7 +122,7 @@ export class DashboardService {
 
     const resultWidgets: Array<{
       widgetType: string;
-      widget_Id: string;
+      widgetId: string;
       sequence: number;
       title: string;
       expiresAt?: Date | string | null;
@@ -133,7 +133,7 @@ export class DashboardService {
       const widgetType = item.widgetType;
       if (!widgetType) return;
 
-      const widget_Id = item.widgetId || (item as any).widget_id || item.id;
+      const widgetId = item.widgetId || (item as any).widget_id || item.id;
       const sequence = item.sequence ?? 0;
       const rawProductArray = this.formatProductArray(item.item);
       const itemFieldAny = item.item as any;
@@ -144,7 +144,7 @@ export class DashboardService {
         '';
 
       const itemAny = item as any;
-      const mediaUrl = this.formatImageUrl(itemAny.Image || (Array.isArray(rawProductArray) && rawProductArray[0]?.banner_image) || (Array.isArray(rawProductArray) && rawProductArray[0]?.Image));
+      const mediaUrl = this.formatImageUrl(itemAny.image || itemAny.Image || (Array.isArray(rawProductArray) && (rawProductArray[0]?.bannerImage || rawProductArray[0]?.banner_image || rawProductArray[0]?.image || rawProductArray[0]?.Image)));
       const isVideo =
         /\.(mp4|webm|mov|m4v|avi|mkv)$/i.test(mediaUrl) || mediaUrl.includes('/video/');
 
@@ -156,22 +156,22 @@ export class DashboardService {
         const catEntry: any = {
           categoryId: item.categoryId || '',
           categoryName: item.categoryName || '',
-          subcategory: [],
+          subCategory: [],
         };
 
         if (rawProductArray.length > 0) {
           for (const storedItem of rawProductArray) {
             if (typeof storedItem === 'object' && storedItem !== null) {
-              catEntry.subcategory.push(storedItem);
+              catEntry.subCategory.push(storedItem);
             } else {
-              catEntry.subcategory.push({
-                Image: mediaUrl,
+              catEntry.subCategory.push({
+                image: mediaUrl,
               });
             }
           }
         } else {
-          catEntry.subcategory.push({
-            Image: mediaUrl,
+          catEntry.subCategory.push({
+            image: mediaUrl,
           });
         }
         formattedItems = [catEntry];
@@ -181,10 +181,10 @@ export class DashboardService {
             formattedItems.push(storedItem);
           } else {
             formattedItems.push({
-              Image: mediaUrl,
+              image: mediaUrl,
               categoryId: item.categoryId || '',
               categoryName: item.categoryName || '',
-              Item: rawProductArray,
+              item: rawProductArray,
             });
             break;
           }
@@ -193,7 +193,7 @@ export class DashboardService {
         if (lowerKey === 'special_offers') {
           formattedItems.push({
             image: isVideo ? '' : mediaUrl,
-            Title: item.title || '',
+            title: item.title || '',
           });
         } else if (
           ['hero_banner', 'bank_offers', 'new_arrival', 'flash_sales', 'mega_offer'].includes(
@@ -201,12 +201,12 @@ export class DashboardService {
           )
         ) {
           formattedItems.push({
-            banner_image: mediaUrl,
-            category_id: item.categoryId || '',
+            bannerImage: mediaUrl,
+            categoryId: item.categoryId || '',
           });
         } else {
           formattedItems.push({
-            Image: mediaUrl,
+            image: mediaUrl,
             categoryId: item.categoryId || '',
             categoryName: item.categoryName || '',
           });
@@ -215,7 +215,7 @@ export class DashboardService {
 
       resultWidgets.push({
         widgetType: widgetType,
-        widget_Id,
+        widgetId: widgetId,
         sequence,
         title,
         expiresAt: item.expiresAt || null,

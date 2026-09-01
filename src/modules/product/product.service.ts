@@ -138,16 +138,18 @@ export class ProductService {
       name: p.name || '',
       productId: p.id,
       productOption: p.productOptions || {},
+      productOptions: p.productOptions || {},
       image: p.mainMedia || '',
+      mainMedia: p.mainMedia || '',
       activeAd: p.activeAd || false,
       averageRating: 0,
-      isWhishlist: false,
+      isWishlist: false,
       wishlistTableId: '',
       sellerId: p.sellerId || '',
       campaignId: p.campaignId || '',
       deliveryCharges: p.deliveryCharges ?? true,
-      maincategoryId: p.mainCategory || '',
-      subcategoryId: p.subCategoryId || '',
+      mainCategoryId: p.mainCategory || '',
+      subCategoryId: p.subCategoryId || '',
       finalPricing: {
         codFinal: p.cod || 0,
         upiFinal: p.upi || 0,
@@ -522,10 +524,10 @@ export class ProductService {
       },
     });
 
-    return { product_id: id, attached: valid, skipped };
+    return { productId: id, attached: valid, skipped };
   }
 
-  async updateMediaRest(id: string, dto: { main_media?: string; product_images?: any[] }) {
+  async updateMediaRest(id: string, dto: { main_media?: string; mainMedia?: string; product_images?: any[]; productImages?: any[] }) {
     const existing = await this.db.product.findUnique({
       where: { id },
     });
@@ -534,11 +536,13 @@ export class ProductService {
     }
 
     const data: any = {};
-    if (dto.product_images !== undefined) {
-      data.productImages = dto.product_images;
-      data.mainMedia = dto.main_media ?? dto.product_images?.[0] ?? null;
-    } else if (dto.main_media !== undefined) {
-      data.mainMedia = dto.main_media;
+    const mediaImages = dto.productImages ?? dto.product_images;
+    const mainMedia = dto.mainMedia ?? dto.main_media;
+    if (mediaImages !== undefined) {
+      data.productImages = mediaImages;
+      data.mainMedia = mainMedia ?? (Array.isArray(mediaImages) ? (mediaImages[0]?.src || mediaImages[0]) : null);
+    } else if (mainMedia !== undefined) {
+      data.mainMedia = mainMedia;
     }
 
     data.updatedDate = new Date();
@@ -756,7 +760,7 @@ export class ProductService {
       priceRange: { min: minPrice, max: maxPrice },
       productOptions: {},
       ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
-      specfication: specficationList,
+      specifications: specficationList,
     };
 
     const totalPages = Math.ceil(total / limit);
@@ -770,24 +774,31 @@ export class ProductService {
       return {
         brand: p.brand || '',
         name: p.name || '',
-        ProductID: p.id,
-        Productoption: p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {},
+        productId: p.id,
+        productOptions: p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {},
         image,
         activeAd: p.activeAd || false,
         averageRating: 0,
-        IsWhishlist: false,
-        WishlistTableID: '',
+        isWishlist: false,
+        wishlistTableId: '',
         sellerId: p.sellerId || '',
         campaignId: p.campaignId || '',
         deliveryCharges: p.deliveryCharges || false,
-        maincategoreid: p.mainCategory || '',
-        subcategoryid: p.subCategoryId || p.subCategory || '',
+        mainCategoryId: p.mainCategory || '',
+        subCategoryId: p.subCategoryId || p.subCategory || '',
         finalPricing: {
           codFinal: p.cod || p.price || p.mrp || 0,
           upiFinal: p.upi || p.price || p.mrp || 0,
         },
       };
     });
+
+    const sortFilter = [
+      { label: 'Popularity', value: 'popularity' },
+      { label: 'Price: Low to High', value: 'price_low_high' },
+      { label: 'Price: High to Low', value: 'price_high_low' },
+      { label: 'Newest First', value: 'newest' },
+    ];
 
     return {
       status: 'success',
@@ -799,12 +810,7 @@ export class ProductService {
         lastFetched: mappedProducts.length,
         products: mappedProducts,
         categoryFilters,
-        sortfilter: [
-          { label: 'Popularity', value: 'popularity' },
-          { label: 'Price: Low to High', value: 'price_low_high' },
-          { label: 'Price: High to Low', value: 'price_high_low' },
-          { label: 'Newest First', value: 'newest' },
-        ],
+        sortFilter,
       },
     };
   }
@@ -829,7 +835,7 @@ export class ProductService {
     const filteredItems = records.map(item => ({
         mainMedia: (item as any).imageUrl || (item as any).image || '',
         name: item.categoryName,
-        CategoryID: item.categoryId || item.id
+        categoryId: item.categoryId || item.id
     }));
 
     const sortedItems = filteredItems.sort((a, b) => {
@@ -908,124 +914,212 @@ function isValidGuid(id: string): boolean {
 function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.ProductUpdateInput {
   const data: any = {};
   if (dto.name !== undefined) data.name = dto.name;
-  if (dto.seller_id !== undefined) data.sellerId = dto.seller_id;
-  if (dto.main_media !== undefined) data.mainMedia = dto.main_media;
-  if (dto.one_rs_store !== undefined) data.oneRsStore = dto.one_rs_store;
-  if (dto.product_images !== undefined) data.productImages = dto.product_images;
-  if (dto.search_keywords !== undefined) data.searchKeywords = dto.search_keywords;
-  if (dto.sub_category !== undefined) data.subCategory = dto.sub_category;
-  if (dto.sub_category_id !== undefined) data.subCategoryId = dto.sub_category_id;
+  if (dto.sellerId !== undefined) data.sellerId = dto.sellerId;
+  else if (dto.seller_id !== undefined) data.sellerId = dto.seller_id;
+
+  if (dto.mainMedia !== undefined) data.mainMedia = dto.mainMedia;
+  else if (dto.main_media !== undefined) data.mainMedia = dto.main_media;
+
+  if (dto.oneRsStore !== undefined) data.oneRsStore = dto.oneRsStore === true || dto.oneRsStore === 'true';
+  else if (dto.one_rs_store !== undefined) data.oneRsStore = dto.one_rs_store === true || dto.one_rs_store === 'true';
+
+  if (dto.productImages !== undefined) data.productImages = dto.productImages;
+  else if (dto.product_images !== undefined) data.productImages = dto.product_images;
+
+  if (dto.searchKeywords !== undefined) {
+    data.searchKeywords = Array.isArray(dto.searchKeywords) ? dto.searchKeywords : [dto.searchKeywords];
+  } else if (dto.search_keywords !== undefined) {
+    data.searchKeywords = Array.isArray(dto.search_keywords)
+      ? dto.search_keywords
+      : (typeof dto.search_keywords === 'string' ? dto.search_keywords.split(',').map((s: string) => s.trim()).filter(Boolean) : []);
+  }
+
+  if (dto.subCategory !== undefined) data.subCategory = dto.subCategory;
+  else if (dto.sub_category !== undefined) data.subCategory = dto.sub_category;
+
+  if (dto.subCategoryId !== undefined) data.subCategoryId = dto.subCategoryId;
+  else if (dto.sub_category_id !== undefined) data.subCategoryId = dto.sub_category_id;
+
   if (dto.brand !== undefined) data.brand = dto.brand;
   if (dto.inventory !== undefined) data.inventory = parseInt(dto.inventory, 10) || 0;
-  if (dto.variant_price !== undefined) data.variantPrice = dto.variant_price;
-  if (dto.wix_product_id !== undefined) data.wixProductId = dto.wix_product_id;
-  if (dto.new_variant_price !== undefined) data.newVariantPrice = dto.new_variant_price;
+
+  if (dto.variantPrice !== undefined) data.variantPrice = dto.variantPrice;
+  else if (dto.variant_price !== undefined) data.variantPrice = dto.variant_price;
+
+  if (dto.wixProductId !== undefined) data.wixProductId = dto.wixProductId;
+  else if (dto.wix_product_id !== undefined) data.wixProductId = dto.wix_product_id;
+
+  if (dto.newVariantPrice !== undefined) data.newVariantPrice = dto.newVariantPrice;
+  else if (dto.new_variant_price !== undefined) data.newVariantPrice = dto.new_variant_price;
+
   if (dto.mrp !== undefined) data.mrp = parseFloat(dto.mrp) || 0;
-  if (dto.onsale_price !== undefined) data.onsalePrice = parseFloat(dto.onsale_price) || 0;
+
+  if (dto.onsalePrice !== undefined) data.onsalePrice = parseFloat(dto.onsalePrice) || 0;
+  else if (dto.onsale_price !== undefined) data.onsalePrice = parseFloat(dto.onsale_price) || 0;
+
   if (dto.cod !== undefined) data.cod = parseFloat(dto.cod) || 0;
   if (dto.upi !== undefined) data.upi = parseFloat(dto.upi) || 0;
   if (dto.price !== undefined) data.price = parseFloat(dto.price) || 0;
   if (dto.discount !== undefined) data.discount = dto.discount;
   if (dto.status !== undefined) data.status = dto.status;
-  if (dto.delivery_charges !== undefined) data.deliveryCharges = dto.delivery_charges === true || dto.delivery_charges === 'true';
-  if (dto.main_category !== undefined) data.mainCategory = dto.main_category;
-  if (dto.shipping_weight !== undefined) data.shippingWeight = parseFloat(dto.shipping_weight) || 0;
+
+  if (dto.deliveryCharges !== undefined) data.deliveryCharges = dto.deliveryCharges === true || dto.deliveryCharges === 'true';
+  else if (dto.delivery_charges !== undefined) data.deliveryCharges = dto.delivery_charges === true || dto.delivery_charges === 'true';
+
+  if (dto.mainCategory !== undefined) data.mainCategory = dto.mainCategory;
+  else if (dto.main_category !== undefined) data.mainCategory = dto.main_category;
+
+  if (dto.shippingWeight !== undefined) data.shippingWeight = parseFloat(dto.shippingWeight) || 0;
+  else if (dto.shipping_weight !== undefined) data.shippingWeight = parseFloat(dto.shipping_weight) || 0;
+
   if (dto.collections !== undefined) data.collections = dto.collections;
-  if (dto.seller_pincode !== undefined) data.sellerPincode = dto.seller_pincode;
+
+  if (dto.sellerPincode !== undefined) data.sellerPincode = dto.sellerPincode;
+  else if (dto.seller_pincode !== undefined) data.sellerPincode = dto.seller_pincode;
+
   if (dto.owner !== undefined) data.owner = dto.owner;
-  if (dto.product_options !== undefined) data.productOptions = sanitizeProductOptions(dto.product_options);
-  if (dto.additional_info_sections !== undefined) data.additionalInfoSections = dto.additional_info_sections;
-  if (dto.active_ad !== undefined) data.activeAd = dto.active_ad === true || dto.active_ad === 'true';
-  if (dto.average_cpc !== undefined) data.averageCpc = parseFloat(dto.average_cpc) || 0;
-  if (dto.priority_score !== undefined) data.priorityScore = parseInt(dto.priority_score, 10) || 0;
-  if (dto.campaign_id !== undefined) data.campaignId = dto.campaign_id;
+
+  if (dto.productOptions !== undefined) data.productOptions = sanitizeProductOptions(dto.productOptions);
+  else if (dto.product_options !== undefined) data.productOptions = sanitizeProductOptions(dto.product_options);
+
+  if (dto.additionalInfoSections !== undefined) data.additionalInfoSections = dto.additionalInfoSections;
+  else if (dto.additional_info_sections !== undefined) data.additionalInfoSections = dto.additional_info_sections;
+
+  if (dto.activeAd !== undefined) data.activeAd = dto.activeAd === true || dto.activeAd === 'true';
+  else if (dto.active_ad !== undefined) data.activeAd = dto.active_ad === true || dto.active_ad === 'true';
+
+  if (dto.averageCpc !== undefined) data.averageCpc = parseFloat(dto.averageCpc) || 0;
+  else if (dto.average_cpc !== undefined) data.averageCpc = parseFloat(dto.average_cpc) || 0;
+
+  if (dto.priorityScore !== undefined) data.priorityScore = parseInt(dto.priorityScore, 10) || 0;
+  else if (dto.priority_score !== undefined) data.priorityScore = parseInt(dto.priority_score, 10) || 0;
+
+  if (dto.campaignId !== undefined) data.campaignId = dto.campaignId;
+  else if (dto.campaign_id !== undefined) data.campaignId = dto.campaign_id;
+
   if (dto.reach !== undefined) data.reach = parseInt(dto.reach, 10) || 0;
   if (dto.impression !== undefined) data.impression = parseInt(dto.impression, 10) || 0;
   if (dto.clicks !== undefined) data.clicks = parseInt(dto.clicks, 10) || 0;
   if (dto.sales !== undefined) data.sales = parseInt(dto.sales, 10) || 0;
   if (dto.revenue !== undefined) data.revenue = parseFloat(dto.revenue) || 0;
-  if (dto.category_name !== undefined) data.categoryName = dto.category_name;
+
+  if (dto.categoryName !== undefined) data.categoryName = Array.isArray(dto.categoryName) ? dto.categoryName : [dto.categoryName];
+  else if (dto.category_name !== undefined) data.categoryName = Array.isArray(dto.category_name) ? dto.category_name : [dto.category_name];
+
   if (dto.sku !== undefined) data.sku = dto.sku;
-  if (dto.product_type !== undefined) data.productType = dto.product_type;
-  if (dto.manage_variants !== undefined) data.manageVariants = dto.manage_variants === true || dto.manage_variants === 'true';
+
+  if (dto.productType !== undefined) data.productType = dto.productType;
+  else if (dto.product_type !== undefined) data.productType = dto.product_type;
+
+  if (dto.manageVariants !== undefined) data.manageVariants = dto.manageVariants === true || dto.manageVariants === 'true';
+  else if (dto.manage_variants !== undefined) data.manageVariants = dto.manage_variants === true || dto.manage_variants === 'true';
+
   if (dto.ribbon !== undefined) data.ribbon = dto.ribbon;
-  if (dto.track_inventory !== undefined) data.trackInventory = dto.track_inventory === true || dto.track_inventory === 'true';
-  if (dto.influencer_branding !== undefined) data.influencerBranding = dto.influencer_branding === true || dto.influencer_branding === 'true';
-  if (dto.haatza_verified !== undefined) data.haatzaVerified = dto.haatza_verified === true || dto.haatza_verified === 'true';
-  if (dto.promotion_photos !== undefined) data.promotionPhotos = dto.promotion_photos;
-  if (dto.payment_type !== undefined) data.paymentType = dto.payment_type;
-  if (dto.product_return !== undefined) data.productReturn = dto.product_return;
-  if (dto.size_chart !== undefined) data.sizeChart = dto.size_chart;
+
+  if (dto.trackInventory !== undefined) data.trackInventory = dto.trackInventory === true || dto.trackInventory === 'true';
+  else if (dto.track_inventory !== undefined) data.trackInventory = dto.track_inventory === true || dto.track_inventory === 'true';
+
+  if (dto.influencerBranding !== undefined) data.influencerBranding = dto.influencerBranding === true || dto.influencerBranding === 'true';
+  else if (dto.influencer_branding !== undefined) data.influencerBranding = dto.influencer_branding === true || dto.influencer_branding === 'true';
+
+  if (dto.haatzaVerified !== undefined) data.haatzaVerified = dto.haatzaVerified === true || dto.haatzaVerified === 'true';
+  else if (dto.haatza_verified !== undefined) data.haatzaVerified = dto.haatza_verified === true || dto.haatza_verified === 'true';
+
+  if (dto.promotionPhotos !== undefined) data.promotionPhotos = dto.promotionPhotos;
+  else if (dto.promotion_photos !== undefined) data.promotionPhotos = dto.promotion_photos;
+
+  if (dto.paymentType !== undefined) data.paymentType = dto.paymentType;
+  else if (dto.payment_type !== undefined) data.paymentType = dto.payment_type;
+
+  if (dto.productReturn !== undefined) data.productReturn = dto.productReturn;
+  else if (dto.product_return !== undefined) data.productReturn = dto.product_return;
+
+  if (dto.sizeChart !== undefined) data.sizeChart = dto.sizeChart;
+  else if (dto.size_chart !== undefined) data.sizeChart = dto.size_chart;
+
   if (dto.description !== undefined) data.description = dto.description;
-  if (dto.gst_seller !== undefined) data.gstSeller = parseFloat(dto.gst_seller) || 0;
-  if (dto.upi_payment_discount !== undefined) data.upiPaymentDiscount = parseFloat(dto.upi_payment_discount) || 0;
-  if (dto.manage_listing_products !== undefined) data.manageListingProducts = dto.manage_listing_products;
-  if (dto.sell_and_earn_commission !== undefined) data.sellAndEarnCommission = parseFloat(dto.sell_and_earn_commission) || 0;
-  if (dto.sell_and_earn !== undefined) data.sellAndEarn = dto.sell_and_earn;
+
+  if (dto.gstSeller !== undefined) data.gstSeller = parseFloat(dto.gstSeller) || 0;
+  else if (dto.gst_seller !== undefined) data.gstSeller = parseFloat(dto.gst_seller) || 0;
+
+  if (dto.upiPaymentDiscount !== undefined) data.upiPaymentDiscount = parseFloat(dto.upiPaymentDiscount) || 0;
+  else if (dto.upi_payment_discount !== undefined) data.upiPaymentDiscount = parseFloat(dto.upi_payment_discount) || 0;
+
+  if (dto.manageListingProducts !== undefined) data.manageListingProducts = dto.manageListingProducts;
+  else if (dto.manage_listing_products !== undefined) data.manageListingProducts = dto.manage_listing_products;
+
+  if (dto.sellAndEarnCommission !== undefined) data.sellAndEarnCommission = parseFloat(dto.sellAndEarnCommission) || 0;
+  else if (dto.sell_and_earn_commission !== undefined) data.sellAndEarnCommission = parseFloat(dto.sell_and_earn_commission) || 0;
+
+  if (dto.sellAndEarn !== undefined) data.sellAndEarn = dto.sellAndEarn;
+  else if (dto.sell_and_earn !== undefined) data.sellAndEarn = dto.sell_and_earn;
+
   return data;
 }
 
 function mapPrismaToRestOutput(p: any): any {
   if (!p) return p;
   return {
-    product_id: p.id,
-    main_media: p.mainMedia,
-    one_rs_store: p.oneRsStore,
-    product_images: p.productImages,
+    productId: p.id,
+    mainMedia: p.mainMedia,
+    oneRsStore: p.oneRsStore,
+    productImages: p.productImages,
     name: p.name,
-    search_keywords: p.searchKeywords,
-    sub_category: p.subCategory,
-    sub_category_id: p.subCategoryId,
+    searchKeywords: p.searchKeywords,
+    subCategory: p.subCategory,
+    subCategoryId: p.subCategoryId,
     brand: p.brand,
     inventory: p.inventory,
-    variant_price: p.variantPrice,
-    wix_product_id: p.wixProductId,
-    new_variant_price: p.newVariantPrice,
+    variantPrice: p.variantPrice,
+    wixProductId: p.wixProductId,
+    newVariantPrice: p.newVariantPrice,
     mrp: p.mrp,
-    onsale_price: p.onsalePrice,
+    onsalePrice: p.onsalePrice,
     cod: p.cod,
     upi: p.upi,
     price: p.price,
     discount: p.discount,
     status: p.status,
-    delivery_charges: p.deliveryCharges,
-    main_category: p.mainCategory,
-    seller_id: p.sellerId,
-    shipping_weight: p.shippingWeight,
+    deliveryCharges: p.deliveryCharges,
+    mainCategory: p.mainCategory,
+    sellerId: p.sellerId,
+    shippingWeight: p.shippingWeight,
     collections: p.collections,
-    seller_pincode: p.sellerPincode,
-    created_date: p.createdDate,
-    updated_date: p.updatedDate,
+    sellerPincode: p.sellerPincode,
+    createdDate: p.createdDate,
+    updatedDate: p.updatedDate,
+    createdAt: p.createdDate,
+    updatedAt: p.updatedDate,
     owner: p.owner,
-    product_options: p.productOptions,
-    additional_info_sections: p.additionalInfoSections,
-    active_ad: p.activeAd,
-    average_cpc: p.averageCpc,
-    priority_score: p.priorityScore,
-    campaign_id: p.campaignId,
+    productOptions: p.productOptions,
+    additionalInfoSections: p.additionalInfoSections,
+    activeAd: p.activeAd,
+    averageCpc: p.averageCpc,
+    priorityScore: p.priorityScore,
+    campaignId: p.campaignId,
     reach: p.reach,
     impression: p.impression,
     clicks: p.clicks,
     sales: p.sales,
     revenue: p.revenue,
-    category_name: p.categoryName,
+    categoryName: p.categoryName,
     sku: p.sku,
-    product_type: p.productType,
-    manage_variants: p.manageVariants,
+    productType: p.productType,
+    manageVariants: p.manageVariants,
     ribbon: p.ribbon,
-    track_inventory: p.trackInventory,
-    influencer_branding: p.influencerBranding,
-    haatza_verified: p.haatzaVerified,
-    promotion_photos: p.promotionPhotos,
-    payment_type: p.paymentType,
-    product_return: p.productReturn,
-    size_chart: p.sizeChart,
+    trackInventory: p.trackInventory,
+    influencerBranding: p.influencerBranding,
+    haatzaVerified: p.haatzaVerified,
+    promotionPhotos: p.promotionPhotos,
+    paymentType: p.paymentType,
+    productReturn: p.productReturn,
+    sizeChart: p.sizeChart,
     description: p.description,
-    gst_seller: p.gstSeller,
-    upi_payment_discount: p.upiPaymentDiscount,
-    manage_listing_products: p.manageListingProducts,
-    sell_and_earn_commission: p.sellAndEarnCommission,
-    sell_and_earn: p.sellAndEarn,
+    gstSeller: p.gstSeller,
+    upiPaymentDiscount: p.upiPaymentDiscount,
+    manageListingProducts: p.manageListingProducts,
+    sellAndEarnCommission: p.sellAndEarnCommission,
+    sellAndEarn: p.sellAndEarn,
   };
 }
 
@@ -1059,9 +1153,9 @@ function mapPrismaToWixSellerListing(p: any) {
   const isSellAndEarn = p.sellAndEarn === true || p.sellAndEarn === 'true' || p.sellAndEarn === 'TRUE';
 
   return {
-    _id: p.id,
-    Id: p.id,
-    mainmedia: p.mainMedia || '',
+    id: p.id,
+    productId: p.wixProductId || p.id || '',
+    mainMedia: p.mainMedia || '',
     productImages: productImagesArray,
     name: p.name || '',
     description: p.description || '',
@@ -1073,7 +1167,7 @@ function mapPrismaToWixSellerListing(p: any) {
     productOptions: p.productOptions && typeof p.productOptions === 'object' && Object.keys(p.productOptions).length > 0 ? p.productOptions : {},
     additionalInfoSections: Array.isArray(p.additionalInfoSections) ? p.additionalInfoSections : [],
     sellerId: p.sellerId || '',
-    varientPrice: p.variantPrice && typeof p.variantPrice === 'object' && Object.keys(p.variantPrice).length > 0 ? p.variantPrice : {},
+    variantPrice: p.variantPrice && typeof p.variantPrice === 'object' && Object.keys(p.variantPrice).length > 0 ? p.variantPrice : {},
     status: p.status || '',
     manageVariants: p.manageVariants || false,
     trackInventory: p.trackInventory || false,
@@ -1081,23 +1175,24 @@ function mapPrismaToWixSellerListing(p: any) {
     categoryId,
     inventory: p.inventory || 0,
     sku: p.sku || '',
-    productId: p.wixProductId || p.id || '',
     mainCategory: p.mainCategory || '',
     subCategory: p.subCategory || '',
+    subCategoryId: p.subCategoryId || '',
     promotionPhotos: Array.isArray(p.promotionPhotos) ? p.promotionPhotos : [],
-    haatzaverified: p.haatzaVerified || false,
+    haatzaVerified: p.haatzaVerified || false,
     paymentType: p.paymentType || '',
     productReturn: p.productReturn || '',
-    subCategoryId: p.subCategoryId || '',
     deliveryCharges: p.deliveryCharges || false,
     sizeChart: p.sizeChart || '',
-    search_keywords: searchKeywordsStr,
+    searchKeywords: searchKeywordsStr,
     sellAndEarnCommission: p.sellAndEarnCommission || 0,
     sellAndEarn: isSellAndEarn,
     collections: p.collections || [],
     productType: p.productType || 'physical',
-    sellerPinCode: p.sellerPincode || '',
-    _createdDate: p.createdDate,
-    _updatedDate: p.updatedDate,
+    sellerPincode: p.sellerPincode || '',
+    createdDate: p.createdDate,
+    updatedDate: p.updatedDate,
+    createdAt: p.createdDate,
+    updatedAt: p.updatedDate,
   };
 }
