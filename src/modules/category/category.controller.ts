@@ -25,7 +25,7 @@ import {
 import { CategoryModule } from '@prisma/client';
 
 @ApiTags('Category Master')
-@Controller(['category', 'categories', 'api/categories', 'api/v1'])
+@Controller(['category', 'categories', 'api/categories', 'api/v1/categories', 'api/v1/category', 'api/v1'])
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
@@ -51,7 +51,7 @@ export class CategoryController {
     return this.categoryService.createCategory(dto);
   }
 
-  @Get(['get_category', 'getCategory', 'categories/:categoryId'])
+  @Get(['get_category', 'getCategory'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Category by ID (GET /get_category)',
@@ -191,6 +191,9 @@ export class CategoryController {
   }
 
   @Get([
+    '',
+    'categories',
+    'subcategories',
     'subcategories/:parentCategoryId',
     'subcategories/:parent_category_id',
     'parent/:parentCategoryId',
@@ -202,13 +205,13 @@ export class CategoryController {
   ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Subcategories by Parent ID (GET /api/categories/:parentCategoryId)',
-    description: 'Returns direct and recursively nested subcategories under parentCategoryId (Flipkart-style drill-down).',
+    summary: 'Get Subcategories by Category ID (GET /api/v1/categories?categoryId=CAT_FASH)',
+    description: 'Returns direct and recursively nested subcategories under categoryId / parentCategoryId (Flipkart-style drill-down).',
   })
-  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID of parent category' })
-  @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Category ID of parent category' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID of parent category (e.g. CAT_FASH)' })
+  @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Legacy alias for categoryId' })
   @ApiQuery({ name: 'parentCategoryId', required: false, type: String, description: 'Parent Category ID' })
-  @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Parent Category ID' })
+  @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Legacy alias for parentCategoryId' })
   @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
   @ApiResponse({ status: 404, description: 'Parent category not found' })
   async getSubcategoriesByParentId(
@@ -218,6 +221,7 @@ export class CategoryController {
     @Query('parent_category_id') queryParentId?: string,
     @Query('categoryId') queryAliasId?: string,
     @Query('category_id') queryCategoryId?: string,
+    @Query() allQueries?: any,
   ) {
     let targetId = queryAliasId || queryCategoryId || queryAliasParentId || queryParentId || paramAliasParentId || paramParentId || '';
     
@@ -227,6 +231,11 @@ export class CategoryController {
       targetId = parts[1] || targetId;
     }
 
-    return this.categoryService.getSubcategoriesByParentId(targetId.trim());
+    if (targetId.trim()) {
+      return this.categoryService.getSubcategoriesByParentId(targetId.trim());
+    }
+
+    // If no categoryId or parentCategoryId is provided on GET /categories, return category list
+    return this.categoryService.getCategories(allQueries || {});
   }
 }
