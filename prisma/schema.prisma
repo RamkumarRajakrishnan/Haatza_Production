@@ -13,7 +13,7 @@ model User {
   gender              String?            @map("gender")
   email               String?            @unique @map("email")
   mobile              String             @unique @map("phone")
-  password            String             @map("password_hash")
+  password            String             @map("password")
   companyName         String?            @map("company_name")
   gstin               String?            @map("gstin")
   panNumber           String?            @map("pan_number")

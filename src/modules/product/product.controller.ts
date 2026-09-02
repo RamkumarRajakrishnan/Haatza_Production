@@ -10,10 +10,19 @@ export class ProductController {
   constructor(private readonly productService: ProductService) {}
 
   @ApiOperation({
-    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET /api/v1/ProductsBySubCategoryId)',
-    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by sub_category_id in parallel and returns interleaved products with limit=20 per page.',
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET/POST /api/v1/ProductsBySubCategoryId)',
+    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by sub_category_id in parallel and returns interleaved products with limit=20 per page, along with categoryFilters.',
   })
   @Get([
+    'ProductsBySubCategoryId',
+    'productsBySubCategoryId',
+    'ProductsBySubCategoryId/:subCategoryId',
+    'productsBySubCategoryId/:subCategoryId',
+    'products/category/:categoryId',
+    'api/products/category/:categoryId',
+    'category/:categoryId/products',
+  ])
+  @Post([
     'ProductsBySubCategoryId',
     'productsBySubCategoryId',
     'ProductsBySubCategoryId/:subCategoryId',
@@ -34,6 +43,15 @@ export class ProductController {
     @Query('page') page?: string,
     @Query('limit') limit?: string,
     @Query('count') count?: string,
+    @Query('brands') brands?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('productOptions') productOptions?: string,
+    @Query('specfication') specfication?: string,
+    @Query('specification') specification?: string,
+    @Query('rating') rating?: string,
+    @Query('sort') sort?: string,
+    @Body() body?: any,
   ) {
     const targetSubCategoryId =
       paramSubCategoryId ||
@@ -42,12 +60,24 @@ export class ProductController {
       queryCamelSubCategoryId ||
       queryPascalSubCategoryId ||
       queryCategoryId ||
-      querySnakeCategoryId;
+      querySnakeCategoryId ||
+      body?.sub_category_id ||
+      body?.subCategoryId ||
+      body?.Sub_Category_ID ||
+      body?.categoryId ||
+      body?.category_id;
 
     return this.productService.getProductsBySubCategoryIdInterleaved({
       subCategoryId: targetSubCategoryId || '',
-      page,
-      limit: limit || count,
+      page: page || body?.page,
+      limit: limit || count || body?.limit || body?.count,
+      brands: brands || body?.brands,
+      minPrice: minPrice || body?.minPrice,
+      maxPrice: maxPrice || body?.maxPrice,
+      productOptions: productOptions || body?.productOptions,
+      specification: specification || specfication || body?.specification || body?.specfication,
+      rating: rating || body?.rating,
+      sort: sort || body?.sort,
     });
   }
 

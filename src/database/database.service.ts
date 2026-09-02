@@ -318,12 +318,16 @@ export class DatabaseService
         );
 
         -- Safe column additions and rename for existing tables
-        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password text;
         DO $$ BEGIN
-          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash') THEN
+          IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash') AND
+             EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password') THEN
+            ALTER TABLE public.users DROP COLUMN password;
+            ALTER TABLE public.users RENAME COLUMN password_hash TO password;
+          ELSIF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='users' AND column_name='password_hash') THEN
             ALTER TABLE public.users RENAME COLUMN password_hash TO password;
           END IF;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
+        ALTER TABLE public.users ADD COLUMN IF NOT EXISTS password text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS refresh_token text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS seller_id text;
         ALTER TABLE public.users ADD COLUMN IF NOT EXISTS company_name text;

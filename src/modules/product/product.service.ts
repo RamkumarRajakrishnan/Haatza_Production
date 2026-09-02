@@ -824,11 +824,19 @@ export class ProductService {
    * 
    * Parallel execution of Bucket A (Ads) and Bucket B (Organic) by sub_category_id
    * Interleaved 2-Ad / 2-Organic / 2-Ad / 2-Organic repeating cycle with default limit=20 per page.
+   * Includes category_filters data by categoryId (with fallback dynamic filter generation).
    */
   async getProductsBySubCategoryIdInterleaved(params: {
     subCategoryId: string;
     page?: string | number;
     limit?: string | number;
+    brands?: string | string[];
+    minPrice?: string | number;
+    maxPrice?: string | number;
+    productOptions?: any;
+    specification?: any;
+    rating?: string | number;
+    sort?: string;
   }) {
     const rawSubCategoryId = params.subCategoryId?.trim();
     if (!rawSubCategoryId) {
@@ -857,6 +865,8 @@ export class ProductService {
       },
     });
 
+    const resolvedCategoryId = categoryExists ? categoryExists.categoryId : rawSubCategoryId;
+
     const subCategoryFilter: Prisma.ProductWhereInput = {
       OR: [
         { subCategoryId: rawSubCategoryId },
@@ -865,13 +875,75 @@ export class ProductService {
         { collections: { hasSome: [rawSubCategoryId] } },
         { mainCategory: rawSubCategoryId },
         { categoryName: { hasSome: [rawSubCategoryId] } },
+        ...(categoryExists
+          ? [
+            { subCategoryId: categoryExists.categoryId },
+            { subCategory: categoryExists.categoryName },
+            { categoryId: categoryExists.categoryId },
+            { mainCategory: categoryExists.categoryId },
+          ]
+          : []),
       ],
     };
+
+    // 3. User Filter parameters (brands, priceRange, etc.)
+    const extraFilterConditions: Prisma.ProductWhereInput[] = [];
+
+    if (params.brands) {
+      const brandList = typeof params.brands === 'string'
+        ? params.brands.split(',').map((b) => b.trim()).filter(Boolean)
+        : (Array.isArray(params.brands) ? params.brands : [params.brands]);
+      if (brandList.length > 0) {
+        extraFilterConditions.push({ brand: { in: brandList, mode: 'insensitive' } });
+      }
+    }
+
+    if (params.minPrice !== undefined && params.minPrice !== '') {
+      const min = parseFloat(String(params.minPrice));
+      if (!isNaN(min)) {
+        extraFilterConditions.push({
+          OR: [
+            { price: { gte: min } },
+            { onsalePrice: { gte: min } },
+            { mrp: { gte: min } },
+          ],
+        });
+      }
+    }
+
+    if (params.maxPrice !== undefined && params.maxPrice !== '') {
+      const max = parseFloat(String(params.maxPrice));
+      if (!isNaN(max)) {
+        extraFilterConditions.push({
+          OR: [
+            { price: { lte: max } },
+            { onsalePrice: { lte: max } },
+            { mrp: { lte: max } },
+          ],
+        });
+      }
+    }
+
+    // 4. Sort ordering configuration
+    let adsOrderBy: any = [{ priorityScore: 'desc' }, { id: 'asc' }];
+    let organicOrderBy: any = [{ priorityScore: 'desc' }, { id: 'asc' }];
+
+    if (params.sort === 'price_low_high') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { price: 'asc' }, { id: 'asc' }];
+      organicOrderBy = [{ price: 'asc' }, { id: 'asc' }];
+    } else if (params.sort === 'price_high_low') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { price: 'desc' }, { id: 'asc' }];
+      organicOrderBy = [{ price: 'desc' }, { id: 'asc' }];
+    } else if (params.sort === 'newest') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { createdDate: 'desc' }, { id: 'asc' }];
+      organicOrderBy = [{ createdDate: 'desc' }, { id: 'asc' }];
+    }
 
     const whereAds: Prisma.ProductWhereInput = {
       AND: [
         subCategoryFilter,
         { activeAd: true },
+        ...extraFilterConditions,
       ],
     };
 
@@ -884,24 +956,34 @@ export class ProductService {
             { activeAd: null },
           ],
         },
+        ...extraFilterConditions,
       ],
     };
 
     const takeCount = page * limit;
 
-    // 3. Parallel database query execution
-    const [totalAds, totalOrganic, ads, organic] = await Promise.all([
+    // 5. Parallel database query execution (Counts, Ads, Organic, CategoryFilters)
+    const [totalAds, totalOrganic, ads, organic, dbCategoryFilter] = await Promise.all([
       this.db.product.count({ where: whereAds }),
       this.db.product.count({ where: whereOrganic }),
       this.db.product.findMany({
         where: whereAds,
-        orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+        orderBy: adsOrderBy,
         take: takeCount,
       }),
       this.db.product.findMany({
         where: whereOrganic,
-        orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+        orderBy: organicOrderBy,
         take: takeCount,
+      }),
+      this.db.categoryFilters.findFirst({
+        where: {
+          OR: [
+            { categoryId: rawSubCategoryId },
+            { categoryId: resolvedCategoryId },
+            ...(categoryExists?.id ? [{ categoryId: categoryExists.id }] : []),
+          ],
+        },
       }),
     ]);
 
@@ -912,7 +994,85 @@ export class ProductService {
       throw new NotFoundException(`SubCategory '${rawSubCategoryId}' not found.`);
     }
 
-    // 4. Interleaving pattern: 2-Ad / 2-Organic / 2-Ad / 2-Organic (8 items per cycle)
+    // 6. Resolve CategoryFilters (use database record if exists, or compute dynamic fallback)
+    let categoryFilters: any;
+
+    if (dbCategoryFilter) {
+      categoryFilters = {
+        categoryId: dbCategoryFilter.categoryId || resolvedCategoryId,
+        brands: dbCategoryFilter.brands || [],
+        priceRange: dbCategoryFilter.priceRange || { min: 0, max: 0 },
+        productOptions: dbCategoryFilter.productOptions || {},
+        ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
+        specification: dbCategoryFilter.specification || [],
+        discountAvailable: dbCategoryFilter.discountAvailable ?? false,
+        lastUpdated: dbCategoryFilter.lastUpdated || new Date(),
+      };
+    } else {
+      const allMatchingProducts = await this.db.product.findMany({
+        where: subCategoryFilter,
+        select: {
+          price: true,
+          onsalePrice: true,
+          mrp: true,
+          brand: true,
+          additionalInfoSections: true,
+        },
+      });
+
+      let minPrice = Infinity;
+      let maxPrice = -Infinity;
+      const brandSet = new Set<string>();
+      const specMap = new Map<string, Set<string>>();
+
+      allMatchingProducts.forEach((p) => {
+        const pPrice = Number(p.price || p.onsalePrice || p.mrp || 0);
+        if (pPrice > 0) {
+          if (pPrice < minPrice) minPrice = pPrice;
+          if (pPrice > maxPrice) maxPrice = pPrice;
+        }
+        if (p.brand && typeof p.brand === 'string') {
+          const trimmed = p.brand.trim();
+          if (trimmed) brandSet.add(trimmed);
+        }
+        if (Array.isArray(p.additionalInfoSections)) {
+          p.additionalInfoSections.forEach((info: any) => {
+            if (info && typeof info === 'object' && info.title && info.description) {
+              const title = String(info.title).trim();
+              const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim();
+              if (title && desc) {
+                if (!specMap.has(title)) specMap.set(title, new Set());
+                specMap.get(title)!.add(desc);
+              }
+            }
+          });
+        }
+      });
+
+      if (minPrice === Infinity) minPrice = 0;
+      if (maxPrice === -Infinity) maxPrice = 0;
+
+      const specList: Record<string, string>[] = [];
+      specMap.forEach((values, title) => {
+        Array.from(values).sort().forEach((val) => {
+          specList.push({ [title]: val });
+        });
+      });
+
+      categoryFilters = {
+        categoryId: resolvedCategoryId,
+        brands: Array.from(brandSet).sort(),
+        priceRange: { min: minPrice, max: maxPrice },
+        productOptions: {},
+        ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
+        specification: specList,
+
+        discountAvailable: false,
+        lastUpdated: new Date(),
+      };
+    }
+
+    // 7. Interleaving pattern: 2-Ad / 2-Organic / 2-Ad / 2-Organic (8 items per cycle)
     const interleavedList: any[] = [];
     let adIdx = 0;
     let orgIdx = 0;
@@ -955,7 +1115,7 @@ export class ProductService {
       }
     }
 
-    // 5. Slice exact page window
+    // 8. Slice exact page window
     const startIndex = (page - 1) * limit;
     const pagedProducts = interleavedList.slice(startIndex, startIndex + limit);
 
@@ -966,7 +1126,14 @@ export class ProductService {
       totalOrganic,
       totalItems,
       totalPages,
-      data: pagedProducts.map(mapPrismaToRestOutput),
+      items: pagedProducts.map(mapPrismaToRestOutput),
+      categoryFilters,
+      sortFilter: [
+        { label: 'Popularity', value: 'popularity' },
+        { label: 'Price: Low to High', value: 'price_low_high' },
+        { label: 'Price: High to Low', value: 'price_high_low' },
+        { label: 'Newest First', value: 'newest' },
+      ],
     };
   }
 
@@ -985,13 +1152,13 @@ export class ProductService {
 
   async getCategoryLegacy() {
     const desiredOrder = [
-        'Men Fashion',
-        'Women Fashion',
-        'Kids & Toys',
-        'Beauty & Personal Care',
-        'Home & Kitchen',
-        'Books',
-        'Musical Instruments'
+      'Men Fashion',
+      'Women Fashion',
+      'Kids & Toys',
+      'Beauty & Personal Care',
+      'Home & Kitchen',
+      'Books',
+      'Musical Instruments'
     ];
 
     const records = await this.db.categoryMaster.findMany({
@@ -1001,13 +1168,13 @@ export class ProductService {
     });
 
     const filteredItems = records.map(item => ({
-        mainMedia: (item as any).imageUrl || (item as any).image || '',
-        name: item.categoryName,
-        categoryId: item.categoryId || item.id
+      mainMedia: (item as any).imageUrl || (item as any).image || '',
+      name: item.categoryName,
+      categoryId: item.categoryId || item.id
     }));
 
     const sortedItems = filteredItems.sort((a, b) => {
-        return desiredOrder.indexOf(a.name) - desiredOrder.indexOf(b.name);
+      return desiredOrder.indexOf(a.name) - desiredOrder.indexOf(b.name);
     });
 
     return sortedItems;
@@ -1038,18 +1205,18 @@ export class ProductService {
     ]);
 
     const items = records.map(item => ({
-        categoryId: item.parentCategoryId || '',
-        categoryName: (item as any).parentCategoryName || '',
-        subCategoryId: item.categoryId || item.id,
-        subCategory: item.categoryName
+      categoryId: item.parentCategoryId || '',
+      categoryName: (item as any).parentCategoryName || '',
+      subCategoryId: item.categoryId || item.id,
+      subCategory: item.categoryName
     }));
 
     return {
-        status: "success",
-        currentPage: page,
-        totalPages: Math.ceil(total / count),
-        totalItems: total,
-        data: items
+      status: "success",
+      currentPage: page,
+      totalPages: Math.ceil(total / count),
+      totalItems: total,
+      data: items
     };
   }
 }
