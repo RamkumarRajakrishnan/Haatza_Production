@@ -191,29 +191,37 @@ export class CategoryController {
   }
 
   @Get([
+    'subcategories/:parentCategoryId',
     'subcategories/:parent_category_id',
+    'parent/:parentCategoryId',
     'parent/:parent_category_id',
+    'category/:parentCategoryId',
     'category/:parent_category_id',
+    ':parentCategoryId',
     ':parent_category_id',
   ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Subcategories by Parent ID (GET /api/categories/:parent_category_id)',
-    description: 'Returns direct and recursively nested subcategories under parent_category_id (Flipkart-style drill-down).',
+    summary: 'Get Subcategories by Parent ID (GET /api/categories/:parentCategoryId)',
+    description: 'Returns direct and recursively nested subcategories under parentCategoryId (Flipkart-style drill-down).',
   })
+  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID of parent category' })
   @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Category ID of parent category' })
+  @ApiQuery({ name: 'parentCategoryId', required: false, type: String, description: 'Parent Category ID' })
   @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Parent Category ID' })
   @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
   @ApiResponse({ status: 404, description: 'Parent category not found' })
   async getSubcategoriesByParentId(
+    @Param('parentCategoryId') paramAliasParentId?: string,
     @Param('parent_category_id') paramParentId?: string,
+    @Query('parentCategoryId') queryAliasParentId?: string,
     @Query('parent_category_id') queryParentId?: string,
-    @Query('category_id') queryCategoryId?: string,
     @Query('categoryId') queryAliasId?: string,
+    @Query('category_id') queryCategoryId?: string,
   ) {
-    let targetId = queryCategoryId || queryAliasId || queryParentId || paramParentId || '';
+    let targetId = queryAliasId || queryCategoryId || queryAliasParentId || queryParentId || paramAliasParentId || paramParentId || '';
     
-    // Support URL paths like /categories/category_id=CAT_FASH cleanly
+    // Support URL paths like /categories/categoryId=CAT_FASH or /categories/category_id=CAT_FASH cleanly
     if (targetId.includes('=')) {
       const parts = targetId.split('=');
       targetId = parts[1] || targetId;

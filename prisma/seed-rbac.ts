@@ -207,8 +207,8 @@ async function seedRBAC() {
     }
   }
 
-  // Step 4: Seed User Roles into user_role & user_page_role
-  console.log('\n👥 Seeding User Role Assignments into user_role & user_page_role...');
+  // Step 4: Seed User Roles into user_role
+  console.log('\n👥 Seeding User Role Assignments into user_role...');
   const userRoleAssignments = [
     { email: 'seller@haatza.com', roleCode: 'SUPER_ADMIN' },
     { email: 'john.doe@example.com', roleCode: 'ADMIN' },
@@ -242,20 +242,6 @@ async function seedRBAC() {
           userId: user.id,
           roleId,
           isActive: true,
-        },
-      });
-
-      await prisma.userPageRole.upsert({
-        where: {
-          userId_roleId: {
-            userId: user.id,
-            roleId,
-          },
-        },
-        update: {},
-        create: {
-          userId: user.id,
-          roleId,
         },
       });
       console.log(`  ✅ Assigned Employee Role [${assignment.roleCode}] to User [${user.email}] (User ID: ${user.id})`);

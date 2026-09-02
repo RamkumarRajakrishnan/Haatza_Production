@@ -38,10 +38,8 @@ model User {
   isSeller            Boolean            @default(false) @map("is_seller")
   isEmployee          Boolean            @default(false) @map("is_employee")
   refresh_token       String?
-  buyer               Buyer?
   otps                OtpVerification[]
   loginHistories      UserLoginHistory[]
-  userPageRoles       UserPageRole[]
   userRoles           UserRoleMapping[]
   sessions            UserSession[]
   userRole            Role?              @relation(fields: [roleId], references: [id])
@@ -157,16 +155,6 @@ model OtpVerification {
   @@map("otp_verifications")
 }
 
-model Buyer {
-  id        String   @id @default(uuid()) @map("buyer_pk")
-  userId    String   @unique @map("user_id")
-  address   String?  @map("address")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-  user      User     @relation(fields: [userId], references: [id])
-
-  @@map("buyers")
-}
 
 model Product {
   id                     String    @id @default(uuid()) @map("id")
@@ -301,19 +289,6 @@ model Order {
   @@map("orders")
 }
 
-model Warehouse {
-  id        String   @id @default(uuid()) @map("warehouse_id")
-  sellerId  String   @map("seller_id")
-  name      String   @map("name")
-  address   String   @map("address")
-  pincode   String   @map("pincode")
-  city      String   @map("city")
-  state     String   @map("state")
-  createdAt DateTime @default(now()) @map("created_at")
-
-  @@index([sellerId])
-  @@map("warehouses")
-}
 
 model SellerSubscription {
   id                 String                      @id @default(uuid()) @db.VarChar(36)
@@ -529,7 +504,6 @@ model RoleMaster {
   updatedAt       DateTime          @updatedAt @map("updated_at")
   description     String?           @map("description")
   rolePageMasters RolePageMaster[]
-  userPageRoles   UserPageRole[]
   userRoles       UserRoleMapping[]
 
   @@map("role_master")
@@ -559,18 +533,6 @@ model RolePageMaster {
   @@map("role_page_master")
 }
 
-model UserPageRole {
-  id     String     @id @default(uuid()) @map("id")
-  userId String     @map("user_id")
-  roleId String     @map("role_id")
-  role   RoleMaster @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  user   User       @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, roleId])
-  @@index([userId])
-  @@index([roleId])
-  @@map("user_page_role")
-}
 
 model UserRoleMapping {
   id         String     @id @default(uuid()) @map("id")

@@ -162,7 +162,7 @@ export class AuthRepository {
   }
 
   /**
-   * Find active roles assigned to user via user_role JOIN role_master (or legacy user_page_role).
+   * Find active roles assigned to user via user_role JOIN role_master.
    * Strictly restricted to users with isEmployee === true.
    */
   async findUserAssignedRoles(userId: string) {
@@ -195,31 +195,7 @@ export class AuthRepository {
       },
     });
 
-    if (assignments.length > 0) {
-      return assignments.map((a) => a.role);
-    }
-
-    // Fallback to legacy user_page_role table
-    const legacyAssignments = await this.db.userPageRole.findMany({
-      where: {
-        userId,
-        role: {
-          isActive: true,
-        },
-      },
-      select: {
-        role: {
-          select: {
-            id: true,
-            roleCode: true,
-            roleName: true,
-            isActive: true,
-          },
-        },
-      },
-    });
-
-    return legacyAssignments.map((a) => a.role);
+    return assignments.map((a) => a.role);
   }
 
   /**
@@ -257,29 +233,7 @@ export class AuthRepository {
       },
     });
 
-    if (assignment?.role) return assignment.role;
-
-    const legacyAssignment = await this.db.userPageRole.findFirst({
-      where: {
-        userId,
-        roleId,
-        role: {
-          isActive: true,
-        },
-      },
-      select: {
-        role: {
-          select: {
-            id: true,
-            roleCode: true,
-            roleName: true,
-            isActive: true,
-          },
-        },
-      },
-    });
-
-    return legacyAssignment?.role || null;
+    return assignment?.role || null;
   }
 
   /**

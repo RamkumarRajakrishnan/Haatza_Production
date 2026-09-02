@@ -758,9 +758,9 @@ export class CategoryService {
         success: true,
         data: rows.map((r: any) => ({
           id: r.id,
-          category_id: r.category_id,
-          category_name: r.category_name,
-          category_image: r.category_image || '',
+          categoryId: r.categoryId || r.category_id,
+          categoryName: r.categoryName || r.category_name,
+          categoryImage: r.categoryImage || r.category_image || '',
           description: r.description || '',
           sequence: Number(r.sequence) || 0,
         })),
@@ -909,7 +909,7 @@ export class CategoryService {
 
       return {
         success: true,
-        parent_category_id: trimmedParentId,
+        parentCategoryId: trimmedParentId,
         data: tree,
       };
     } catch (err: any) {
@@ -927,11 +927,12 @@ export class CategoryService {
 
     // Initialize all items in Map
     items.forEach((item) => {
-      itemMap.set(item.category_id, {
+      const catId = item.categoryId || item.category_id;
+      itemMap.set(catId, {
         id: item.id,
-        category_id: item.category_id,
-        category_name: item.category_name,
-        category_image: item.category_image || '',
+        categoryId: catId,
+        categoryName: item.categoryName || item.category_name || '',
+        categoryImage: item.categoryImage || item.category_image || '',
         description: item.description || '',
         sequence: Number(item.sequence) || 0,
         subcategories: [],
@@ -940,11 +941,13 @@ export class CategoryService {
 
     // Link child nodes to their respective parents
     items.forEach((item) => {
-      const node = itemMap.get(item.category_id);
-      if (item.parent_category_id === rootParentId) {
+      const catId = item.categoryId || item.category_id;
+      const parentId = item.parentCategoryId || item.parent_category_id;
+      const node = itemMap.get(catId);
+      if (parentId === rootParentId) {
         roots.push(node);
       } else {
-        const parentNode = itemMap.get(item.parent_category_id);
+        const parentNode = itemMap.get(parentId);
         if (parentNode) {
           parentNode.subcategories.push(node);
         }

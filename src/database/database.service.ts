@@ -702,6 +702,12 @@ export class DatabaseService
           UPDATE public.users 
           SET is_employee = true
           WHERE is_employee = true OR role::text IN ('EMPLOYEE', 'SUPER_ADMIN', 'ADMIN', 'MANAGER', 'SUPPORT', 'NEST_WORKER');
+
+          -- Cleanup obsolete / unused tables
+          DROP TABLE IF EXISTS public.user_page_role CASCADE;
+          DROP TABLE IF EXISTS public.warehouses CASCADE;
+          DROP TABLE IF EXISTS public.buyers CASCADE;
+          DROP TABLE IF EXISTS public."Buyer" CASCADE;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (

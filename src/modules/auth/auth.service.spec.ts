@@ -42,11 +42,6 @@ describe('AuthService', () => {
         findFirst: jest.fn(),
         findMany: jest.fn(),
       },
-      userPageRole: {
-        upsert: jest.fn().mockResolvedValue({ id: 'mapped_page_role_id' }),
-        findFirst: jest.fn(),
-        findMany: jest.fn(),
-      },
       otpVerification: {
         findFirst: jest.fn(),
         update: jest.fn(),
@@ -302,7 +297,6 @@ describe('AuthService', () => {
         role: 'BUYER',
         userRole: null,
         userRoles: [],
-        userPageRoles: [],
       };
       databaseService.user.findFirst.mockResolvedValue(mockUser);
 

@@ -627,9 +627,6 @@ export class AuthService {
           where: { isActive: true },
           include: { role: true },
         },
-        userPageRoles: {
-          include: { role: true },
-        },
       },
     });
 
@@ -650,11 +647,6 @@ export class AuthService {
         (ur) =>
           ur.role?.roleCode?.toUpperCase() === 'EMPLOYEE' ||
           ur.role?.roleName?.toUpperCase() === 'EMPLOYEE',
-      )?.role ||
-      user.userPageRoles?.find(
-        (upr) =>
-          upr.role?.roleCode?.toUpperCase() === 'EMPLOYEE' ||
-          upr.role?.roleName?.toUpperCase() === 'EMPLOYEE',
       )?.role;
 
     const isEmployee =
@@ -731,21 +723,6 @@ export class AuthService {
             userId: user.id,
             roleId: employeeRoleMaster.id,
             isActive: true,
-          },
-        });
-
-        // Create assignment in user_page_role
-        await this.database.userPageRole.upsert({
-          where: {
-            userId_roleId: {
-              userId: user.id,
-              roleId: employeeRoleMaster.id,
-            },
-          },
-          update: {},
-          create: {
-            userId: user.id,
-            roleId: employeeRoleMaster.id,
           },
         });
 
