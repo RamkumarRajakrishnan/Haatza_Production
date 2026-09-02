@@ -831,6 +831,28 @@ export class DatabaseService
           FOR EACH ROW
           EXECUTE FUNCTION public.fn_validate_employee_role_assignment();
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        CREATE TABLE IF NOT EXISTS public.category_list (
+          id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
+          category_id text UNIQUE NOT NULL,
+          category_name text NOT NULL,
+          parent_category_id text,
+          category_type text DEFAULT 'main',
+          category_image text,
+          description text,
+          sequence integer DEFAULT 0,
+          status integer DEFAULT 1,
+          module text DEFAULT 'ecommerce',
+          created_by text,
+          updated_by text,
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_category_list_parent_id ON public.category_list(parent_category_id);
+        CREATE INDEX IF NOT EXISTS idx_category_list_status ON public.category_list(status);
+        CREATE INDEX IF NOT EXISTS idx_category_list_module ON public.category_list(module);
+        CREATE INDEX IF NOT EXISTS idx_category_list_sequence ON public.category_list(sequence);
       `);
       this.logger.log('✅ All PostgreSQL tables & enum types verified and active!');
     } catch (err: any) {
@@ -840,6 +862,17 @@ export class DatabaseService
 
   public getIsConnected(): boolean {
     return this.isConnected;
+  }
+
+  public async query(text: string, params?: any[]): Promise<any> {
+    if (!this.pool) {
+      throw new Error('Database pool is not initialized');
+    }
+    return this.pool.query(text, params);
+  }
+
+  public getPool(): Pool {
+    return this.pool;
   }
 
   async onModuleDestroy() {

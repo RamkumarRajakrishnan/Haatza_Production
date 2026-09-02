@@ -20,13 +20,25 @@ import {
   QueryCategoryDto,
   GetChildCategoriesDto,
   UpdateCategorySequenceDto,
+  GetMainCategoriesDto,
 } from './dto/category-master.dto';
 import { CategoryModule } from '@prisma/client';
 
 @ApiTags('Category Master')
-@Controller(['category', 'categories', 'api/v1'])
+@Controller(['category', 'categories', 'api/categories', 'api/v1'])
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
+
+  @Get(['main', 'categories/main'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Main Top-Level Categories (GET /api/categories/main)',
+    description: 'Returns only top-level categories where parent_category_id is NULL or 0, filtered by status=1 and optional module, sorted by sequence.',
+  })
+  @ApiResponse({ status: 200, description: 'List of main categories with pagination metadata' })
+  async getMainCategories(@Query() query: GetMainCategoriesDto) {
+    return this.categoryService.getMainCategories(query);
+  }
 
   @Post(['create_category', 'createCategory', 'categories'])
   @HttpCode(HttpStatus.CREATED)
@@ -176,5 +188,21 @@ export class CategoryController {
   })
   async deleteCategory(@Param('id') id: string) {
     return this.categoryService.deleteCategory(id);
+  }
+
+  @Get(['subcategories/:parent_category_id', 'parent/:parent_category_id', ':parent_category_id'])
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get Subcategories by Parent ID (GET /api/categories/:parent_category_id)',
+    description: 'Returns direct and recursively nested subcategories under parent_category_id (Flipkart-style drill-down).',
+  })
+  @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
+  @ApiResponse({ status: 404, description: 'Parent category not found' })
+  async getSubcategoriesByParentId(
+    @Param('parent_category_id') paramParentId: string,
+    @Query('parent_category_id') queryParentId?: string,
+  ) {
+    const parentId = paramParentId || queryParentId || '';
+    return this.categoryService.getSubcategoriesByParentId(parentId);
   }
 }

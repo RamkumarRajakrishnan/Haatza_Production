@@ -266,3 +266,36 @@ export class UpdateCategorySequenceDto {
   @IsString()
   updatedBy?: string;
 }
+
+export class GetMainCategoriesDto {
+  @ApiPropertyOptional({
+    description: 'Filter categories by module (e.g., ecommerce, grocery, HAATZA, LITE)',
+    example: 'ecommerce',
+  })
+  @IsOptional()
+  @IsString()
+  module?: string;
+
+  @ApiPropertyOptional({
+    description: 'Page number for pagination (starts from 1)',
+    example: 1,
+    default: 1,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  page?: number = 1;
+
+  @ApiPropertyOptional({
+    description: 'Limit of categories per page (default: 10, max: 100)',
+    example: 10,
+    default: 10,
+  })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  limit?: number = 10;
+}
+

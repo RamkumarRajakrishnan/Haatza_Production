@@ -11,6 +11,7 @@ import {
   UpdateCategoryStatusDto,
   QueryCategoryDto,
   UpdateCategorySequenceDto,
+  GetMainCategoriesDto,
 } from './dto/category-master.dto';
 import {
   CategoryType,
@@ -21,8 +22,9 @@ import {
 @Injectable()
 export class CategoryService {
   private readonly logger = new Logger(CategoryService.name);
+  private readonly mainCategoryCache = new Map<string, { data: any; expiry: number }>();
 
-  constructor(private readonly db: DatabaseService) {}
+  constructor(private readonly db: DatabaseService) { }
 
   /**
    * Generates next sequential unique category ID (CAT_001, CAT_002, CAT_003...)
@@ -670,5 +672,292 @@ export class CategoryService {
         ? category.children.map((c: any) => this.formatCategoryOutput(c))
         : undefined,
     };
+  }
+
+  /**
+   * 1. GET /api/categories/main
+   * Retrieves top-level main categories (parent_category_id IS NULL or '0')
+   * with pagination, module filtering, sorting by sequence, and in-memory TTL caching.
+   */
+  async getMainCategories(query: GetMainCategoriesDto) {
+    const page = Math.max(1, Number(query.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
+    const offset = (page - 1) * limit;
+    const moduleFilter = query.module?.trim();
+
+    // Check In-Memory Cache (TTL: 5 minutes = 300,000 ms)
+    const cacheKey = `main_cat_${moduleFilter || 'ALL'}_p${page}_l${limit}`;
+    const cached = this.mainCategoryCache.get(cacheKey);
+    if (cached && Date.now() < cached.expiry) {
+      return cached.data;
+    }
+
+    // Build parameterized query safely
+    const params: any[] = [];
+    let whereClause = `WHERE (parent_category_id IS NULL OR parent_category_id = '0' OR parent_category_id = '') 
+                       AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')`;
+
+    if (moduleFilter) {
+      params.push(moduleFilter);
+      whereClause += ` AND (LOWER(module::text) = LOWER($${params.length}) OR LOWER(module::text) = 'all')`;
+    }
+
+    try {
+      // 1. Get total count for pagination metadata
+      const countSql = `SELECT COUNT(*)::int AS total FROM public.category_list ${whereClause}`;
+      const countRes = await this.db.query(countSql, params);
+      let total = countRes?.rows?.[0]?.total || 0;
+
+      // 2. Fetch paginated main categories
+      const dataParams = [...params, limit, offset];
+      const dataSql = `
+        SELECT 
+          id,
+          category_id,
+          category_name,
+          category_image,
+          description,
+          sequence
+        FROM public.category_list
+        ${whereClause}
+        ORDER BY sequence ASC, id ASC
+        LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
+      `;
+      let dataRes = await this.db.query(dataSql, dataParams);
+      let rows = dataRes?.rows || [];
+
+      // Fallback to category_master if category_list has no rows yet
+      if (rows.length === 0 && total === 0) {
+        const fallbackCountSql = `SELECT COUNT(*)::int AS total FROM public.category_master ${whereClause}`;
+        try {
+          const fbCountRes = await this.db.query(fallbackCountSql, params);
+          total = fbCountRes?.rows?.[0]?.total || 0;
+          if (total > 0) {
+            const fallbackDataSql = `
+              SELECT 
+                id,
+                category_id,
+                category_name,
+                category_image,
+                description,
+                sequence
+              FROM public.category_master
+              ${whereClause}
+              ORDER BY sequence ASC, id ASC
+              LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
+            `;
+            const fbDataRes = await this.db.query(fallbackDataSql, dataParams);
+            rows = fbDataRes?.rows || [];
+          }
+        } catch {
+          // ignore fallback if table doesn't match
+        }
+      }
+
+      const response = {
+        success: true,
+        data: rows.map((r: any) => ({
+          id: r.id,
+          category_id: r.category_id,
+          category_name: r.category_name,
+          category_image: r.category_image || '',
+          description: r.description || '',
+          sequence: Number(r.sequence) || 0,
+        })),
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit) || 1,
+        },
+      };
+
+      // Store in cache for 5 minutes
+      this.mainCategoryCache.set(cacheKey, {
+        data: response,
+        expiry: Date.now() + 300000,
+      });
+
+      return response;
+    } catch (err: any) {
+      this.logger.error(`Failed to fetch main categories: ${err.message}`, err.stack);
+      throw err;
+    }
+  }
+
+  /**
+   * 2. GET /api/categories/:parent_category_id
+   * Validates parent category and retrieves all direct + nested subcategories
+   * in a recursive Flipkart-style hierarchy drill-down.
+   */
+  async getSubcategoriesByParentId(parentCategoryId: string) {
+    if (!parentCategoryId || !parentCategoryId.trim()) {
+      throw new BadRequestException('parent_category_id parameter is required.');
+    }
+
+    const trimmedParentId = parentCategoryId.trim();
+
+    // 1. Verify parent category existence
+    let parentExists = false;
+    try {
+      const parentCheck = await this.db.query(
+        `SELECT id, category_id, category_name FROM public.category_list WHERE category_id = $1 OR id = $1 LIMIT 1`,
+        [trimmedParentId],
+      );
+      if (parentCheck?.rows?.length > 0) {
+        parentExists = true;
+      } else {
+        // Check fallback table category_master
+        const fbCheck = await this.db.query(
+          `SELECT id, category_id, category_name FROM public.category_master WHERE category_id = $1 OR id = $1 LIMIT 1`,
+          [trimmedParentId],
+        );
+        if (fbCheck?.rows?.length > 0) {
+          parentExists = true;
+        }
+      }
+    } catch (err: any) {
+      this.logger.error(`Error checking parent category existence: ${err.message}`);
+    }
+
+    if (!parentExists) {
+      throw new NotFoundException(`Parent category with category_id '${trimmedParentId}' not found.`);
+    }
+
+    // 2. Fetch all descendants with a Recursive CTE
+    const recursiveQuery = `
+      WITH RECURSIVE category_tree AS (
+        -- Anchor: Direct child categories
+        SELECT 
+          id,
+          category_id,
+          category_name,
+          parent_category_id,
+          category_image,
+          description,
+          sequence,
+          1 AS level
+        FROM public.category_list
+        WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')
+
+        UNION ALL
+
+        -- Recursive: Sub-subcategories and deeper levels
+        SELECT 
+          c.id,
+          c.category_id,
+          c.category_name,
+          c.parent_category_id,
+          c.category_image,
+          c.description,
+          c.sequence,
+          ct.level + 1
+        FROM public.category_list c
+        INNER JOIN category_tree ct ON c.parent_category_id = ct.category_id
+        WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active')
+      )
+      SELECT * FROM category_tree ORDER BY sequence ASC, id ASC;
+    `;
+
+    try {
+      let result = await this.db.query(recursiveQuery, [trimmedParentId]);
+      let allDescendants = result?.rows || [];
+
+      // Fallback to category_master if category_list has no rows
+      if (allDescendants.length === 0) {
+        const fallbackRecursiveQuery = `
+          WITH RECURSIVE category_tree AS (
+            SELECT 
+              id,
+              category_id,
+              category_name,
+              parent_category_id,
+              category_image,
+              description,
+              sequence,
+              1 AS level
+            FROM public.category_master
+            WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')
+
+            UNION ALL
+
+            SELECT 
+              c.id,
+              c.category_id,
+              c.category_name,
+              c.parent_category_id,
+              c.category_image,
+              c.description,
+              c.sequence,
+              ct.level + 1
+            FROM public.category_master c
+            INNER JOIN category_tree ct ON c.parent_category_id = ct.category_id
+            WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active')
+          )
+          SELECT * FROM category_tree ORDER BY sequence ASC, id ASC;
+        `;
+        try {
+          const fbResult = await this.db.query(fallbackRecursiveQuery, [trimmedParentId]);
+          allDescendants = fbResult?.rows || [];
+        } catch {
+          // ignore fallback
+        }
+      }
+
+      // 3. Assemble nested subcategories tree in O(N) time
+      const tree = this.buildNestedCategoryTree(allDescendants, trimmedParentId);
+
+      return {
+        success: true,
+        parent_category_id: trimmedParentId,
+        data: tree,
+      };
+    } catch (err: any) {
+      this.logger.error(`Failed to fetch subcategories: ${err.message}`, err.stack);
+      throw err;
+    }
+  }
+
+  /**
+   * Helper to build nested subcategories tree in O(N) time
+   */
+  private buildNestedCategoryTree(items: any[], rootParentId: string): any[] {
+    const itemMap = new Map<string, any>();
+    const roots: any[] = [];
+
+    // Initialize all items in Map
+    items.forEach((item) => {
+      itemMap.set(item.category_id, {
+        id: item.id,
+        category_id: item.category_id,
+        category_name: item.category_name,
+        category_image: item.category_image || '',
+        description: item.description || '',
+        sequence: Number(item.sequence) || 0,
+        subcategories: [],
+      });
+    });
+
+    // Link child nodes to their respective parents
+    items.forEach((item) => {
+      const node = itemMap.get(item.category_id);
+      if (item.parent_category_id === rootParentId) {
+        roots.push(node);
+      } else {
+        const parentNode = itemMap.get(item.parent_category_id);
+        if (parentNode) {
+          parentNode.subcategories.push(node);
+        }
+      }
+    });
+
+    // Remove empty subcategories property from leaf nodes
+    itemMap.forEach((node) => {
+      if (node.subcategories && node.subcategories.length === 0) {
+        delete node.subcategories;
+      }
+    });
+
+    return roots;
   }
 }
