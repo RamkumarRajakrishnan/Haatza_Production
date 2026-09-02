@@ -190,19 +190,35 @@ export class CategoryController {
     return this.categoryService.deleteCategory(id);
   }
 
-  @Get(['subcategories/:parent_category_id', 'parent/:parent_category_id', ':parent_category_id'])
+  @Get([
+    'subcategories/:parent_category_id',
+    'parent/:parent_category_id',
+    'category/:parent_category_id',
+    ':parent_category_id',
+  ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Get Subcategories by Parent ID (GET /api/categories/:parent_category_id)',
     description: 'Returns direct and recursively nested subcategories under parent_category_id (Flipkart-style drill-down).',
   })
+  @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Category ID of parent category' })
+  @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Parent Category ID' })
   @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
   @ApiResponse({ status: 404, description: 'Parent category not found' })
   async getSubcategoriesByParentId(
-    @Param('parent_category_id') paramParentId: string,
+    @Param('parent_category_id') paramParentId?: string,
     @Query('parent_category_id') queryParentId?: string,
+    @Query('category_id') queryCategoryId?: string,
+    @Query('categoryId') queryAliasId?: string,
   ) {
-    const parentId = paramParentId || queryParentId || '';
-    return this.categoryService.getSubcategoriesByParentId(parentId);
+    let targetId = queryCategoryId || queryAliasId || queryParentId || paramParentId || '';
+    
+    // Support URL paths like /categories/category_id=CAT_FASH cleanly
+    if (targetId.includes('=')) {
+      const parts = targetId.split('=');
+      targetId = parts[1] || targetId;
+    }
+
+    return this.categoryService.getSubcategoriesByParentId(targetId.trim());
   }
 }
