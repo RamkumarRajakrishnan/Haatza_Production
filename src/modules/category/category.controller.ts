@@ -269,6 +269,15 @@ export class CategoryController {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
     }
 
+    const categoryParam = (allQueries?.category || allQueries?.categoryType || allQueries?.category_type || '').toString().trim().toLowerCase();
+    if (categoryParam === 'main' || targetId.toLowerCase() === 'main') {
+      return this.categoryService.getMainCategories({
+        module: targetModule,
+        page: allQueries?.page,
+        limit: allQueries?.limit,
+      });
+    }
+
     if (targetId.trim()) {
       return this.categoryService.getSubcategoriesByParentId(targetId.trim(), targetModule);
     }

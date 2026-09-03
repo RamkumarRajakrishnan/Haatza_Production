@@ -211,6 +211,14 @@ export class QueryCategoryDto {
   categoryType?: CategoryType;
 
   @ApiPropertyOptional({
+    description: 'Filter by category level (e.g., main for top-level main categories)',
+    example: 'main',
+  })
+  @IsOptional()
+  @IsString()
+  category?: string;
+
+  @ApiPropertyOptional({
     description: 'Search string for category name',
   })
   @IsOptional()
