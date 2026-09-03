@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Query, Req, HttpCode, HttpStatus, Param, Patch, Delete } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, Req, HttpCode, HttpStatus, Param, Patch, Delete, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { ProductListQueryDto } from './dto/product-list.dto';
@@ -72,7 +72,21 @@ export class ProductController {
       body?.categoryId ||
       body?.category_id;
 
-    const targetModule = module || pascalModule || body?.module || body?.Module;
+    const targetModule = (
+      module ||
+      pascalModule ||
+      body?.module ||
+      body?.Module ||
+      ''
+    ).trim();
+
+    if (!targetModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    const rawModule = targetModule.toLowerCase();
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
 
     return this.productService.getProductsBySubCategoryIdInterleaved({
       subCategoryId: targetSubCategoryId || '',
@@ -85,7 +99,7 @@ export class ProductController {
       specification: specification || specfication || body?.specification || body?.specfication,
       rating: rating || body?.rating,
       sort: sort || body?.sort,
-      module: targetModule,
+      module: rawModule,
     });
   }
 
@@ -286,7 +300,22 @@ export class ProductController {
     @Query('Module') pascalModule?: string,
     @Body() body?: any,
   ) {
-    const targetModule = module || pascalModule || body?.module || body?.Module;
+    const targetModule = (
+      module ||
+      pascalModule ||
+      body?.module ||
+      body?.Module ||
+      ''
+    ).trim();
+
+    if (!targetModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    const rawModule = targetModule.toLowerCase();
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
+
     return this.productService.getProductsByCategory({ 
       categoryId: categoryId || body?.categoryId, 
       page: page || body?.page, 
@@ -300,7 +329,7 @@ export class ProductController {
       specfication: specfication || specification || body?.specfication || body?.specification,
       rating: rating || body?.rating,
       sort: sort || body?.sort,
-      module: targetModule,
+      module: rawModule,
     });
   }
 }

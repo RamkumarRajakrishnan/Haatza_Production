@@ -204,6 +204,15 @@ export class CategoryService {
    * Get list of categories with filtering by module, parent, status, and sequence.
    */
   async getCategories(query: QueryCategoryDto) {
+    const rawModule = (query.module || (query as any).Module || '').toString().trim().toLowerCase();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
+    const moduleEnum = rawModule === 'lite' ? CategoryModule.LITE : CategoryModule.HAATZA;
+
     const parentId = query.parent_category_id || query.parentCategoryId;
     const targetCategoryId = query.category_id || query.categoryId;
     const isIncludeInactive =
@@ -224,9 +233,7 @@ export class CategoryService {
       where.parentCategoryId = parentId ? parentId.trim() : null;
     }
 
-    if (query.module) {
-      where.module = { in: [query.module, CategoryModule.ALL] };
-    }
+    where.module = { in: [moduleEnum, CategoryModule.ALL] };
 
     if (query.categoryType) {
       where.categoryType = query.categoryType;
@@ -723,13 +730,21 @@ export class CategoryService {
    * with pagination, module filtering, sorting by sequence, and in-memory TTL caching.
    */
   async getMainCategories(query: GetMainCategoriesDto) {
+    const rawModule = (query.module || query.Module || '').trim().toLowerCase();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
+
     const page = Math.max(1, Number(query.page) || 1);
     const limit = Math.min(100, Math.max(1, Number(query.limit) || 10));
     const offset = (page - 1) * limit;
-    const moduleFilter = query.module?.trim();
+    const moduleFilter = rawModule;
 
     // Check In-Memory Cache (TTL: 5 minutes = 300,000 ms)
-    const cacheKey = `main_cat_${moduleFilter || 'ALL'}_p${page}_l${limit}`;
+    const cacheKey = `main_cat_${moduleFilter}_p${page}_l${limit}`;
     const cached = this.mainCategoryCache.get(cacheKey);
     if (cached && Date.now() < cached.expiry) {
       return cached.data;
@@ -740,10 +755,8 @@ export class CategoryService {
     let whereClause = `WHERE (parent_category_id IS NULL OR parent_category_id = '0' OR parent_category_id = '') 
                        AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')`;
 
-    if (moduleFilter) {
-      params.push(moduleFilter);
-      whereClause += ` AND (LOWER(module::text) = LOWER($${params.length}) OR LOWER(module::text) = 'all')`;
-    }
+    params.push(moduleFilter);
+    whereClause += ` AND (LOWER(module::text) = LOWER($${params.length}) OR LOWER(module::text) = 'all')`;
 
     try {
       // 1. Get total count for pagination metadata

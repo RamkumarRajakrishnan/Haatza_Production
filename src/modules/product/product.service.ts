@@ -81,8 +81,13 @@ export class ProductService {
     }
 
     const rawModule = (query.module || (query as any).Module || '').trim().toUpperCase();
-    if (rawModule === 'LITE' || rawModule === 'HAATZA') {
-      const moduleEnum = rawModule === 'LITE' ? CategoryModule.LITE : CategoryModule.HAATZA;
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (rawModule !== 'LITE' && rawModule !== 'HAATZA') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
+    const moduleEnum = rawModule === 'LITE' ? CategoryModule.LITE : CategoryModule.HAATZA;
       const modCats = await this.db.categoryList.findMany({
         where: { module: { in: [moduleEnum, CategoryModule.ALL] } },
         select: { categoryId: true, categoryName: true },
@@ -103,7 +108,6 @@ export class ProductService {
           },
         ];
       }
-    }
 
     if (subCategory) {
       where.OR = [

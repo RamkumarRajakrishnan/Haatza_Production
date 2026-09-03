@@ -10,6 +10,7 @@ import {
   Param,
   HttpCode,
   HttpStatus,
+  BadRequestException,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse, ApiQuery, ApiBody } from '@nestjs/swagger';
 import { CategoryService } from './category.service';
@@ -69,7 +70,13 @@ export class CategoryController {
     @Param('categoryId') paramCategoryId?: string,
   ) {
     const targetId = paramCategoryId || queryCategoryId || queryAliasId;
-    const targetModule = queryModule || queryPascalModule;
+    const targetModule = (queryModule || queryPascalModule || '').trim().toLowerCase();
+    if (!targetModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (targetModule !== 'haatza' && targetModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
     return this.categoryService.getCategory(targetId || '', targetModule);
   }
 
@@ -170,8 +177,15 @@ export class CategoryController {
   @ApiQuery({ name: 'parentCategoryId', required: false, type: String })
   @ApiQuery({ name: 'module', required: false, enum: CategoryModule })
   async getChildCategoriesGet(@Query() query: GetChildCategoriesDto) {
+    const rawModule = (query.module || query.Module || '').toString().trim().toLowerCase();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
     const parentId = query.parent_category_id || query.parentCategoryId;
-    return this.categoryService.getChildCategories(parentId || '', query.module);
+    return this.categoryService.getChildCategories(parentId || '', rawModule.toUpperCase() as any);
   }
 
   @Post(['get_child_categories', 'getChildCategories', 'children'])
@@ -181,8 +195,15 @@ export class CategoryController {
     description: 'Returns direct child categories under parent_category_id via POST body.',
   })
   async getChildCategoriesPost(@Body() query: GetChildCategoriesDto) {
+    const rawModule = (query.module || query.Module || '').toString().trim().toLowerCase();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
     const parentId = query.parent_category_id || query.parentCategoryId;
-    return this.categoryService.getChildCategories(parentId || '', query.module);
+    return this.categoryService.getChildCategories(parentId || '', rawModule.toUpperCase() as any);
   }
 
   @Delete(['delete_category/:id', 'deleteCategory/:id', 'categories/:id'])
@@ -240,7 +261,13 @@ export class CategoryController {
       targetId = parts[1] || targetId;
     }
 
-    const targetModule = queryModule || queryPascalModule || allQueries?.module || allQueries?.Module;
+    const targetModule = (queryModule || queryPascalModule || allQueries?.module || allQueries?.Module || '').toString().trim().toLowerCase();
+    if (!targetModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    if (targetModule !== 'haatza' && targetModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
 
     if (targetId.trim()) {
       return this.categoryService.getSubcategoriesByParentId(targetId.trim(), targetModule);
@@ -249,7 +276,7 @@ export class CategoryController {
     // If no categoryId or parentCategoryId is provided on GET /categories, return category list
     return this.categoryService.getCategories({
       ...allQueries,
-      module: targetModule ? (targetModule.toUpperCase() as any) : allQueries?.module,
+      module: (targetModule.toUpperCase() as any),
     });
   }
 }
