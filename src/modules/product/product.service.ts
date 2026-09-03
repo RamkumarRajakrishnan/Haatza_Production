@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { ProductListQueryDto, SortOrder } from './dto/product-list.dto';
-import { Prisma } from '@prisma/client';
+import { Prisma, CategoryStatus } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -988,11 +988,213 @@ export class ProductService {
     ]);
 
     const totalItems = totalAds + totalOrganic;
-    const totalPages = Math.ceil(totalItems / limit) || 1;
+    let totalPages = Math.ceil(totalItems / limit) || 1;
 
-    if (totalItems === 0 && !categoryExists) {
-      throw new NotFoundException(`SubCategory '${rawSubCategoryId}' not found.`);
+    // Resolve Category Existence (CategoryMaster or CategoryList)
+    let resolvedCategoryRecord = categoryExists;
+    if (!resolvedCategoryRecord) {
+      resolvedCategoryRecord = await this.db.categoryList.findFirst({
+        where: {
+          OR: [
+            { categoryId: rawSubCategoryId },
+            { id: rawSubCategoryId },
+            { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
+          ],
+        },
+      });
     }
+
+    // Helper: Interleave 2 Ads / 2 Organic in repeating 8-item cycle
+    const interleaveAdAndOrganic = (adsArr: any[], orgArr: any[]): any[] => {
+      const list: any[] = [];
+      let adIdx = 0;
+      let orgIdx = 0;
+      while (adIdx < adsArr.length || orgIdx < orgArr.length) {
+        for (let i = 0; i < 2; i++) {
+          if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+          else if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+          else if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+          else if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+          else if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+        }
+      }
+      return list;
+    };
+
+    // 1. Interleave primary products first
+    const primaryInterleaved = interleaveAdAndOrganic(ads, organic);
+
+    // Flipkart / Amazon 3-Tier Fallback Engine:
+    // If exact subcategory products are exhausted or low, fill remaining slots from sibling categories / trending items
+    let isFallback = false;
+    let fallbackTitle: string | null = null;
+    let fallbackTotalAvailable = 0;
+    const fallbackAds: any[] = [];
+    const fallbackOrganic: any[] = [];
+
+    const neededTotal = (page * limit) + (limit * 2);
+
+    if (primaryInterleaved.length < neededTotal) {
+      const existingProductIds = new Set<string>([
+        ...ads.map((p) => p.id),
+        ...organic.map((p) => p.id),
+      ]);
+
+      const neededCount = neededTotal - primaryInterleaved.length + (limit * 2);
+
+      // Tier 1. Sibling Subcategories under Parent Category
+      let parentCategoryId = resolvedCategoryRecord?.parentCategoryId;
+      let parentCategoryName = '';
+
+      if (parentCategoryId && parentCategoryId !== '0') {
+        const parentCat = await this.db.categoryList.findFirst({
+          where: {
+            OR: [
+              { categoryId: parentCategoryId },
+              { id: parentCategoryId },
+            ],
+          },
+        });
+        parentCategoryName = parentCat?.categoryName || '';
+
+        // Find all active sibling subcategory IDs under this parent
+        const siblingCats = await this.db.categoryList.findMany({
+          where: {
+            parentCategoryId: parentCategoryId,
+            categoryId: { notIn: [rawSubCategoryId, resolvedCategoryId] },
+            status: CategoryStatus.ACTIVE,
+          },
+          select: { categoryId: true, categoryName: true },
+        });
+
+        const siblingCatIds = siblingCats.map((c) => c.categoryId);
+        const siblingCatNames = siblingCats.map((c) => c.categoryName);
+
+        if (siblingCatIds.length > 0) {
+          const siblingFilter: Prisma.ProductWhereInput = {
+            AND: [
+              {
+                id: { notIn: Array.from(existingProductIds) },
+                OR: [
+                  { subCategoryId: { in: siblingCatIds } },
+                  { categoryId: { in: siblingCatIds } },
+                  { collections: { hasSome: siblingCatIds } },
+                  { subCategory: { in: siblingCatNames } },
+                ],
+              },
+              ...extraFilterConditions,
+            ],
+          };
+
+          const [siblingCount, sAds, sOrganic] = await Promise.all([
+            this.db.product.count({ where: siblingFilter }),
+            this.db.product.findMany({
+              where: { AND: [siblingFilter, { activeAd: true }] },
+              orderBy: adsOrderBy,
+              take: neededCount,
+            }),
+            this.db.product.findMany({
+              where: {
+                AND: [
+                  siblingFilter,
+                  { OR: [{ activeAd: false }, { activeAd: null }] },
+                ],
+              },
+              orderBy: organicOrderBy,
+              take: neededCount,
+            }),
+          ]);
+
+          fallbackTotalAvailable += siblingCount;
+
+          sAds.forEach((p) => {
+            if (!existingProductIds.has(p.id)) {
+              existingProductIds.add(p.id);
+              fallbackAds.push(p);
+            }
+          });
+
+          sOrganic.forEach((p) => {
+            if (!existingProductIds.has(p.id)) {
+              existingProductIds.add(p.id);
+              fallbackOrganic.push(p);
+            }
+          });
+
+          if (sAds.length > 0 || sOrganic.length > 0) {
+            isFallback = true;
+            fallbackTitle = parentCategoryName
+              ? `Explore More in ${parentCategoryName}`
+              : 'Popular in Related Categories';
+          }
+        }
+      }
+
+      // Tier 2. Global Popular/Trending Fallback (if still under neededTotal)
+      if (primaryInterleaved.length + fallbackAds.length + fallbackOrganic.length < neededTotal) {
+        const globalFilter: Prisma.ProductWhereInput = {
+          AND: [
+            { id: { notIn: Array.from(existingProductIds) } },
+            ...extraFilterConditions,
+          ],
+        };
+
+        const [globalCount, gAds, gOrganic] = await Promise.all([
+          this.db.product.count({ where: globalFilter }),
+          this.db.product.findMany({
+            where: { AND: [globalFilter, { activeAd: true }] },
+            orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+            take: neededCount,
+          }),
+          this.db.product.findMany({
+            where: {
+              AND: [
+                globalFilter,
+                { OR: [{ activeAd: false }, { activeAd: null }] },
+              ],
+            },
+            orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+            take: neededCount,
+          }),
+        ]);
+
+        fallbackTotalAvailable += globalCount;
+
+        gAds.forEach((p) => {
+          if (!existingProductIds.has(p.id)) {
+            existingProductIds.add(p.id);
+            fallbackAds.push(p);
+          }
+        });
+
+        gOrganic.forEach((p) => {
+          if (!existingProductIds.has(p.id)) {
+            existingProductIds.add(p.id);
+            fallbackOrganic.push(p);
+          }
+        });
+
+        if (gAds.length > 0 || gOrganic.length > 0) {
+          isFallback = true;
+          if (!fallbackTitle) {
+            fallbackTitle = 'Trending Products';
+          }
+        }
+      }
+    }
+
+    // 2. Interleave fallback products separately and append after primary products
+    const fallbackInterleaved = interleaveAdAndOrganic(fallbackAds, fallbackOrganic);
+    const combinedList = [...primaryInterleaved, ...fallbackInterleaved];
 
     // 6. Resolve CategoryFilters (use database record if exists, or compute dynamic fallback)
     let categoryFilters: any;
@@ -1066,67 +1268,48 @@ export class ProductService {
         productOptions: {},
         ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: specList,
-
         discountAvailable: false,
         lastUpdated: new Date(),
       };
     }
 
-    // 7. Interleaving pattern: 2-Ad / 2-Organic / 2-Ad / 2-Organic (8 items per cycle)
-    const interleavedList: any[] = [];
-    let adIdx = 0;
-    let orgIdx = 0;
-
-    while (adIdx < ads.length || orgIdx < organic.length) {
-      // Sub-block 1: 2 Ads (or fallback to Organic)
-      for (let i = 0; i < 2; i++) {
-        if (adIdx < ads.length) {
-          interleavedList.push(ads[adIdx++]);
-        } else if (orgIdx < organic.length) {
-          interleavedList.push(organic[orgIdx++]);
-        }
-      }
-
-      // Sub-block 2: 2 Organic (or fallback to Ads)
-      for (let i = 0; i < 2; i++) {
-        if (orgIdx < organic.length) {
-          interleavedList.push(organic[orgIdx++]);
-        } else if (adIdx < ads.length) {
-          interleavedList.push(ads[adIdx++]);
-        }
-      }
-
-      // Sub-block 3: 2 Ads (or fallback to Organic)
-      for (let i = 0; i < 2; i++) {
-        if (adIdx < ads.length) {
-          interleavedList.push(ads[adIdx++]);
-        } else if (orgIdx < organic.length) {
-          interleavedList.push(organic[orgIdx++]);
-        }
-      }
-
-      // Sub-block 4: 2 Organic (or fallback to Ads)
-      for (let i = 0; i < 2; i++) {
-        if (orgIdx < organic.length) {
-          interleavedList.push(organic[orgIdx++]);
-        } else if (adIdx < ads.length) {
-          interleavedList.push(ads[adIdx++]);
-        }
-      }
-    }
-
-    // 8. Slice exact page window
+    // 8. Slice exact page window from combined stream (Primary then Fallback)
     const startIndex = (page - 1) * limit;
-    const pagedProducts = interleavedList.slice(startIndex, startIndex + limit);
+    const pagedProducts = combinedList.slice(startIndex, startIndex + limit);
+
+    // Determine if this current page slice contains fallback products
+    const currentSliceHasFallback =
+      isFallback &&
+      (startIndex >= primaryInterleaved.length ||
+        startIndex + pagedProducts.length > primaryInterleaved.length ||
+        totalItems === 0);
+
+    const grandTotalItems = isFallback
+      ? Math.max(totalItems + fallbackTotalAvailable, combinedList.length)
+      : totalItems;
+
+    const grandTotalPages = Math.ceil(grandTotalItems / limit) || 1;
+    const hasMore = (startIndex + limit) < grandTotalItems || (startIndex + limit) < combinedList.length;
+
+    const mappedItems = pagedProducts.map(mapPrismaToRestOutput);
 
     return {
       page,
+      currentPage: page,
       limit,
+      count: limit,
+      pageSize: limit,
       totalAds,
       totalOrganic,
-      totalItems,
-      totalPages,
-      items: pagedProducts.map(mapPrismaToRestOutput),
+      totalItems: grandTotalItems,
+      totalPages: grandTotalPages,
+      lastFetched: mappedItems.length,
+      hasMore,
+      isFallback: currentSliceHasFallback,
+      fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
+      items: mappedItems,
+      products: mappedItems,
+      data: mappedItems,
       categoryFilters,
       sortFilter: [
         { label: 'Popularity', value: 'popularity' },

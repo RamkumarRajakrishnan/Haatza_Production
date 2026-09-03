@@ -41,8 +41,11 @@ export class ProductController {
     @Query('categoryId') queryCategoryId?: string,
     @Query('category_id') querySnakeCategoryId?: string,
     @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('pageNo') pageNo?: string,
     @Query('limit') limit?: string,
     @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
     @Query('brands') brands?: string,
     @Query('minPrice') minPrice?: string,
     @Query('maxPrice') maxPrice?: string,
@@ -69,8 +72,8 @@ export class ProductController {
 
     return this.productService.getProductsBySubCategoryIdInterleaved({
       subCategoryId: targetSubCategoryId || '',
-      page: page || body?.page,
-      limit: limit || count || body?.limit || body?.count,
+      page: page || currentPage || pageNo || body?.page || body?.currentPage || body?.pageNo,
+      limit: limit || count || pageSize || body?.limit || body?.count || body?.pageSize,
       brands: brands || body?.brands,
       minPrice: minPrice || body?.minPrice,
       maxPrice: maxPrice || body?.maxPrice,

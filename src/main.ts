@@ -100,6 +100,8 @@ async function bootstrap() {
         { path: 'grow-plans/(.*)', method: RequestMethod.ALL },
         { path: 'api/v1/grow-plans', method: RequestMethod.ALL },
         { path: 'api/v1/grow-plans/(.*)', method: RequestMethod.ALL },
+        { path: '_functions', method: RequestMethod.ALL },
+        { path: '_functions/(.*)', method: RequestMethod.ALL },
       ],
     });
 
