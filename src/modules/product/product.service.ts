@@ -769,33 +769,7 @@ export class ProductService {
 
     const totalPages = Math.ceil(total / limit);
 
-    const mappedProducts = products.map((p) => {
-      let image = p.mainMedia || '';
-      if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
-        const firstMedia: any = p.productImages[0];
-        image = typeof firstMedia === 'string' ? firstMedia : firstMedia?.src || '';
-      }
-      return {
-        brand: p.brand || '',
-        name: p.name || '',
-        productId: p.id,
-        productOptions: p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {},
-        image,
-        activeAd: p.activeAd || false,
-        averageRating: 0,
-        isWishlist: false,
-        wishlistTableId: '',
-        sellerId: p.sellerId || '',
-        campaignId: p.campaignId || '',
-        deliveryCharges: p.deliveryCharges || false,
-        mainCategoryId: p.mainCategory || '',
-        subCategoryId: p.subCategoryId || p.subCategory || '',
-        finalPricing: {
-          codFinal: p.cod || p.price || p.mrp || 0,
-          upiFinal: p.upi || p.price || p.mrp || 0,
-        },
-      };
-    });
+    const mappedProducts = products.map(mapProductToCard);
 
     const sortFilter = [
       { label: 'Popularity', value: 'popularity' },
@@ -813,8 +787,10 @@ export class ProductService {
         currentPage: page,
         lastFetched: mappedProducts.length,
         products: mappedProducts,
+        items: mappedProducts,
         categoryFilters,
         sortFilter,
+        sortfilter: sortFilter,
       },
     };
   }
@@ -1207,6 +1183,7 @@ export class ProductService {
         productOptions: dbCategoryFilter.productOptions || {},
         ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: dbCategoryFilter.specification || [],
+        specfication: dbCategoryFilter.specification || [],
         discountAvailable: dbCategoryFilter.discountAvailable ?? false,
         lastUpdated: dbCategoryFilter.lastUpdated || new Date(),
       };
@@ -1268,6 +1245,7 @@ export class ProductService {
         productOptions: {},
         ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: specList,
+        specfication: specList,
         discountAvailable: false,
         lastUpdated: new Date(),
       };
@@ -1291,32 +1269,36 @@ export class ProductService {
     const grandTotalPages = Math.ceil(grandTotalItems / limit) || 1;
     const hasMore = (startIndex + limit) < grandTotalItems || (startIndex + limit) < combinedList.length;
 
-    const mappedItems = pagedProducts.map(mapPrismaToRestOutput);
+    const mappedProducts = pagedProducts.map(mapProductToCard);
+
+    const sortFilter = [
+      { label: 'Popularity', value: 'popularity' },
+      { label: 'Price: Low to High', value: 'price_low_high' },
+      { label: 'Price: High to Low', value: 'price_high_low' },
+      { label: 'Newest First', value: 'newest' },
+    ];
 
     return {
-      page,
-      currentPage: page,
-      limit,
-      count: limit,
-      pageSize: limit,
-      totalAds,
-      totalOrganic,
-      totalItems: grandTotalItems,
-      totalPages: grandTotalPages,
-      lastFetched: mappedItems.length,
-      hasMore,
-      isFallback: currentSliceHasFallback,
-      fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
-      items: mappedItems,
-      products: mappedItems,
-      data: mappedItems,
-      categoryFilters,
-      sortFilter: [
-        { label: 'Popularity', value: 'popularity' },
-        { label: 'Price: Low to High', value: 'price_low_high' },
-        { label: 'Price: High to Low', value: 'price_high_low' },
-        { label: 'Newest First', value: 'newest' },
-      ],
+      status: 'success',
+      message: {
+        categoryId: resolvedCategoryId || rawSubCategoryId,
+        totalItems: grandTotalItems,
+        totalPages: grandTotalPages,
+        currentPage: page,
+        lastFetched: mappedProducts.length,
+        products: mappedProducts,
+        items: mappedProducts,
+        categoryFilters,
+        sortFilter,
+        sortfilter: sortFilter,
+        hasMore,
+        isFallback: currentSliceHasFallback,
+        fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
+        totalAds,
+        totalOrganic,
+        page,
+        limit,
+      },
     };
   }
 
@@ -1575,6 +1557,44 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
   else if (dto.sell_and_earn !== undefined) data.sellAndEarn = dto.sell_and_earn;
 
   return data;
+}
+
+export function mapProductToCard(p: any): any {
+  if (!p) return null;
+  const pid = p.id || p.productId || '';
+
+  let image = p.mainMedia || '';
+  if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+    const firstMedia: any = p.productImages[0];
+    image = typeof firstMedia === 'string' ? firstMedia : firstMedia?.src || '';
+  }
+
+  const codVal = p.cod !== undefined && p.cod !== null ? Number(p.cod) : Number(p.price || p.mrp || 0);
+  const upiVal = p.upi !== undefined && p.upi !== null ? Number(p.upi) : Number(p.price || p.mrp || 0);
+
+  const brand = (p.brand === 'Generic' || !p.brand) ? '' : String(p.brand).trim();
+  const productOptions = p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {};
+
+  return {
+    brand,
+    name: p.name || '',
+    productId: pid,
+    productOptions,
+    image: image || '',
+    activeAd: p.activeAd === true || p.activeAd === 'true',
+    averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
+    isWishlist: false,
+    wishlistTableId: '',
+    sellerId: p.sellerId || '',
+    campaignId: p.campaignId || '',
+    deliveryCharges: p.deliveryCharges === true || p.deliveryCharges === 'true',
+    mainCategoryId: p.mainCategory || '',
+    subCategoryId: p.subCategoryId || p.subCategory || '',
+    finalPricing: {
+      codFinal: isNaN(codVal) ? 0 : codVal,
+      upiFinal: isNaN(upiVal) ? 0 : upiVal,
+    },
+  };
 }
 
 function mapPrismaToRestOutput(p: any): any {
