@@ -84,12 +84,13 @@ export class DashboardService {
   async getHaatzaDashboard(dto: GetHaatzaDashboardDto) {
     const categoryId = dto.category?.trim() || dto.categoryId?.trim();
     const warehouseId = dto.warehouseId?.trim();
+    const rawModule = dto.module || (dto as any).Module;
 
-    if (!dto.module) {
+    if (!rawModule) {
       throw new BadRequestException('module is mandatory (HAATZA or LITE).');
     }
 
-    const targetModule = String(dto.module).toUpperCase() as DashboardModule;
+    const targetModule = String(rawModule).toUpperCase() as DashboardModule;
 
     // VALIDATION: category/categoryId is COMPULSORY for both HAATZA and LITE modules
     if (!categoryId) {

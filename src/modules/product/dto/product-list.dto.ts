@@ -33,6 +33,16 @@ export class ProductListQueryDto {
   @IsString()
   subCategory?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by module (e.g. haatza, lite)', example: 'haatza' })
+  @IsOptional()
+  @IsString()
+  module?: string;
+
+  @ApiPropertyOptional({ description: 'PascalCase alias for module', example: 'haatza' })
+  @IsOptional()
+  @IsString()
+  Module?: string;
+
   @ApiPropertyOptional({ description: 'Filter by status (e.g. ACTIVE, INACTIVE)', example: 'ACTIVE' })
   @IsOptional()
   @IsString()

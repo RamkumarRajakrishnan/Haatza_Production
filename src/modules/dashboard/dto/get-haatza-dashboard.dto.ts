@@ -33,8 +33,20 @@ export class GetHaatzaDashboardDto {
     enum: DashboardModule,
     example: DashboardModule.HAATZA,
   })
-  @IsNotEmpty({ message: 'module is mandatory (HAATZA or LITE).' })
-  @Transform(({ value }) => (typeof value === 'string' ? (value.toUpperCase().trim() as any) : value))
+  @IsOptional()
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
+  })
   @IsEnum(DashboardModule, { message: 'module must be either HAATZA or LITE.' })
-  module: DashboardModule;
+  module?: DashboardModule;
+
+  @ApiPropertyOptional({
+    description: 'PascalCase alias for module',
+    enum: DashboardModule,
+    example: DashboardModule.HAATZA,
+  })
+  @IsOptional()
+  @IsString()
+  Module?: string;
 }

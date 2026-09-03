@@ -62,11 +62,12 @@ export class AppbarCategoriesService {
    * Main Appbar Categories Fetch API Handler supporting HAATZA and LITE modules.
    */
   async getAppbarCategories(dto: GetAppbarCategoriesDto) {
-    if (!dto.module || typeof dto.module !== 'string' || !dto.module.trim()) {
+    const targetModule = dto.module || dto.Module;
+    if (!targetModule || typeof targetModule !== 'string' || !targetModule.trim()) {
       throw new BadRequestException('Module is required');
     }
 
-    const rawModule = dto.module.trim().toLowerCase();
+    const rawModule = targetModule.trim().toLowerCase();
 
     if (rawModule !== 'haatza' && rawModule !== 'lite') {
       throw new BadRequestException(

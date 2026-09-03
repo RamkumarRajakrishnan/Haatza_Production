@@ -162,10 +162,21 @@ export class QueryCategoryDto {
     description: 'Filter by Module (HAATZA, LITE, or ALL)',
   })
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
-  )
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
+  })
   module?: CategoryModule;
+
+  @ApiPropertyOptional({
+    description: 'PascalCase alias for Module',
+  })
+  @IsOptional()
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
+  })
+  Module?: CategoryModule;
 
   @ApiPropertyOptional({
     description: 'Filter by Parent Category ID',
@@ -234,10 +245,21 @@ export class GetChildCategoriesDto {
     description: 'Filter by Module (HAATZA, LITE, or ALL)',
   })
   @IsOptional()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
-  )
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
+  })
   module?: CategoryModule;
+
+  @ApiPropertyOptional({
+    description: 'PascalCase alias for Module',
+  })
+  @IsOptional()
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
+  })
+  Module?: CategoryModule;
 }
 
 export class UpdateCategorySequenceDto {
@@ -269,12 +291,20 @@ export class UpdateCategorySequenceDto {
 
 export class GetMainCategoriesDto {
   @ApiPropertyOptional({
-    description: 'Filter categories by module (e.g., ecommerce, grocery, HAATZA, LITE)',
-    example: 'ecommerce',
+    description: 'Filter categories by module (e.g., haatza, lite, HAATZA, LITE)',
+    example: 'haatza',
   })
   @IsOptional()
   @IsString()
   module?: string;
+
+  @ApiPropertyOptional({
+    description: 'PascalCase alias for module',
+    example: 'haatza',
+  })
+  @IsOptional()
+  @IsString()
+  Module?: string;
 
   @ApiPropertyOptional({
     description: 'Page number for pagination (starts from 1)',

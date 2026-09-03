@@ -10,15 +10,24 @@ export enum AppbarModule {
 export class GetAppbarCategoriesDto {
   @ApiProperty({
     description: 'Mandatory Module (haatza or lite, case-insensitive)',
-    example: 'lite',
+    example: 'haatza',
     enum: ['haatza', 'lite'],
   })
-  @IsNotEmpty({ message: 'Module is required' })
+  @IsOptional()
   @IsString()
-  @Transform(({ value }) =>
-    typeof value === 'string' ? value.toLowerCase().trim() : value,
-  )
-  module: string;
+  @Transform(({ obj, value }) => {
+    const raw = value || obj?.Module || obj?.module;
+    return typeof raw === 'string' ? raw.toLowerCase().trim() : raw;
+  })
+  module?: string;
+
+  @ApiPropertyOptional({
+    description: 'PascalCase alias for Module',
+    example: 'haatza',
+  })
+  @IsOptional()
+  @IsString()
+  Module?: string;
 
   @ApiPropertyOptional({
     description: 'Customer Latitude (-90 to 90). Mandatory for lite module.',

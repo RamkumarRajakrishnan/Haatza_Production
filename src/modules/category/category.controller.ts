@@ -59,13 +59,18 @@ export class CategoryController {
   })
   @ApiQuery({ name: 'category_id', required: false, type: String })
   @ApiQuery({ name: 'categoryId', required: false, type: String })
+  @ApiQuery({ name: 'module', required: false, type: String, description: 'Filter by module (haatza or lite)' })
+  @ApiQuery({ name: 'Module', required: false, type: String, description: 'Filter by Module (PascalCase alias)' })
   async getCategory(
     @Query('category_id') queryCategoryId?: string,
     @Query('categoryId') queryAliasId?: string,
+    @Query('module') queryModule?: string,
+    @Query('Module') queryPascalModule?: string,
     @Param('categoryId') paramCategoryId?: string,
   ) {
     const targetId = paramCategoryId || queryCategoryId || queryAliasId;
-    return this.categoryService.getCategory(targetId || '');
+    const targetModule = queryModule || queryPascalModule;
+    return this.categoryService.getCategory(targetId || '', targetModule);
   }
 
   @Get(['get_categories', 'getCategories', 'category-list'])
@@ -212,6 +217,8 @@ export class CategoryController {
   @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Legacy alias for categoryId' })
   @ApiQuery({ name: 'parentCategoryId', required: false, type: String, description: 'Parent Category ID' })
   @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Legacy alias for parentCategoryId' })
+  @ApiQuery({ name: 'module', required: false, type: String, description: 'Filter by module (haatza or lite)' })
+  @ApiQuery({ name: 'Module', required: false, type: String, description: 'Filter by Module (PascalCase alias)' })
   @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
   @ApiResponse({ status: 404, description: 'Parent category not found' })
   async getSubcategoriesByParentId(
@@ -221,6 +228,8 @@ export class CategoryController {
     @Query('parent_category_id') queryParentId?: string,
     @Query('categoryId') queryAliasId?: string,
     @Query('category_id') queryCategoryId?: string,
+    @Query('module') queryModule?: string,
+    @Query('Module') queryPascalModule?: string,
     @Query() allQueries?: any,
   ) {
     let targetId = queryAliasId || queryCategoryId || queryAliasParentId || queryParentId || paramAliasParentId || paramParentId || '';
@@ -231,11 +240,16 @@ export class CategoryController {
       targetId = parts[1] || targetId;
     }
 
+    const targetModule = queryModule || queryPascalModule || allQueries?.module || allQueries?.Module;
+
     if (targetId.trim()) {
-      return this.categoryService.getSubcategoriesByParentId(targetId.trim());
+      return this.categoryService.getSubcategoriesByParentId(targetId.trim(), targetModule);
     }
 
     // If no categoryId or parentCategoryId is provided on GET /categories, return category list
-    return this.categoryService.getCategories(allQueries || {});
+    return this.categoryService.getCategories({
+      ...allQueries,
+      module: targetModule ? (targetModule.toUpperCase() as any) : allQueries?.module,
+    });
   }
 }

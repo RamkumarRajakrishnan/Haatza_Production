@@ -54,6 +54,8 @@ export class ProductController {
     @Query('specification') specification?: string,
     @Query('rating') rating?: string,
     @Query('sort') sort?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
     @Body() body?: any,
   ) {
     const targetSubCategoryId =
@@ -70,6 +72,8 @@ export class ProductController {
       body?.categoryId ||
       body?.category_id;
 
+    const targetModule = module || pascalModule || body?.module || body?.Module;
+
     return this.productService.getProductsBySubCategoryIdInterleaved({
       subCategoryId: targetSubCategoryId || '',
       page: page || currentPage || pageNo || body?.page || body?.currentPage || body?.pageNo,
@@ -81,6 +85,7 @@ export class ProductController {
       specification: specification || specfication || body?.specification || body?.specfication,
       rating: rating || body?.rating,
       sort: sort || body?.sort,
+      module: targetModule,
     });
   }
 
@@ -134,8 +139,14 @@ export class ProductController {
   @Get('category')
   @Post('category')
   @HttpCode(HttpStatus.OK)
-  async getCategoryLegacy() {
-    return this.productService.getCategoryLegacy();
+  async getCategoryLegacy(
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body('module') bodyModule?: string,
+    @Body('Module') bodyPascalModule?: string,
+  ) {
+    const targetModule = module || pascalModule || bodyModule || bodyPascalModule;
+    return this.productService.getCategoryLegacy(targetModule);
   }
 
   @ApiOperation({ summary: 'Wix-compatible get subcategory list (GET/POST)' })
@@ -146,12 +157,15 @@ export class ProductController {
     @Query('search') search: string,
     @Query('page') page: string,
     @Query('count') count: string,
-    @Body() body: any,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body() body?: any,
   ) {
     const s = search || body?.search;
     const p = page || body?.page;
     const c = count || body?.count;
-    return this.productService.getSubcategoryListLegacy({ search: s, page: p, count: c });
+    const targetModule = module || pascalModule || body?.module || body?.Module;
+    return this.productService.getSubcategoryListLegacy({ search: s, page: p, count: c, module: targetModule });
   }
 
   // ==========================================
@@ -265,10 +279,14 @@ export class ProductController {
     @Query('maxPrice') maxPrice?: string,
     @Query('productOptions') productOptions?: string,
     @Query('specfication') specfication?: string,
+    @Query('specification') specification?: string,
     @Query('rating') rating?: string,
     @Query('sort') sort?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
     @Body() body?: any,
   ) {
+    const targetModule = module || pascalModule || body?.module || body?.Module;
     return this.productService.getProductsByCategory({ 
       categoryId: categoryId || body?.categoryId, 
       page: page || body?.page, 
@@ -279,9 +297,10 @@ export class ProductController {
       minPrice: minPrice || body?.minPrice,
       maxPrice: maxPrice || body?.maxPrice,
       productOptions: productOptions || body?.productOptions,
-      specfication: specfication || body?.specfication,
+      specfication: specfication || specification || body?.specfication || body?.specification,
       rating: rating || body?.rating,
       sort: sort || body?.sort,
+      module: targetModule,
     });
   }
 }

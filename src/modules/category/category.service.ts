@@ -138,24 +138,56 @@ export class CategoryService {
   /**
    * Get single category details by ID or custom categoryId.
    */
-  async getCategory(identifier: string) {
+  async getCategory(identifier: string, module?: string) {
     if (!identifier?.trim()) {
       throw new BadRequestException('category_id parameter is required.');
     }
 
     const trimmed = identifier.trim();
-    const category = await this.db.categoryMaster.findFirst({
+    const rawModule = (module || '').trim().toUpperCase();
+    const moduleEnum =
+      rawModule === 'LITE'
+        ? CategoryModule.LITE
+        : rawModule === 'HAATZA'
+          ? CategoryModule.HAATZA
+          : undefined;
+
+    let category = await this.db.categoryMaster.findFirst({
       where: {
         OR: [{ categoryId: trimmed }, { id: trimmed }],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
       },
       include: {
         parent: true,
         children: {
-          where: { status: CategoryStatus.ACTIVE },
+          where: {
+            status: CategoryStatus.ACTIVE,
+            ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+          },
           orderBy: { sequence: 'asc' },
         },
       },
     });
+
+    if (!category) {
+      // Fallback to categoryList
+      category = (await this.db.categoryList.findFirst({
+        where: {
+          OR: [{ categoryId: trimmed }, { id: trimmed }],
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+        include: {
+          parent: true,
+          children: {
+            where: {
+              status: CategoryStatus.ACTIVE,
+              ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+            },
+            orderBy: { sequence: 'asc' },
+          },
+        },
+      })) as any;
+    }
 
     if (!category) {
       throw new NotFoundException(`Category '${trimmed}' not found.`);
@@ -213,10 +245,21 @@ export class CategoryService {
       };
     }
 
-    const categories = await this.db.categoryMaster.findMany({
+    let categories = await this.db.categoryMaster.findMany({
       where,
       orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
     });
+
+    if (categories.length === 0) {
+      try {
+        categories = (await this.db.categoryList.findMany({
+          where,
+          orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
+        })) as any;
+      } catch {
+        // ignore fallback errors
+      }
+    }
 
     if (categories.length === 0) {
       return {
@@ -790,18 +833,23 @@ export class CategoryService {
    * Validates parent category and retrieves all direct + nested subcategories
    * in a recursive Flipkart-style hierarchy drill-down.
    */
-  async getSubcategoriesByParentId(parentCategoryId: string) {
+  async getSubcategoriesByParentId(parentCategoryId: string, module?: string) {
     if (!parentCategoryId || !parentCategoryId.trim()) {
       throw new BadRequestException('parent_category_id parameter is required.');
     }
 
     const trimmedParentId = parentCategoryId.trim();
+    const trimmedModule = module?.trim();
 
     // 1. Verify parent category existence
     let parentExists = false;
     try {
+      const moduleCondition = trimmedModule
+        ? `AND (LOWER(module::text) = LOWER('${trimmedModule}') OR LOWER(module::text) = 'all')`
+        : '';
+
       const parentCheck = await this.db.query(
-        `SELECT id, category_id, category_name FROM public.category_list WHERE category_id = $1 OR id = $1 LIMIT 1`,
+        `SELECT id, category_id, category_name FROM public.category_list WHERE (category_id = $1 OR id = $1) ${moduleCondition} LIMIT 1`,
         [trimmedParentId],
       );
       if (parentCheck?.rows?.length > 0) {
@@ -809,7 +857,7 @@ export class CategoryService {
       } else {
         // Check fallback table category_master
         const fbCheck = await this.db.query(
-          `SELECT id, category_id, category_name FROM public.category_master WHERE category_id = $1 OR id = $1 LIMIT 1`,
+          `SELECT id, category_id, category_name FROM public.category_master WHERE (category_id = $1 OR id = $1) ${moduleCondition} LIMIT 1`,
           [trimmedParentId],
         );
         if (fbCheck?.rows?.length > 0) {
@@ -825,6 +873,13 @@ export class CategoryService {
     }
 
     // 2. Fetch all descendants with a Recursive CTE
+    const modSql = trimmedModule
+      ? `AND (LOWER(module::text) = LOWER('${trimmedModule}') OR LOWER(module::text) = 'all')`
+      : '';
+    const modSqlRecursive = trimmedModule
+      ? `AND (LOWER(c.module::text) = LOWER('${trimmedModule}') OR LOWER(c.module::text) = 'all')`
+      : '';
+
     const recursiveQuery = `
       WITH RECURSIVE category_tree AS (
         -- Anchor: Direct child categories
@@ -836,9 +891,10 @@ export class CategoryService {
           category_image,
           description,
           sequence,
+          module,
           1 AS level
         FROM public.category_list
-        WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')
+        WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active') ${modSql}
 
         UNION ALL
 
@@ -851,10 +907,11 @@ export class CategoryService {
           c.category_image,
           c.description,
           c.sequence,
+          c.module,
           ct.level + 1
         FROM public.category_list c
         INNER JOIN category_tree ct ON c.parent_category_id = ct.category_id
-        WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active')
+        WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active') ${modSqlRecursive}
       )
       SELECT * FROM category_tree ORDER BY sequence ASC, id ASC;
     `;
@@ -875,9 +932,10 @@ export class CategoryService {
               category_image,
               description,
               sequence,
+              module,
               1 AS level
             FROM public.category_master
-            WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active')
+            WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active') ${modSql}
 
             UNION ALL
 
@@ -889,10 +947,11 @@ export class CategoryService {
               c.category_image,
               c.description,
               c.sequence,
+              c.module,
               ct.level + 1
             FROM public.category_master c
             INNER JOIN category_tree ct ON c.parent_category_id = ct.category_id
-            WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active')
+            WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active') ${modSqlRecursive}
           )
           SELECT * FROM category_tree ORDER BY sequence ASC, id ASC;
         `;
@@ -910,6 +969,7 @@ export class CategoryService {
       return {
         success: true,
         parentCategoryId: trimmedParentId,
+        module: trimmedModule || 'all',
         data: tree,
       };
     } catch (err: any) {
@@ -935,6 +995,7 @@ export class CategoryService {
         categoryImage: item.categoryImage || item.category_image || '',
         description: item.description || '',
         sequence: Number(item.sequence) || 0,
+        module: item.module || '',
         subcategories: [],
       });
     });

@@ -1,7 +1,7 @@
 import { Injectable, Logger, NotFoundException, BadRequestException } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { ProductListQueryDto, SortOrder } from './dto/product-list.dto';
-import { Prisma, CategoryStatus } from '@prisma/client';
+import { Prisma, CategoryStatus, CategoryModule } from '@prisma/client';
 
 @Injectable()
 export class ProductService {
@@ -78,6 +78,31 @@ export class ProductService {
         equals: category,
         mode: 'insensitive',
       };
+    }
+
+    const rawModule = (query.module || (query as any).Module || '').trim().toUpperCase();
+    if (rawModule === 'LITE' || rawModule === 'HAATZA') {
+      const moduleEnum = rawModule === 'LITE' ? CategoryModule.LITE : CategoryModule.HAATZA;
+      const modCats = await this.db.categoryList.findMany({
+        where: { module: { in: [moduleEnum, CategoryModule.ALL] } },
+        select: { categoryId: true, categoryName: true },
+      });
+      const modCatIds = modCats.map((c) => c.categoryId);
+      const modCatNames = modCats.map((c) => c.categoryName);
+      if (modCatIds.length > 0) {
+        where.AND = [
+          ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+          {
+            OR: [
+              { categoryId: { in: modCatIds } },
+              { subCategoryId: { in: modCatIds } },
+              { collections: { hasSome: modCatIds } },
+              { subCategory: { in: modCatNames } },
+              { mainCategory: { in: modCatIds } },
+            ],
+          },
+        ];
+      }
     }
 
     if (subCategory) {
@@ -635,8 +660,10 @@ export class ProductService {
     maxPrice?: string;
     productOptions?: string;
     specfication?: string;
+    specification?: string;
     rating?: string;
     sort?: string;
+    module?: string;
   }) {
     const categoryId = query.categoryId;
     const page = parseInt(String(query.page || '1'), 10) || 1;
@@ -764,7 +791,7 @@ export class ProductService {
       priceRange: { min: minPrice, max: maxPrice },
       productOptions: {},
       ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
-      specifications: specficationList,
+      specification: specficationList,
     };
 
     const totalPages = Math.ceil(total / limit);
@@ -782,15 +809,14 @@ export class ProductService {
       status: 'success',
       message: {
         categoryId: categoryId || '',
+        module: (query.module || '').trim() || 'haatza',
         totalItems: total,
         totalPages,
         currentPage: page,
         lastFetched: mappedProducts.length,
         products: mappedProducts,
-        items: mappedProducts,
         categoryFilters,
         sortFilter,
-        sortfilter: sortFilter,
       },
     };
   }
@@ -813,10 +839,22 @@ export class ProductService {
     specification?: any;
     rating?: string | number;
     sort?: string;
+    module?: string;
   }) {
     const rawSubCategoryId = params.subCategoryId?.trim();
     if (!rawSubCategoryId) {
       throw new BadRequestException('sub_category_id is required');
+    }
+
+    const rawModule = (params.module || '').trim();
+    let moduleEnum: CategoryModule | undefined;
+    if (rawModule) {
+      const upper = rawModule.toUpperCase();
+      if (upper === 'LITE') {
+        moduleEnum = CategoryModule.LITE;
+      } else if (upper === 'HAATZA') {
+        moduleEnum = CategoryModule.HAATZA;
+      }
     }
 
     // 1. Input validation & normalization: default page 1, default limit 20
@@ -838,10 +876,25 @@ export class ProductService {
           { id: rawSubCategoryId },
           { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
         ],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
       },
     });
 
-    const resolvedCategoryId = categoryExists ? categoryExists.categoryId : rawSubCategoryId;
+    let resolvedCategoryRecord = categoryExists;
+    if (!resolvedCategoryRecord) {
+      resolvedCategoryRecord = await this.db.categoryList.findFirst({
+        where: {
+          OR: [
+            { categoryId: rawSubCategoryId },
+            { id: rawSubCategoryId },
+            { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
+          ],
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+      });
+    }
+
+    const resolvedCategoryId = categoryExists?.categoryId || resolvedCategoryRecord?.categoryId || rawSubCategoryId;
 
     const subCategoryFilter: Prisma.ProductWhereInput = {
       OR: [
@@ -851,12 +904,12 @@ export class ProductService {
         { collections: { hasSome: [rawSubCategoryId] } },
         { mainCategory: rawSubCategoryId },
         { categoryName: { hasSome: [rawSubCategoryId] } },
-        ...(categoryExists
+        ...(resolvedCategoryRecord
           ? [
-            { subCategoryId: categoryExists.categoryId },
-            { subCategory: categoryExists.categoryName },
-            { categoryId: categoryExists.categoryId },
-            { mainCategory: categoryExists.categoryId },
+            { subCategoryId: resolvedCategoryRecord.categoryId },
+            { subCategory: resolvedCategoryRecord.categoryName },
+            { categoryId: resolvedCategoryRecord.categoryId },
+            { mainCategory: resolvedCategoryRecord.categoryId },
           ]
           : []),
       ],
@@ -966,20 +1019,6 @@ export class ProductService {
     const totalItems = totalAds + totalOrganic;
     let totalPages = Math.ceil(totalItems / limit) || 1;
 
-    // Resolve Category Existence (CategoryMaster or CategoryList)
-    let resolvedCategoryRecord = categoryExists;
-    if (!resolvedCategoryRecord) {
-      resolvedCategoryRecord = await this.db.categoryList.findFirst({
-        where: {
-          OR: [
-            { categoryId: rawSubCategoryId },
-            { id: rawSubCategoryId },
-            { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
-          ],
-        },
-      });
-    }
-
     // Helper: Interleave 2 Ads / 2 Organic in repeating 8-item cycle
     const interleaveAdAndOrganic = (adsArr: any[], orgArr: any[]): any[] => {
       const list: any[] = [];
@@ -1048,6 +1087,7 @@ export class ProductService {
             parentCategoryId: parentCategoryId,
             categoryId: { notIn: [rawSubCategoryId, resolvedCategoryId] },
             status: CategoryStatus.ACTIVE,
+            ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
           },
           select: { categoryId: true, categoryName: true },
         });
@@ -1183,7 +1223,6 @@ export class ProductService {
         productOptions: dbCategoryFilter.productOptions || {},
         ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: dbCategoryFilter.specification || [],
-        specfication: dbCategoryFilter.specification || [],
         discountAvailable: dbCategoryFilter.discountAvailable ?? false,
         lastUpdated: dbCategoryFilter.lastUpdated || new Date(),
       };
@@ -1245,7 +1284,6 @@ export class ProductService {
         productOptions: {},
         ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: specList,
-        specfication: specList,
         discountAvailable: false,
         lastUpdated: new Date(),
       };
@@ -1282,22 +1320,19 @@ export class ProductService {
       status: 'success',
       message: {
         categoryId: resolvedCategoryId || rawSubCategoryId,
+        module: rawModule || 'haatza',
         totalItems: grandTotalItems,
         totalPages: grandTotalPages,
         currentPage: page,
         lastFetched: mappedProducts.length,
         products: mappedProducts,
-        items: mappedProducts,
         categoryFilters,
         sortFilter,
-        sortfilter: sortFilter,
         hasMore,
         isFallback: currentSliceHasFallback,
         fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
         totalAds,
         totalOrganic,
-        page,
-        limit,
       },
     };
   }
@@ -1315,7 +1350,15 @@ export class ProductService {
     });
   }
 
-  async getCategoryLegacy() {
+  async getCategoryLegacy(module?: string) {
+    const rawModule = (module || '').trim().toUpperCase();
+    const moduleEnum =
+      rawModule === 'LITE'
+        ? CategoryModule.LITE
+        : rawModule === 'HAATZA'
+          ? CategoryModule.HAATZA
+          : undefined;
+
     const desiredOrder = [
       'Men Fashion',
       'Women Fashion',
@@ -1329,6 +1372,7 @@ export class ProductService {
     const records = await this.db.categoryMaster.findMany({
       where: {
         categoryName: { in: desiredOrder },
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
       }
     });
 
@@ -1345,15 +1389,24 @@ export class ProductService {
     return sortedItems;
   }
 
-  async getSubcategoryListLegacy(query: { search: string, page: string, count: string }) {
+  async getSubcategoryListLegacy(query: { search?: string; page?: string; count?: string; module?: string }) {
     const search = query.search || null;
     const page = parseInt(query.page || '1', 10);
     const count = parseInt(query.count || '10', 10);
     const skip = (page - 1) * count;
 
+    const rawModule = (query.module || '').trim().toUpperCase();
+    const moduleEnum =
+      rawModule === 'LITE'
+        ? CategoryModule.LITE
+        : rawModule === 'HAATZA'
+          ? CategoryModule.HAATZA
+          : undefined;
+
     const where: Prisma.CategoryMasterWhereInput = {
       categoryType: 'SUBCATEGORY',
-      status: 'ACTIVE'
+      status: 'ACTIVE',
+      ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
     };
 
     if (search) {
