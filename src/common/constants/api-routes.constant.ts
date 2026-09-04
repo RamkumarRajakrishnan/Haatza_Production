@@ -36,6 +36,7 @@ export const API_ROUTES = {
     PRODUCT_DETAILS: '/api/v1/productDetails',
     BY_SUBCATEGORY: '/api/v1/productsBySubCategoryId',
     BY_CATEGORY: '/api/v1/productsByCategory',
+    SIMILAR_PRODUCTS: '/api/v1/similarProducts',
   },
 
   // 3. Category Master & Hierarchy

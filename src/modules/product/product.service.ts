@@ -611,12 +611,238 @@ export class ProductService {
   }
 
   /**
+   * GET /api/v1/similarProducts
+   * 
+   * E-Commerce Multi-Tier Recommendation Engine (Amazon / Flipkart Model):
+   * 1. Excludes current product (id != productId).
+   * 2. Tier 1: Exact Subcategory Alternatives (subCategoryId / subCategory).
+   * 3. Tier 2: Sibling Subcategories under the same parent / mainCategory.
+   * 4. Tier 3: Same Brand Alternatives.
+   * 5. Tier 4: Trending / Popular in catalog (priorityScore desc).
+   * Formatted using standard card schema (mapProductToCard).
+   */
+  async getSimilarProducts(params: {
+    productId?: string;
+    limit?: string | number;
+    page?: string | number;
+    module?: string;
+    userId?: string;
+  }) {
+    const rawProductId = params.productId?.trim();
+    if (!rawProductId) {
+      throw new BadRequestException('productId is required');
+    }
+
+    const page = Math.max(1, parseInt(String(params.page || '1'), 10) || 1);
+    const limit = Math.min(50, Math.max(1, parseInt(String(params.limit || '10'), 10) || 10));
+
+    // 1. Fetch source product
+    const sourceProduct = await this.db.product.findFirst({
+      where: {
+        OR: [
+          { id: rawProductId },
+          { productId: rawProductId },
+        ],
+      },
+      select: {
+        id: true,
+        productId: true,
+        name: true,
+        brand: true,
+        price: true,
+        onsalePrice: true,
+        mrp: true,
+        subCategory: true,
+        subCategoryId: true,
+        mainCategory: true,
+        categoryId: true,
+        collections: true,
+        status: true,
+      },
+    });
+
+    if (!sourceProduct) {
+      throw new NotFoundException({ error: 'Product not found' });
+    }
+
+    // 2. Track excluded IDs (ensure source product is strictly omitted)
+    const excludeIds = new Set<string>([sourceProduct.id]);
+    if (sourceProduct.productId) {
+      excludeIds.add(sourceProduct.productId);
+    }
+
+    const targetSubCategoryId = sourceProduct.subCategoryId?.trim() || '';
+    const targetSubCategoryName = sourceProduct.subCategory?.trim() || '';
+    const parentCategoryId = (sourceProduct.mainCategory || sourceProduct.categoryId)?.trim() || '';
+    const sourceBrand = sourceProduct.brand?.trim() || '';
+    const sourcePrice = Number(sourceProduct.onsalePrice || sourceProduct.price || 0);
+
+    const neededTotal = page * limit;
+    const collectedProducts: any[] = [];
+
+    // Helper to add products without duplicates
+    const addUniqueProducts = (products: any[]) => {
+      for (const p of products) {
+        const pKey = p.id || p.productId;
+        if (pKey && !excludeIds.has(pKey)) {
+          excludeIds.add(pKey);
+          collectedProducts.push(p);
+        }
+      }
+    };
+
+    // Tier 1: Exact Subcategory Alternatives
+    if (targetSubCategoryId || targetSubCategoryName) {
+      const subCatConditions: Prisma.ProductWhereInput[] = [];
+      if (targetSubCategoryId) {
+        subCatConditions.push({ subCategoryId: targetSubCategoryId });
+        subCatConditions.push({ collections: { hasSome: [targetSubCategoryId] } });
+      }
+      if (targetSubCategoryName) {
+        subCatConditions.push({ subCategory: { equals: targetSubCategoryName, mode: 'insensitive' } });
+      }
+
+      const tier1Products = await this.db.product.findMany({
+        where: {
+          AND: [
+            { id: { notIn: Array.from(excludeIds) } },
+            { OR: subCatConditions },
+          ],
+        },
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: neededTotal,
+      });
+
+      addUniqueProducts(tier1Products);
+    }
+
+    // Tier 2: Sibling Subcategories under same Parent / Main Category
+    if (collectedProducts.length < neededTotal && parentCategoryId) {
+      const remainingCount = neededTotal - collectedProducts.length;
+      const tier2Products = await this.db.product.findMany({
+        where: {
+          AND: [
+            { id: { notIn: Array.from(excludeIds) } },
+            {
+              OR: [
+                { mainCategory: parentCategoryId },
+                { categoryId: parentCategoryId },
+                { collections: { hasSome: [parentCategoryId] } },
+              ],
+            },
+          ],
+        },
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: remainingCount,
+      });
+
+      addUniqueProducts(tier2Products);
+    }
+
+    // Tier 3: Same Brand Alternatives (if brand is meaningful and not Generic)
+    if (collectedProducts.length < neededTotal && sourceBrand && sourceBrand.toLowerCase() !== 'generic') {
+      const remainingCount = neededTotal - collectedProducts.length;
+      const tier3Products = await this.db.product.findMany({
+        where: {
+          AND: [
+            { id: { notIn: Array.from(excludeIds) } },
+            { brand: { equals: sourceBrand, mode: 'insensitive' } },
+          ],
+        },
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: remainingCount,
+      });
+
+      addUniqueProducts(tier3Products);
+    }
+
+    // Tier 4: Global Trending / Popular items
+    if (collectedProducts.length < neededTotal) {
+      const remainingCount = neededTotal - collectedProducts.length;
+      const tier4Products = await this.db.product.findMany({
+        where: {
+          id: { notIn: Array.from(excludeIds) },
+        },
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: remainingCount,
+      });
+
+      addUniqueProducts(tier4Products);
+    }
+
+    // Separate sponsored (Ads) and organic items for e-commerce interleaving
+    const ads: any[] = [];
+    const organic: any[] = [];
+    for (const p of collectedProducts) {
+      if (p.activeAd === true) {
+        ads.push(p);
+      } else {
+        organic.push(p);
+      }
+    }
+
+    // Helper: Interleave sponsored and organic products
+    let finalOrdered: any[] = [];
+    if (ads.length > 0) {
+      let adIdx = 0;
+      let orgIdx = 0;
+      while (adIdx < ads.length || orgIdx < organic.length) {
+        for (let i = 0; i < 2 && adIdx < ads.length; i++) finalOrdered.push(ads[adIdx++]);
+        for (let i = 0; i < 4 && orgIdx < organic.length; i++) finalOrdered.push(organic[orgIdx++]);
+      }
+    } else {
+      finalOrdered = organic;
+    }
+
+    // Strict deduplication of finalOrdered list (guarantee zero duplicate products)
+    const seenFinalIds = new Set<string>();
+    const deduplicatedFinal: any[] = [];
+    for (const p of finalOrdered) {
+      const pKey = p.id || p.productId;
+      if (pKey && !seenFinalIds.has(pKey)) {
+        seenFinalIds.add(pKey);
+        if (p.id) seenFinalIds.add(p.id);
+        if (p.productId) seenFinalIds.add(p.productId);
+        deduplicatedFinal.push(p);
+      }
+    }
+
+    // Slice requested page window
+    const startIndex = (page - 1) * limit;
+    const pagedProducts = deduplicatedFinal.slice(startIndex, startIndex + limit);
+    const mappedCards = pagedProducts.map(mapProductToCard);
+
+    const totalItems = deduplicatedFinal.length;
+    const totalPages = Math.ceil(totalItems / limit) || 1;
+
+    return {
+      status: 'success',
+      message: {
+        sourceProduct: {
+          productId: sourceProduct.id,
+          name: sourceProduct.name,
+          brand: sourceProduct.brand || '',
+          subCategory: sourceProduct.subCategory || '',
+          subCategoryId: sourceProduct.subCategoryId || '',
+          mainCategory: sourceProduct.mainCategory || sourceProduct.categoryId || '',
+          price: sourcePrice,
+        },
+        totalItems,
+        totalPages,
+        currentPage: page,
+        limit,
+        products: mappedCards,
+      },
+    };
+  }
+
+  /**
    * GET /api/v1/sellerProductDetails
    * Wix-compatible get product details by ID
    */
-  async getSellerProductDetails(tableId: string) {
+  async getSellerProductDetails(tableId: string, module?: string) {
     if (!tableId) {
-      throw new BadRequestException('Table_ID is required');
+      throw new BadRequestException('tableId is required');
     }
 
     const p = await this.db.product.findUnique({
@@ -1144,64 +1370,72 @@ export class ProductService {
       ];
     }
 
-    const allMatchingProducts = await this.db.product.findMany({
-      where: categoryBaseWhere,
-      select: {
-        price: true,
-        mrp: true,
-        brand: true,
-        additionalInfoSections: true,
-      },
-    });
+    const dbCategoryFilter = categoryId
+      ? await this.db.categoryFilters.findFirst({
+          where: {
+            OR: [
+              { categoryId: categoryId },
+              { id: categoryId },
+            ],
+          },
+        })
+      : null;
 
-    let minPrice = Infinity;
-    let maxPrice = -Infinity;
-    const brandSet = new Set<string>();
-    const specMap = new Map<string, Set<string>>();
+    let categoryFilters: any = null;
 
-    allMatchingProducts.forEach((p) => {
-      const pPrice = Number(p.price || p.mrp || 0);
-      if (pPrice < minPrice) minPrice = pPrice;
-      if (pPrice > maxPrice) maxPrice = pPrice;
-      if (p.brand && typeof p.brand === 'string') {
-        const trimmedBrand = p.brand.trim();
-        if (trimmedBrand) {
-          brandSet.add(trimmedBrand);
+    if (dbCategoryFilter) {
+      const dbOptions = dbCategoryFilter.productOptions && typeof dbCategoryFilter.productOptions === 'object'
+        ? dbCategoryFilter.productOptions
+        : {};
+      const dbSpecs = Array.isArray(dbCategoryFilter.specification) ? dbCategoryFilter.specification : [];
+      const hasOptions = Object.keys(dbOptions).length > 0;
+      const hasSpecs = dbSpecs.length > 0;
+
+      categoryFilters = {
+        brands: dbCategoryFilter.brands || [],
+        priceRange: dbCategoryFilter.priceRange || { min: 0, max: 0 },
+        productOptions: dbOptions,
+        ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 10, '4+': 20 },
+        specification: dbSpecs,
+      };
+
+      if (!hasOptions || !hasSpecs) {
+        const allMatchingProducts = await this.db.product.findMany({
+          where: categoryBaseWhere,
+          select: {
+            price: true,
+            onsalePrice: true,
+            mrp: true,
+            brand: true,
+            additionalInfoSections: true,
+            productOptions: true,
+          },
+        });
+        const dynamicFilters = buildDynamicCategoryFilters(allMatchingProducts);
+        if (!hasOptions && Object.keys(dynamicFilters.productOptions).length > 0) {
+          categoryFilters.productOptions = dynamicFilters.productOptions;
+        }
+        if (!hasSpecs && dynamicFilters.specification.length > 0) {
+          categoryFilters.specification = dynamicFilters.specification;
+        }
+        if ((!categoryFilters.brands || categoryFilters.brands.length === 0) && dynamicFilters.brands.length > 0) {
+          categoryFilters.brands = dynamicFilters.brands;
         }
       }
-      if (Array.isArray(p.additionalInfoSections)) {
-        p.additionalInfoSections.forEach((info: any) => {
-          if (info && typeof info === 'object' && info.title && info.description) {
-            const title = String(info.title).trim();
-            const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim();
-            if (title && desc) {
-              if (!specMap.has(title)) {
-                specMap.set(title, new Set());
-              }
-              specMap.get(title)!.add(desc);
-            }
-          }
-        });
-      }
-    });
-
-    if (minPrice === Infinity) minPrice = 0;
-    if (maxPrice === -Infinity) maxPrice = 0;
-
-    const specficationList: Record<string, string>[] = [];
-    specMap.forEach((values, title) => {
-      Array.from(values).sort().forEach((val) => {
-        specficationList.push({ [title]: val });
+    } else {
+      const allMatchingProducts = await this.db.product.findMany({
+        where: categoryBaseWhere,
+        select: {
+          price: true,
+          onsalePrice: true,
+          mrp: true,
+          brand: true,
+          additionalInfoSections: true,
+          productOptions: true,
+        },
       });
-    });
-
-    const categoryFilters = {
-      brands: Array.from(brandSet).sort(),
-      priceRange: { min: minPrice, max: maxPrice },
-      productOptions: {},
-      ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
-      specification: specficationList,
-    };
+      categoryFilters = buildDynamicCategoryFilters(allMatchingProducts);
+    }
 
     const totalPages = Math.ceil(total / limit);
 
@@ -1541,8 +1775,22 @@ export class ProductService {
       return list;
     };
 
+    const parsedProductOptions = parseProductOptionsInput(params.productOptions);
+    const parsedSpecifications = parseSpecificationInput(params.specification);
+
+    let activeAds = ads;
+    let activeOrganic = organic;
+    if (parsedProductOptions.length > 0 || parsedSpecifications.length > 0) {
+      activeAds = ads.filter(
+        (p) => matchProductOptions(p, parsedProductOptions) && matchSpecifications(p, parsedSpecifications),
+      );
+      activeOrganic = organic.filter(
+        (p) => matchProductOptions(p, parsedProductOptions) && matchSpecifications(p, parsedSpecifications),
+      );
+    }
+
     // 1. Interleave primary products first
-    const primaryInterleaved = interleaveAdAndOrganic(ads, organic);
+    const primaryInterleaved = interleaveAdAndOrganic(activeAds, activeOrganic);
 
     // Flipkart / Amazon 3-Tier Fallback Engine:
     // If exact subcategory products are exhausted or low, fill remaining slots from sibling categories / trending items
@@ -1709,16 +1957,47 @@ export class ProductService {
     const combinedList = [...primaryInterleaved, ...fallbackInterleaved];
 
     // 6. Resolve CategoryFilters (use database record if exists, or compute dynamic fallback)
-    let categoryFilters: any;
+    let categoryFilters: any = null;
 
     if (dbCategoryFilter) {
+      const dbOptions = dbCategoryFilter.productOptions && typeof dbCategoryFilter.productOptions === 'object'
+        ? dbCategoryFilter.productOptions
+        : {};
+      const dbSpecs = Array.isArray(dbCategoryFilter.specification) ? dbCategoryFilter.specification : [];
+      const hasOptions = Object.keys(dbOptions).length > 0;
+      const hasSpecs = dbSpecs.length > 0;
+
       categoryFilters = {
         brands: dbCategoryFilter.brands || [],
         priceRange: dbCategoryFilter.priceRange || { min: 0, max: 0 },
-        productOptions: dbCategoryFilter.productOptions || {},
-        ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
-        specification: dbCategoryFilter.specification || [],
+        productOptions: dbOptions,
+        ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 10, '4+': 20 },
+        specification: dbSpecs,
       };
+
+      if (!hasOptions || !hasSpecs) {
+        const allMatchingProducts = await this.db.product.findMany({
+          where: subCategoryFilter,
+          select: {
+            price: true,
+            onsalePrice: true,
+            mrp: true,
+            brand: true,
+            additionalInfoSections: true,
+            productOptions: true,
+          },
+        });
+        const dynamicFilters = buildDynamicCategoryFilters(allMatchingProducts);
+        if (!hasOptions && Object.keys(dynamicFilters.productOptions).length > 0) {
+          categoryFilters.productOptions = dynamicFilters.productOptions;
+        }
+        if (!hasSpecs && dynamicFilters.specification.length > 0) {
+          categoryFilters.specification = dynamicFilters.specification;
+        }
+        if ((!categoryFilters.brands || categoryFilters.brands.length === 0) && dynamicFilters.brands.length > 0) {
+          categoryFilters.brands = dynamicFilters.brands;
+        }
+      }
     } else {
       const allMatchingProducts = await this.db.product.findMany({
         where: subCategoryFilter,
@@ -1728,55 +2007,11 @@ export class ProductService {
           mrp: true,
           brand: true,
           additionalInfoSections: true,
+          productOptions: true,
         },
       });
 
-      let minPrice = Infinity;
-      let maxPrice = -Infinity;
-      const brandSet = new Set<string>();
-      const specMap = new Map<string, Set<string>>();
-
-      allMatchingProducts.forEach((p) => {
-        const pPrice = Number(p.price || p.onsalePrice || p.mrp || 0);
-        if (pPrice > 0) {
-          if (pPrice < minPrice) minPrice = pPrice;
-          if (pPrice > maxPrice) maxPrice = pPrice;
-        }
-        if (p.brand && typeof p.brand === 'string') {
-          const trimmed = p.brand.trim();
-          if (trimmed) brandSet.add(trimmed);
-        }
-        if (Array.isArray(p.additionalInfoSections)) {
-          p.additionalInfoSections.forEach((info: any) => {
-            if (info && typeof info === 'object' && info.title && info.description) {
-              const title = String(info.title).trim();
-              const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim();
-              if (title && desc) {
-                if (!specMap.has(title)) specMap.set(title, new Set());
-                specMap.get(title)!.add(desc);
-              }
-            }
-          });
-        }
-      });
-
-      if (minPrice === Infinity) minPrice = 0;
-      if (maxPrice === -Infinity) maxPrice = 0;
-
-      const specList: Record<string, string>[] = [];
-      specMap.forEach((values, title) => {
-        Array.from(values).sort().forEach((val) => {
-          specList.push({ [title]: val });
-        });
-      });
-
-      categoryFilters = {
-        brands: Array.from(brandSet).sort(),
-        priceRange: { min: minPrice, max: maxPrice },
-        productOptions: {},
-        ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
-        specification: specList,
-      };
+      categoryFilters = buildDynamicCategoryFilters(allMatchingProducts);
     }
 
     // 7. Strict deduplication of combinedList to eliminate duplicates
@@ -2129,6 +2364,9 @@ export function mapProductToCard(p: any): any {
   const brand = (p.brand === 'Generic' || !p.brand) ? 'Generic' : String(p.brand).trim();
   const productOptions = p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {};
 
+  const subCatVal = p.subCategoryId || p.subCategory || '';
+  const mainCatVal = p.mainCategory || '';
+
   return {
     brand,
     name: p.name || '',
@@ -2142,8 +2380,8 @@ export function mapProductToCard(p: any): any {
     sellerId: p.sellerId || '',
     campaignId: p.campaignId || '',
     deliveryCharges: p.deliveryCharges === true || p.deliveryCharges === 'true',
-    mainCategoryId: p.mainCategory || '',
-    subCategoryId: p.subCategoryId || p.subCategory || '',
+    mainCategoryId: mainCatVal,
+    subCategoryId: subCatVal,
     finalPricing: {
       codFinal: isNaN(codVal) ? 0 : codVal,
       upiFinal: isNaN(upiVal) ? 0 : upiVal,
@@ -2250,6 +2488,7 @@ function mapPrismaToWixSellerListing(p: any) {
 
   return {
     id: p.id,
+    tableId: p.id,
     productId: p.productId || p.id || '',
     mainMedia: p.mainMedia || '',
     productImages: productImagesArray,
@@ -2391,6 +2630,281 @@ function formatCurrencyString(val: any, fallbackNum?: number): string {
     return `₹${fallbackNum}`;
   }
   return '₹0';
+}
+
+function buildDynamicCategoryFilters(allMatchingProducts: any[]) {
+  let minPrice = Infinity;
+  let maxPrice = -Infinity;
+  const brandSet = new Set<string>();
+  const specMap = new Map<string, Set<string>>();
+  const productOptionMap: Record<string, { name: string; choices: Set<string> }> = {};
+
+  allMatchingProducts.forEach((p) => {
+    const pPrice = Number(p.price || p.onsalePrice || p.mrp || 0);
+    if (pPrice > 0) {
+      if (pPrice < minPrice) minPrice = pPrice;
+      if (pPrice > maxPrice) maxPrice = pPrice;
+    }
+    if (p.brand && typeof p.brand === 'string') {
+      const trimmed = p.brand.trim();
+      if (trimmed) {
+        brandSet.add(trimmed);
+      }
+    }
+
+    // 1. Extract productOptions
+    const options = p.productOptions || p.product_options;
+    if (options && typeof options === 'object' && !Array.isArray(options)) {
+      Object.keys(options).forEach((optKey) => {
+        const optionData = options[optKey];
+        if (optionData && typeof optionData === 'object') {
+          const optName = optionData.name || optKey;
+          const normalizedKey = optName.trim().toLowerCase();
+          if (!productOptionMap[normalizedKey]) {
+            productOptionMap[normalizedKey] = {
+              name: optName,
+              choices: new Set<string>(),
+            };
+          }
+          if (Array.isArray(optionData.choices)) {
+            optionData.choices.forEach((choice: any) => {
+              const val = typeof choice === 'string'
+                ? choice.trim()
+                : (choice?.value ? String(choice.value).trim() : (choice?.description ? String(choice.description).trim() : ''));
+              if (val) {
+                productOptionMap[normalizedKey].choices.add(val);
+              }
+            });
+          }
+        }
+      });
+    }
+
+    // 2. Extract additionalInfoSections (specifications)
+    const sections = p.additionalInfoSections || p.additional_info_sections;
+    if (Array.isArray(sections)) {
+      sections.forEach((info: any) => {
+        if (!info || typeof info !== 'object') return;
+        if (info.title && info.description) {
+          const title = String(info.title).trim();
+          const desc = String(info.description).replace(/<[^>]*>?/gm, '').trim();
+          if (title && desc) {
+            if (!specMap.has(title)) specMap.set(title, new Set());
+            specMap.get(title)!.add(desc);
+          }
+        } else {
+          Object.keys(info).forEach((key) => {
+            const title = key.trim();
+            const rawVal = info[key];
+            if (rawVal !== null && rawVal !== undefined) {
+              const desc = String(rawVal).replace(/<[^>]*>?/gm, '').trim();
+              if (title && desc) {
+                if (!specMap.has(title)) specMap.set(title, new Set());
+                specMap.get(title)!.add(desc);
+              }
+            }
+          });
+        }
+      });
+    }
+  });
+
+  if (minPrice === Infinity) minPrice = 0;
+  if (maxPrice === -Infinity) maxPrice = 0;
+
+  const specList: Record<string, string>[] = [];
+  specMap.forEach((values, title) => {
+    Array.from(values).sort().forEach((val) => {
+      specList.push({ [title]: val });
+    });
+  });
+
+  const formattedProductOptions: Record<string, Array<{ name: string; choices: Array<{ value: string }> }>> = {};
+  const sizeOrder = ['XS', 'S', 'M', 'L', 'XL', 'XXL', 'XXXL'];
+  Object.keys(productOptionMap).forEach((normKey) => {
+    const opt = productOptionMap[normKey];
+    const values = Array.from(opt.choices);
+    if (opt.name.toLowerCase() === 'size') {
+      values.sort((a, b) => {
+        const idxA = sizeOrder.indexOf(a.toUpperCase());
+        const idxB = sizeOrder.indexOf(b.toUpperCase());
+        if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+        if (idxA !== -1) return -1;
+        if (idxB !== -1) return 1;
+        return a.localeCompare(b, undefined, { numeric: true });
+      });
+    } else {
+      values.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+    }
+
+    formattedProductOptions[normKey] = [
+      {
+        name: opt.name,
+        choices: values.map((v) => ({ value: v })),
+      },
+    ];
+  });
+
+  return {
+    brands: Array.from(brandSet).sort(),
+    priceRange: { min: minPrice, max: maxPrice },
+    productOptions: formattedProductOptions,
+    ratingCounts: { '1+': 0, '2+': 0, '3+': 10, '4+': 20 },
+    specification: specList,
+  };
+}
+
+function parseSpecificationInput(specInput: any): Record<string, string>[] {
+  if (!specInput) return [];
+  if (Array.isArray(specInput)) {
+    return specInput.flatMap((item) => {
+      if (typeof item === 'object' && item !== null) return [item];
+      return parseSpecificationInput(item);
+    });
+  }
+  if (typeof specInput === 'object') return [specInput];
+  if (typeof specInput === 'string') {
+    const trimmed = specInput.trim();
+    if (trimmed.startsWith('[') || trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        return parseSpecificationInput(parsed);
+      } catch (e) {}
+    }
+    return trimmed
+      .split(',')
+      .map((part) => {
+        const idx = part.indexOf(':');
+        if (idx !== -1) {
+          return { [part.substring(0, idx).trim()]: part.substring(idx + 1).trim() };
+        }
+        const eqIdx = part.indexOf('=');
+        if (eqIdx !== -1) {
+          return { [part.substring(0, eqIdx).trim()]: part.substring(eqIdx + 1).trim() };
+        }
+        return { [part.trim()]: part.trim() };
+      })
+      .filter((obj) => Object.keys(obj).length > 0 && Object.keys(obj)[0] !== '');
+  }
+  return [];
+}
+
+function parseProductOptionsInput(optInput: any): string[] {
+  if (!optInput) return [];
+  if (Array.isArray(optInput)) {
+    return optInput.map((x) => String(x).trim()).filter(Boolean);
+  }
+  if (typeof optInput === 'string') {
+    const trimmed = optInput.trim();
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) return parsed.map((x) => String(x).trim()).filter(Boolean);
+      } catch (e) {}
+    }
+    return trimmed
+      .split(',')
+      .map((x) => x.trim())
+      .filter(Boolean);
+  }
+  return [];
+}
+
+function matchProductOptions(product: any, filterOptions: string[]): boolean {
+  if (!filterOptions || filterOptions.length === 0) return true;
+  const pOpts = product.productOptions || product.product_options;
+  if (!pOpts || typeof pOpts !== 'object') return false;
+
+  const groups: Record<string, string[]> = {};
+  for (const f of filterOptions) {
+    const idx = f.indexOf(':');
+    let optName = '';
+    let optVal = '';
+    if (idx !== -1) {
+      optName = f.substring(0, idx).trim().toLowerCase();
+      optVal = f.substring(idx + 1).trim().toLowerCase();
+    } else {
+      optVal = f.trim().toLowerCase();
+    }
+    if (!groups[optName]) groups[optName] = [];
+    groups[optName].push(optVal);
+  }
+
+  for (const optName of Object.keys(groups)) {
+    const targetValues = groups[optName];
+    let groupMatched = false;
+
+    for (const key of Object.keys(pOpts)) {
+      const opt = pOpts[key];
+      if (!opt) continue;
+      const actualName = (opt.name || key).trim().toLowerCase();
+      if (optName && actualName !== optName) continue;
+
+      const choices = Array.isArray(opt.choices) ? opt.choices : [];
+      const hasMatch = choices.some((ch: any) => {
+        const val = typeof ch === 'string'
+          ? ch.trim().toLowerCase()
+          : String(ch?.value || ch?.description || '').trim().toLowerCase();
+        return targetValues.includes(val);
+      });
+
+      if (hasMatch) {
+        groupMatched = true;
+        break;
+      }
+    }
+
+    if (!groupMatched) return false;
+  }
+
+  return true;
+}
+
+function matchSpecifications(product: any, filterSpecs: Record<string, string>[]): boolean {
+  if (!filterSpecs || filterSpecs.length === 0) return true;
+  const sections = product.additionalInfoSections || product.additional_info_sections;
+  if (!Array.isArray(sections) || sections.length === 0) return false;
+
+  const specGroups: Record<string, string[]> = {};
+  for (const spec of filterSpecs) {
+    for (const [k, v] of Object.entries(spec)) {
+      const normKey = k.trim().toLowerCase();
+      const normVal = String(v).trim().toLowerCase();
+      if (!specGroups[normKey]) specGroups[normKey] = [];
+      specGroups[normKey].push(normVal);
+    }
+  }
+
+  for (const specKey of Object.keys(specGroups)) {
+    const targetVals = specGroups[specKey];
+    let keyMatched = false;
+
+    for (const sec of sections) {
+      if (!sec || typeof sec !== 'object') continue;
+      if (sec.title && sec.description) {
+        const title = String(sec.title).trim().toLowerCase();
+        const desc = String(sec.description).replace(/<[^>]*>?/gm, '').trim().toLowerCase();
+        if (title === specKey && targetVals.includes(desc)) {
+          keyMatched = true;
+          break;
+        }
+      } else {
+        for (const [k, v] of Object.entries(sec)) {
+          const actualKey = k.trim().toLowerCase();
+          const actualVal = String(v).replace(/<[^>]*>?/gm, '').trim().toLowerCase();
+          if (actualKey === specKey && targetVals.includes(actualVal)) {
+            keyMatched = true;
+            break;
+          }
+        }
+        if (keyMatched) break;
+      }
+    }
+
+    if (!keyMatched) return false;
+  }
+
+  return true;
 }
 
 

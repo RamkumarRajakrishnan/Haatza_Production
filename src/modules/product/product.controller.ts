@@ -1,5 +1,5 @@
 import { Controller, Get, Post, Body, Query, Req, HttpCode, HttpStatus, Param, Patch, Delete, BadRequestException } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { ProductListQueryDto } from './dto/product-list.dto';
 import { CreateProductDto, UpdateProductDto, InventoryUpdateDto, CollectionsUpdateDto, MediaUpdateDto, StatusUpdateDto, PricingUpdateDto, AdStatsUpdateDto } from './dto/product-rest.dto';
@@ -183,17 +183,114 @@ export class ProductController {
     });
   }
 
-  @ApiOperation({ summary: 'Wix-compatible get product details by Table_ID (GET)' })
+  @ApiOperation({
+    summary: 'Get similar/recommended products for a product (GET/POST /similarProducts)',
+    description: 'E-commerce multi-tier recommendation engine (Amazon/Flipkart model): returns alternative and sibling products in the same subcategory/category, excluding the current product.',
+  })
+  @ApiQuery({ name: 'productId', required: true, type: String, description: 'Source product ID (aliases: product_id, id)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return (default: 10, max: 50)' })
+  @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
+  @ApiQuery({ name: 'module', required: false, type: String, description: 'Module name (haatza or lite)' })
+  @Get([
+    'similarProducts',
+    'similar-products',
+    'products/similar',
+    'similarProducts/:productId',
+    'similar-products/:productId',
+  ])
+  @Post([
+    'similarProducts',
+    'similar-products',
+    'products/similar',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async getSimilarProducts(
+    @Param('productId') paramProductId?: string,
+    @Query('productId') queryProductId?: string,
+    @Query('product_id') querySnakeProductId?: string,
+    @Query('id') queryId?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('module') module?: string,
+    @Query('userId') userId?: string,
+    @Body() body?: any,
+  ) {
+    const targetProductId =
+      paramProductId ||
+      queryProductId ||
+      querySnakeProductId ||
+      queryId ||
+      body?.productId ||
+      body?.product_id ||
+      body?.id;
+
+    if (!targetProductId || !targetProductId.trim()) {
+      throw new BadRequestException('productId is required');
+    }
+
+    const targetLimit = limit || count || pageSize || body?.limit || body?.count || body?.pageSize;
+    const targetPage = page || currentPage || body?.page || body?.currentPage;
+    const targetModule = module || body?.module;
+    const targetUserId = userId || body?.userId;
+
+    return this.productService.getSimilarProducts({
+      productId: targetProductId.trim(),
+      limit: targetLimit,
+      page: targetPage,
+      module: targetModule,
+      userId: targetUserId,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Get seller product details by tableId (GET /sellerProductDetails)',
+    description: 'Retrieves complete seller product details in camelCase by tableId and case-sensitive module (haatza or lite).',
+  })
+  @ApiQuery({ name: 'module', required: true, type: String, description: 'Module name (strictly case-sensitive: haatza or lite)' })
+  @ApiQuery({ name: 'tableId', required: true, type: String, description: 'Table/Product Database ID (camelCase)' })
+  @ApiQuery({ name: 'Table_ID', required: false, type: String, description: 'Legacy alias for tableId' })
   @Get('sellerProductDetails')
   @HttpCode(HttpStatus.OK)
   async getSellerProductDetails(
-    @Query('Table_ID') queryTableId?: string,
+    @Query('module') queryModule?: string,
+    @Query('tableId') queryTableId?: string,
+    @Query('Table_ID') queryLegacyTableId?: string,
+    @Query('table_id') querySnakeTableId?: string,
     @Query('Product_ID') queryProductId?: string,
     @Query('productId') queryCamelProductId?: string,
     @Query('id') queryId?: string,
+    @Query() allQueries?: any,
   ) {
-    const targetId = queryTableId || queryProductId || queryCamelProductId || queryId;
-    return this.productService.getSellerProductDetails(targetId || '');
+    // 1. Validate module - allows haatza, lite, HAATZA, and LITE
+    const rawModule = (queryModule !== undefined ? queryModule : (allQueries?.module || allQueries?.Module))?.toString().trim();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza, lite, HAATZA, or LITE)');
+    }
+    const normalizedModule = rawModule.toLowerCase();
+    if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");
+    }
+
+    // 2. Validate tableId (camelCase preferred, fallback to legacy Table_ID)
+    const targetId =
+      queryTableId ||
+      queryLegacyTableId ||
+      querySnakeTableId ||
+      queryCamelProductId ||
+      queryProductId ||
+      queryId ||
+      allQueries?.tableId ||
+      allQueries?.Table_ID ||
+      allQueries?.table_id;
+
+    if (!targetId || !targetId.trim()) {
+      throw new BadRequestException('tableId is required');
+    }
+
+    return this.productService.getSellerProductDetails(targetId.trim(), normalizedModule);
   }
 
   @ApiOperation({ summary: 'Wix-compatible update product (POST)' })
