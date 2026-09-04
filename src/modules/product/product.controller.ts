@@ -187,10 +187,10 @@ export class ProductController {
     summary: 'Get similar/recommended products for a product (GET/POST /similarProducts)',
     description: 'E-commerce multi-tier recommendation engine (Amazon/Flipkart model): returns alternative and sibling products in the same subcategory/category, excluding the current product.',
   })
+  @ApiQuery({ name: 'module', required: true, type: String, description: 'Module name (haatza, lite, HAATZA, or LITE)' })
   @ApiQuery({ name: 'productId', required: true, type: String, description: 'Source product ID (aliases: product_id, id)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return (default: 10, max: 50)' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return (default: 10, max: 100)' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
-  @ApiQuery({ name: 'module', required: false, type: String, description: 'Module name (haatza or lite)' })
   @Get([
     'similarProducts',
     'similar-products',
@@ -215,9 +215,40 @@ export class ProductController {
     @Query('page') page?: string,
     @Query('currentPage') currentPage?: string,
     @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
     @Query('userId') userId?: string,
     @Body() body?: any,
+    @Query() allQueries?: any,
   ) {
+    // 1. Validate module - required, allows haatza, lite, HAATZA, and LITE
+    let rawModule = (
+      module !== undefined
+        ? module
+        : pascalModule !== undefined
+        ? pascalModule
+        : body?.module || body?.Module
+    );
+
+    // Also inspect allQueries in case key had whitespace (e.g. 'module ' as in '?module =Haatza')
+    if (!rawModule && allQueries) {
+      for (const [k, v] of Object.entries(allQueries)) {
+        if (k.trim().toLowerCase() === 'module') {
+          rawModule = v as string;
+          break;
+        }
+      }
+    }
+
+    const trimmedModule = rawModule?.toString().trim();
+    if (!trimmedModule) {
+      throw new BadRequestException('module is required (haatza, lite, HAATZA, or LITE)');
+    }
+    const normalizedModule = trimmedModule.toLowerCase();
+    if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");
+    }
+
+    // 2. Validate productId
     const targetProductId =
       paramProductId ||
       queryProductId ||
@@ -233,14 +264,13 @@ export class ProductController {
 
     const targetLimit = limit || count || pageSize || body?.limit || body?.count || body?.pageSize;
     const targetPage = page || currentPage || body?.page || body?.currentPage;
-    const targetModule = module || body?.module;
     const targetUserId = userId || body?.userId;
 
     return this.productService.getSimilarProducts({
       productId: targetProductId.trim(),
       limit: targetLimit,
       page: targetPage,
-      module: targetModule,
+      module: normalizedModule,
       userId: targetUserId,
     });
   }

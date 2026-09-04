@@ -633,8 +633,18 @@ export class ProductService {
       throw new BadRequestException('productId is required');
     }
 
+    const rawModule = (params.module || '').toString().trim();
+    if (!rawModule) {
+      throw new BadRequestException('module is required (haatza, lite, HAATZA, or LITE)');
+    }
+    const normalizedModule = rawModule.toLowerCase();
+    if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");
+    }
+    const moduleEnum = normalizedModule === 'lite' ? CategoryModule.LITE : CategoryModule.HAATZA;
+
     const page = Math.max(1, parseInt(String(params.page || '1'), 10) || 1);
-    const limit = Math.min(50, Math.max(1, parseInt(String(params.limit || '10'), 10) || 10));
+    const limit = Math.min(100, Math.max(1, parseInt(String(params.limit || '10'), 10) || 10));
 
     // 1. Fetch source product
     const sourceProduct = await this.db.product.findFirst({
@@ -665,7 +675,40 @@ export class ProductService {
       throw new NotFoundException({ error: 'Product not found' });
     }
 
-    // 2. Track excluded IDs (ensure source product is strictly omitted)
+    // 2. Module category filtering
+    const liteCats = await this.db.categoryList.findMany({
+      where: { module: CategoryModule.LITE },
+      select: { categoryId: true, categoryName: true, id: true },
+    });
+    const liteCatIds = liteCats.flatMap((c) => [c.categoryId, c.id].filter(Boolean));
+    const liteCatNames = liteCats.map((c) => c.categoryName).filter(Boolean);
+
+    const moduleFilter: Prisma.ProductWhereInput | undefined =
+      moduleEnum === CategoryModule.LITE
+        ? (liteCatIds.length > 0 || liteCatNames.length > 0
+            ? {
+                OR: [
+                  { categoryId: { in: liteCatIds } },
+                  { subCategoryId: { in: liteCatIds } },
+                  { collections: { hasSome: liteCatIds } },
+                  { subCategory: { in: liteCatNames } },
+                ],
+              }
+            : undefined)
+        : (liteCatIds.length > 0 || liteCatNames.length > 0
+            ? {
+                NOT: {
+                  OR: [
+                    { categoryId: { in: liteCatIds } },
+                    { subCategoryId: { in: liteCatIds } },
+                    { collections: { hasSome: liteCatIds } },
+                    { subCategory: { in: liteCatNames } },
+                  ],
+                },
+              }
+            : undefined);
+
+    // 3. Track excluded IDs (ensure source product is strictly omitted)
     const excludeIds = new Set<string>([sourceProduct.id]);
     if (sourceProduct.productId) {
       excludeIds.add(sourceProduct.productId);
@@ -707,6 +750,7 @@ export class ProductService {
           AND: [
             { id: { notIn: Array.from(excludeIds) } },
             { OR: subCatConditions },
+            ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
@@ -730,6 +774,7 @@ export class ProductService {
                 { collections: { hasSome: [parentCategoryId] } },
               ],
             },
+            ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
@@ -747,6 +792,7 @@ export class ProductService {
           AND: [
             { id: { notIn: Array.from(excludeIds) } },
             { brand: { equals: sourceBrand, mode: 'insensitive' } },
+            ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
@@ -761,7 +807,10 @@ export class ProductService {
       const remainingCount = neededTotal - collectedProducts.length;
       const tier4Products = await this.db.product.findMany({
         where: {
-          id: { notIn: Array.from(excludeIds) },
+          AND: [
+            { id: { notIn: Array.from(excludeIds) } },
+            ...(moduleFilter ? [moduleFilter] : []),
+          ],
         },
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
         take: remainingCount,
@@ -1372,13 +1421,13 @@ export class ProductService {
 
     const dbCategoryFilter = categoryId
       ? await this.db.categoryFilters.findFirst({
-          where: {
-            OR: [
-              { categoryId: categoryId },
-              { id: categoryId },
-            ],
-          },
-        })
+        where: {
+          OR: [
+            { categoryId: categoryId },
+            { id: categoryId },
+          ],
+        },
+      })
       : null;
 
     let categoryFilters: any = null;
@@ -2769,7 +2818,7 @@ function parseSpecificationInput(specInput: any): Record<string, string>[] {
       try {
         const parsed = JSON.parse(trimmed);
         return parseSpecificationInput(parsed);
-      } catch (e) {}
+      } catch (e) { }
     }
     return trimmed
       .split(',')
@@ -2800,7 +2849,7 @@ function parseProductOptionsInput(optInput: any): string[] {
       try {
         const parsed = JSON.parse(trimmed);
         if (Array.isArray(parsed)) return parsed.map((x) => String(x).trim()).filter(Boolean);
-      } catch (e) {}
+      } catch (e) { }
     }
     return trimmed
       .split(',')
