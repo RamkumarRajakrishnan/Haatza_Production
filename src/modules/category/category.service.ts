@@ -213,16 +213,6 @@ export class CategoryService {
     }
     const moduleEnum = rawModule === 'lite' ? CategoryModule.LITE : CategoryModule.HAATZA;
 
-    // If category=main or categoryType=MAIN_CATEGORY, return main categories
-    const categoryParam = (query.category || (query as any).category_type || (query.categoryType ? String(query.categoryType) : '')).toString().trim().toLowerCase();
-    if (categoryParam === 'main' || categoryParam === 'main_category') {
-      return this.getMainCategories({
-        module: rawModule,
-        page: (query as any).page,
-        limit: (query as any).limit,
-      });
-    }
-
     const parentId = query.parent_category_id || query.parentCategoryId;
     const targetCategoryId = query.category_id || query.categoryId;
     const isIncludeInactive =

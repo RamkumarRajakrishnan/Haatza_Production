@@ -81,6 +81,15 @@ async function bootstrap() {
       next();
     });
 
+    // Support root-level Wix endpoints by transparently rewriting to /api/v1
+    app.use((req: any, res: any, next: any) => {
+      const p = (req.path || '').toLowerCase();
+      if (p === '/productdetails' || p === '/get_productdetails' || p === '/product-details') {
+        req.url = `/api/v1${req.url}`;
+      }
+      next();
+    });
+
     // Validation - do NOT forbid unknown properties to prevent strict rejection of client payloads
     app.useGlobalPipes(
       new ValidationPipe({

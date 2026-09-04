@@ -88,46 +88,25 @@ export class ProductService {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
     }
     const moduleEnum = rawModule === 'LITE' ? CategoryModule.LITE : CategoryModule.HAATZA;
-
-    // Find all categories specific to LITE module
-    const liteCats = await this.db.categoryList.findMany({
-      where: { module: CategoryModule.LITE },
-      select: { categoryId: true, categoryName: true, id: true },
+    const modCats = await this.db.categoryList.findMany({
+      where: { module: { in: [moduleEnum, CategoryModule.ALL] } },
+      select: { categoryId: true, categoryName: true },
     });
-    const liteCatIds = liteCats.flatMap((c) => [c.categoryId, c.id].filter(Boolean));
-    const liteCatNames = liteCats.map((c) => c.categoryName).filter(Boolean);
-
-    if (moduleEnum === CategoryModule.LITE) {
-      if (liteCatIds.length > 0 || liteCatNames.length > 0) {
-        where.AND = [
-          ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
-          {
-            OR: [
-              { categoryId: { in: liteCatIds } },
-              { subCategoryId: { in: liteCatIds } },
-              { collections: { hasSome: liteCatIds } },
-              { subCategory: { in: liteCatNames } },
-            ],
-          },
-        ];
-      }
-    } else {
-      // HAATZA module: exclude LITE products
-      if (liteCatIds.length > 0 || liteCatNames.length > 0) {
-        where.AND = [
-          ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
-          {
-            NOT: {
-              OR: [
-                { categoryId: { in: liteCatIds } },
-                { subCategoryId: { in: liteCatIds } },
-                { collections: { hasSome: liteCatIds } },
-                { subCategory: { in: liteCatNames } },
-              ],
-            },
-          },
-        ];
-      }
+    const modCatIds = modCats.map((c) => c.categoryId);
+    const modCatNames = modCats.map((c) => c.categoryName);
+    if (modCatIds.length > 0) {
+      where.AND = [
+        ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+        {
+          OR: [
+            { categoryId: { in: modCatIds } },
+            { subCategoryId: { in: modCatIds } },
+            { collections: { hasSome: modCatIds } },
+            { subCategory: { in: modCatNames } },
+            { mainCategory: { in: modCatIds } },
+          ],
+        },
+      ];
     }
 
     if (subCategory) {
@@ -222,9 +201,393 @@ export class ProductService {
       },
     };
   }
+  private readonly productDetailsCache = new Map<string, { data: any; expiresAt: number }>();
 
+  private getCache<T>(key: string): T | null {
+    const entry = this.productDetailsCache.get(key);
+    if (!entry) return null;
+    if (Date.now() > entry.expiresAt) {
+      this.productDetailsCache.delete(key);
+      return null;
+    }
+    return entry.data as T;
+  }
 
+  private setCache<T>(key: string, data: T, ttlMs = 300_000): void {
+    if (this.productDetailsCache.size > 1000) {
+      const firstKey = this.productDetailsCache.keys().next().value;
+      if (firstKey) this.productDetailsCache.delete(firstKey);
+    }
+    this.productDetailsCache.set(key, { data, expiresAt: Date.now() + ttlMs });
+  }
 
+  /**
+   * GET /api/v1/productDetails
+   * Wix-compatible full product details by productId and toPincode in query params.
+   * Replicates Wix flow: Cache check -> Product lookup -> Parallel resolution of
+   * variants, inventory, seller details, delivery fees, and reviews in camelCase.
+   */
+  async getProductDetails(query: { productId?: string; toPincode?: string; userId?: string }) {
+    const productId = query.productId?.trim();
+    const toPincode = query.toPincode?.trim();
+    const userId = query.userId?.trim();
+
+    if (!productId) {
+      throw new NotFoundException({ error: 'Product ID is required' });
+    }
+    if (!toPincode) {
+      throw new BadRequestException({ error: 'toPincode is required' });
+    }
+
+    const responseCacheKey = `product_response_${productId}_${toPincode}`;
+    const cachedResponse = this.getCache<any>(responseCacheKey);
+    if (cachedResponse) {
+      return cachedResponse;
+    }
+
+    /* ---------------- PRODUCT CACHE & LOOKUP ---------------- */
+    let product = this.getCache<any>(`product_${productId}`);
+    if (!product) {
+      product = await this.db.product.findFirst({
+        where: {
+          OR: [
+            { id: productId },
+            { productId: productId },
+          ],
+        },
+      });
+
+      if (!product) {
+        throw new NotFoundException({ error: 'Product not found' });
+      }
+
+      this.setCache(`product_${productId}`, product, 300_000);
+    }
+
+    /* ---------------- SELLER DETAILS LOOKUP ---------------- */
+    let sellerDetails: any = null;
+    const sellerIdForQuery = product.sellerId || null;
+
+    if (sellerIdForQuery) {
+      try {
+        const [sellerUser, sellerProductsCount] = await Promise.all([
+          this.db.user.findFirst({
+            where: {
+              OR: [
+                { sellerId: sellerIdForQuery },
+                { id: sellerIdForQuery },
+              ],
+            },
+            select: {
+              name: true,
+              companyName: true,
+            },
+          }),
+          this.db.product.count({
+            where: { sellerId: sellerIdForQuery },
+          }),
+        ]);
+
+        if (sellerUser || sellerProductsCount > 0) {
+          sellerDetails = {
+            sellerName: sellerUser?.companyName || sellerUser?.name || sellerIdForQuery,
+            totalRating: 0,
+            sellerAverageRating: 0,
+            followers: 0,
+            products: sellerProductsCount || 0,
+            badge: false,
+          };
+        }
+      } catch (err: any) {
+        this.logger.warn(`Failed to fetch seller details for ${sellerIdForQuery}: ${err.message}`);
+      }
+    }
+
+    /* ---------------- BASE MEDIA & MEDIA ITEMS ---------------- */
+    const mainMediaSrc = convertWixMedia(product.mainMedia, 'Image')?.src || null;
+    const rawMediaList = Array.isArray(product.productImages) ? (product.productImages as any[]) : [];
+    let mediaItems = rawMediaList
+      .map((item: any) => {
+        if (typeof item === 'string') {
+          const m = convertWixMedia(item, 'Image');
+          return {
+            src: m?.src || null,
+            type: 'Image',
+          };
+        }
+        const itemType = item?.type?.toString().toLowerCase() === 'video' ? 'Video' : 'Image';
+        const m = convertWixMedia(item?.src || item?.url, itemType);
+        return {
+          src: m?.src || null,
+          type: itemType,
+          ...(itemType === 'Video' && m?.poster ? { poster: m.poster } : {}),
+        };
+      })
+      .filter((item: any) => item.src !== null);
+
+    if (mediaItems.length === 0 && mainMediaSrc) {
+      mediaItems = [{ src: mainMediaSrc, type: 'Image' }];
+    }
+
+    /* ---------------- PRODUCT OPTIONS ---------------- */
+    const formattedProductOptions: Record<string, any> = {};
+    if (product.productOptions && typeof product.productOptions === 'object') {
+      for (const key of Object.keys(product.productOptions as Record<string, any>)) {
+        const option = (product.productOptions as Record<string, any>)[key];
+        if (option && typeof option === 'object') {
+          const choices = Array.isArray(option.choices) ? option.choices : [];
+          formattedProductOptions[key] = {
+            ...option,
+            choices: choices.map((choice: any) => {
+              if (typeof choice === 'string') {
+                return {
+                  value: choice,
+                  description: choice,
+                  inStock: true,
+                  visible: true,
+                  mainMedia: null,
+                  orderImage: null,
+                  mediaItems: [],
+                };
+              }
+              const choiceMainMedia = convertWixMedia(choice?.mainMedia, 'Image');
+              const choiceMediaItems = (Array.isArray(choice?.mediaItems) ? choice.mediaItems : []).map((item: any) => {
+                const itemType = item?.type?.toString().toLowerCase() === 'video' ? 'Video' : 'Image';
+                const m = convertWixMedia(item?.src || item, itemType);
+                return {
+                  src: m?.src || null,
+                  type: itemType,
+                  ...(itemType === 'Video' && m?.poster ? { poster: m.poster } : {}),
+                };
+              });
+
+              return {
+                ...choice,
+                mainMedia: choiceMainMedia?.src || null,
+                orderImage: choice?.mainMedia || null,
+                mediaItems: choiceMediaItems,
+              };
+            }),
+          };
+        }
+      }
+    }
+
+    /* ---------------- PRICING & DISCOUNTS ---------------- */
+    const mrp = Number(product.mrp || 0);
+    const onsalePrice = Number(product.onsalePrice || product.price || 0);
+    const codFinal = Number(product.cod || product.onsalePrice || product.price || 0);
+    const upiFinal = Number(product.upi || product.cod || product.onsalePrice || product.price || 0);
+    const upiPaymentDiscount = Math.max(codFinal - upiFinal, 0);
+
+    /* ---------------- DELIVERY CHARGES ---------------- */
+    const deliveryCharges = product.deliveryCharges === true;
+    const shippingWeight = Number(product.shippingWeight || 0);
+    const sellerPinCode = product.sellerPincode || '';
+
+    let deliveryFee = 0;
+    let prepaid = 0;
+    let cod = 0;
+
+    if (deliveryCharges && sellerPinCode && shippingWeight > 0) {
+      try {
+        const deliveryObj = computeDeliveryCharges(
+          sellerPinCode,
+          toPincode,
+          shippingWeight,
+          onsalePrice,
+        );
+        prepaid = Number(deliveryObj?.prepaid || 0);
+        cod = Number(deliveryObj?.cod || 0);
+        deliveryFee = cod;
+      } catch (err: any) {
+        prepaid = 0;
+        cod = 0;
+        deliveryFee = 0;
+      }
+    }
+
+    const finalPrice = codFinal + deliveryFee;
+
+    /* ---------------- VARIANTS ---------------- */
+    const rawVariants = Array.isArray(product.newVariantPrice)
+      ? (product.newVariantPrice as any[])
+      : (product.newVariantPrice && typeof product.newVariantPrice === 'object'
+        ? Object.values(product.newVariantPrice as Record<string, any>)
+        : []);
+
+    const variants = rawVariants.map((v: any, idx: number) => {
+      const variant = { ...(v.variant || v) };
+      const vOnsalePrice = Number(variant.onsalePrice || variant.price || onsalePrice || 0);
+      const vDeliveryFee = deliveryCharges ? Number(cod || 0) : 0;
+      const vFinalPrice = vOnsalePrice + vDeliveryFee;
+
+      const mrpPrice = formatCurrencyString(variant.mrpPrice, variant.MRP || mrp);
+      const discountedPrice = formatCurrencyString(variant.discountedPrice, vOnsalePrice);
+
+      const formattedVariant = {
+        mrpPrice,
+        discountedPrice,
+        visible: variant.visible !== false,
+        onsalePrice: vOnsalePrice,
+        deliveryFee: vDeliveryFee,
+        finalPrice: vFinalPrice,
+      };
+
+      return {
+        variantId: v.variantId || v.id || `v${idx + 1}`,
+        choices: v.choices || {},
+        variant: formattedVariant,
+      };
+    });
+
+    /* ---------------- INVENTORY ---------------- */
+    let inventory: any[] = [];
+    let trackQuantity = product.trackInventory ?? false;
+
+    if (rawVariants.length > 0) {
+      inventory = rawVariants.map((v: any, idx: number) => {
+        const vInv = v.variant?.inventory !== undefined ? Number(v.variant.inventory) : (product.inventory || 0);
+        return {
+          variantId: v.variantId || v.id || `v${idx + 1}`,
+          inStock: vInv > 0,
+          quantity: vInv,
+          availableForPreorder: false,
+        };
+      });
+      trackQuantity = inventory.some((v: any) => v.quantity > 0);
+    } else {
+      const qty = Number(product.inventory || 0);
+      inventory = [
+        {
+          variantId: product.id,
+          inStock: qty > 0,
+          quantity: qty,
+          availableForPreorder: false,
+        },
+      ];
+      trackQuantity = qty > 0;
+    }
+
+    /* ---------------- SPECIFICATIONS & ADDITIONAL INFO ---------------- */
+    let specification: Array<{ title: string; description: string }> = [];
+    let additionalInfoSections: Array<{ title: string; description: string }> = [];
+
+    if (Array.isArray(product.additionalInfoSections)) {
+      const parsedSections = product.additionalInfoSections
+        .map((section: any) => {
+          if (section && typeof section === 'object') {
+            if (section.title !== undefined) {
+              return {
+                title: String(section.title || '').trim(),
+                description: cleanHtmlText(section.description || ''),
+              };
+            }
+            const key = Object.keys(section)[0] || '';
+            return {
+              title: key.trim(),
+              description: cleanHtmlText(section[key]?.toString() || ''),
+            };
+          }
+          return { title: '', description: '' };
+        })
+        .filter((s: any) => s.title !== '');
+
+      specification = parsedSections;
+      additionalInfoSections = parsedSections;
+    }
+
+    const sizeChart = product.sizeChart ? (convertWixMedia(product.sizeChart, 'Image')?.src || '') : '';
+    const webUrl = product.sku || (product.name ? product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : product.id);
+
+    if (!sellerDetails) {
+      sellerDetails = {
+        sellerName: sellerIdForQuery || '',
+        totalRating: 0,
+        sellerAverageRating: 0,
+        followers: 0,
+        products: 0,
+        badge: false,
+      };
+    }
+
+    /* ---------------- CONSTRUCT RESPONSE (STRICT SCHEMA) ---------------- */
+    const response = {
+      // Basic product info
+      productId: product.id,
+      name: product.name || '',
+      description: product.description ? cleanHtmlText(product.description) : '',
+      mainMedia: mainMediaSrc,
+      orderImage: product.mainMedia || null,
+      brand: product.brand === 'Generic' ? '' : (product.brand || ''),
+      mediaItems,
+
+      // Category / seller flags
+      subCategory: product.subCategoryId || product.subCategory || '',
+      sellerId: product.sellerId || '',
+      haatzaVerified: product.haatzaVerified ?? false,
+      activeAd: product.activeAd ?? false,
+
+      // Product options (variants selector, e.g. size/color)
+      productOptions: formattedProductOptions,
+
+      webUrl,
+
+      // Cart / wishlist status (only meaningful if userId passed)
+      cartAdded: false,
+      wishlistAdded: false,
+      wishlistId: '',
+
+      // Variants (from Import517.newVarientPrice)
+      variants,
+
+      // Inventory
+      inventory,
+      trackQuantity,
+
+      // Shipping / seller pin
+      shippingWeight,
+      sellerPinCode,
+
+      // Import517 fields (only present if importResult found)
+      campaignId: product.campaignId || '',
+      paymentType: product.paymentType || 'Any',
+      productReturn: product.productReturn || '7 Days Easy Returns',
+      collections: Array.isArray(product.collections) ? product.collections : [],
+      deliveryCharges,
+      sellAndEarn: product.sellAndEarn === 'TRUE' || product.sellAndEarn === 'true' || product.sellAndEarn === true,
+      sellAndEarnCommission: product.sellAndEarnCommission ?? 0,
+      sizeChart,
+      specification,
+
+      // Pricing (only present if importResult found)
+      mrp,
+      onsalePrice,
+      codFinal,
+      upiFinal,
+      upiPaymentDiscount,
+
+      // Delivery charge calc (only present if importResult found)
+      prepaid,
+      cod,
+      deliveryFee,
+      finalPrice,
+
+      // Extra info sections (only if productDetails.additionalInfoSections exists)
+      additionalInfoSections,
+
+      // Seller details (only if sellerIdForQuery found a match)
+      sellerDetails,
+
+      // Reviews
+      averageRating: 0,
+      totalReviews: 0,
+      reviews: [],
+    };
+
+    this.setCache(responseCacheKey, response, 300_000);
+    return response;
+  }
 
   /**
    * GET /api/v1/sellerProductDetails
@@ -921,20 +1284,107 @@ export class ProductService {
 
     const resolvedCategoryId = categoryExists?.categoryId || resolvedCategoryRecord?.categoryId || rawSubCategoryId;
 
+    // Collect all target category IDs and names (including child categories)
+    const targetCategoryIds = new Set<string>([rawSubCategoryId, resolvedCategoryId]);
+    const targetCategoryNames = new Set<string>();
+
+    if (resolvedCategoryRecord?.categoryName) {
+      const name = resolvedCategoryRecord.categoryName;
+      targetCategoryNames.add(name);
+      targetCategoryNames.add(name.replace(/'s/gi, '').trim());
+      targetCategoryNames.add(name.replace(/&/g, 'and').trim());
+    }
+
+    // Resolve any children categories under this category from CategoryList & CategoryMaster
+    const childRecords = await this.db.categoryList.findMany({
+      where: {
+        OR: [
+          { parentCategoryId: rawSubCategoryId },
+          { parentCategoryId: resolvedCategoryId },
+        ],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+      },
+      select: { categoryId: true, categoryName: true },
+    });
+
+    for (const child of childRecords) {
+      if (child.categoryId) targetCategoryIds.add(child.categoryId);
+      if (child.categoryName) {
+        targetCategoryNames.add(child.categoryName);
+        targetCategoryNames.add(child.categoryName.replace(/'s/gi, '').trim());
+      }
+      // Also check grandchildren level
+      const grandChildren = await this.db.categoryList.findMany({
+        where: {
+          parentCategoryId: child.categoryId,
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+        select: { categoryId: true, categoryName: true },
+      });
+      for (const gc of grandChildren) {
+        if (gc.categoryId) targetCategoryIds.add(gc.categoryId);
+        if (gc.categoryName) {
+          targetCategoryNames.add(gc.categoryName);
+          targetCategoryNames.add(gc.categoryName.replace(/'s/gi, '').trim());
+        }
+      }
+    }
+
+    // Common fashion subcategory aliases
+    if (targetCategoryIds.has('CAT_MENS_TSHIRTS')) {
+      targetCategoryNames.add("Men's Tshirts");
+      targetCategoryNames.add("Men's T-Shirts");
+      targetCategoryNames.add("T-Shirts");
+      targetCategoryNames.add("Tshirts");
+    }
+    if (targetCategoryIds.has('CAT_MENS_SHIRTS')) {
+      targetCategoryNames.add("Men's Shirts");
+      targetCategoryNames.add("Shirts");
+    }
+    if (targetCategoryIds.has('CAT_MENS_JEANS')) {
+      targetCategoryNames.add("Jeans");
+      targetCategoryNames.add("Men's Jeans");
+    }
+    if (targetCategoryIds.has('CAT_MENS_WEAR')) {
+      targetCategoryNames.add("Men Fashion");
+      targetCategoryNames.add("Men's Fashion");
+      targetCategoryNames.add("Men's Tshirts");
+      targetCategoryNames.add("Men's Formal Shoes");
+      targetCategoryNames.add("Men's Casual Shoes");
+      targetCategoryNames.add("Men's Shirts");
+      targetCategoryNames.add("Men's Jackets");
+    }
+    if (targetCategoryIds.has('CAT_WOMENS_WEAR')) {
+      targetCategoryNames.add("Women Fashion");
+      targetCategoryNames.add("Women's Fashion");
+      targetCategoryNames.add("Leggings");
+      targetCategoryNames.add("Blouse Piece");
+      targetCategoryNames.add("Sarees");
+      targetCategoryNames.add("Kurtis");
+      targetCategoryNames.add("Women's Shorts");
+      targetCategoryNames.add("Active Topwear");
+    }
+    if (targetCategoryIds.has('CAT_FASH')) {
+      targetCategoryNames.add("Fashion");
+      targetCategoryNames.add("Men Fashion");
+      targetCategoryNames.add("Men's Fashion");
+      targetCategoryNames.add("Women Fashion");
+      targetCategoryNames.add("Women's Fashion");
+    }
+
+    const allCatIdsList = Array.from(targetCategoryIds);
+    const allCatNamesList = Array.from(targetCategoryNames);
+
     const subCategoryFilter: Prisma.ProductWhereInput = {
       OR: [
-        { subCategoryId: rawSubCategoryId },
-        { subCategory: rawSubCategoryId },
-        { categoryId: rawSubCategoryId },
-        { collections: { hasSome: [rawSubCategoryId] } },
-        { mainCategory: rawSubCategoryId },
-        { categoryName: { hasSome: [rawSubCategoryId] } },
-        ...(resolvedCategoryRecord
+        { subCategoryId: { in: allCatIdsList } },
+        { categoryId: { in: allCatIdsList } },
+        { collections: { hasSome: allCatIdsList } },
+        { mainCategory: { in: allCatIdsList } },
+        ...(allCatNamesList.length > 0
           ? [
-            { subCategoryId: resolvedCategoryRecord.categoryId },
-            { subCategory: resolvedCategoryRecord.categoryName },
-            { categoryId: resolvedCategoryRecord.categoryId },
-            { mainCategory: resolvedCategoryRecord.categoryId },
+            { subCategory: { in: allCatNamesList, mode: 'insensitive' as const } },
+            { categoryName: { hasSome: allCatNamesList } },
           ]
           : []),
       ],
@@ -1242,14 +1692,11 @@ export class ProductService {
 
     if (dbCategoryFilter) {
       categoryFilters = {
-        categoryId: dbCategoryFilter.categoryId || resolvedCategoryId,
         brands: dbCategoryFilter.brands || [],
         priceRange: dbCategoryFilter.priceRange || { min: 0, max: 0 },
         productOptions: dbCategoryFilter.productOptions || {},
         ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: dbCategoryFilter.specification || [],
-        discountAvailable: dbCategoryFilter.discountAvailable ?? false,
-        lastUpdated: dbCategoryFilter.lastUpdated || new Date(),
       };
     } else {
       const allMatchingProducts = await this.db.product.findMany({
@@ -1303,20 +1750,28 @@ export class ProductService {
       });
 
       categoryFilters = {
-        categoryId: resolvedCategoryId,
         brands: Array.from(brandSet).sort(),
         priceRange: { min: minPrice, max: maxPrice },
         productOptions: {},
         ratingCounts: { '1+': 0, '2+': 0, '3+': 0, '4+': 0 },
         specification: specList,
-        discountAvailable: false,
-        lastUpdated: new Date(),
       };
+    }
+
+    // 7. Strict deduplication of combinedList to eliminate duplicates
+    const seenProductIds = new Set<string>();
+    const deduplicatedCombinedList: any[] = [];
+    for (const p of combinedList) {
+      const pKey = p.id || p.productId;
+      if (pKey && !seenProductIds.has(pKey)) {
+        seenProductIds.add(pKey);
+        deduplicatedCombinedList.push(p);
+      }
     }
 
     // 8. Slice exact page window from combined stream (Primary then Fallback)
     const startIndex = (page - 1) * limit;
-    const pagedProducts = combinedList.slice(startIndex, startIndex + limit);
+    const pagedProducts = deduplicatedCombinedList.slice(startIndex, startIndex + limit);
 
     // Determine if this current page slice contains fallback products
     const currentSliceHasFallback =
@@ -1326,13 +1781,13 @@ export class ProductService {
         totalItems === 0);
 
     const grandTotalItems = isFallback
-      ? Math.max(totalItems + fallbackTotalAvailable, combinedList.length)
+      ? Math.max(totalItems + fallbackTotalAvailable, deduplicatedCombinedList.length)
       : totalItems;
 
     const grandTotalPages = Math.ceil(grandTotalItems / limit) || 1;
-    const hasMore = (startIndex + limit) < grandTotalItems || (startIndex + limit) < combinedList.length;
-
+    const hasMore = (startIndex + limit) < grandTotalItems || (startIndex + limit) < deduplicatedCombinedList.length;
     const mappedProducts = pagedProducts.map(mapProductToCard);
+
 
     const sortFilter = [
       { label: 'Popularity', value: 'popularity' },
@@ -1345,21 +1800,21 @@ export class ProductService {
       status: 'success',
       message: {
         categoryId: resolvedCategoryId || rawSubCategoryId,
-        module: rawModule || 'haatza',
         totalItems: grandTotalItems,
         totalPages: grandTotalPages,
         currentPage: page,
         lastFetched: mappedProducts.length,
-        products: mappedProducts,
-        categoryFilters,
-        sortFilter,
         hasMore,
         isFallback: currentSliceHasFallback,
         fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
-        totalAds,
-        totalOrganic,
+        products: mappedProducts,
+        categoryFilters,
+        sortFilter,
       },
     };
+
+
+
   }
 
   // Alias for backward compatibility
@@ -1650,7 +2105,7 @@ export function mapProductToCard(p: any): any {
   const codVal = p.cod !== undefined && p.cod !== null ? Number(p.cod) : Number(p.price || p.mrp || 0);
   const upiVal = p.upi !== undefined && p.upi !== null ? Number(p.upi) : Number(p.price || p.mrp || 0);
 
-  const brand = (p.brand === 'Generic' || !p.brand) ? '' : String(p.brand).trim();
+  const brand = (p.brand === 'Generic' || !p.brand) ? 'Generic' : String(p.brand).trim();
   const productOptions = p.productOptions && typeof p.productOptions === 'object' ? p.productOptions : {};
 
   return {
@@ -1674,6 +2129,8 @@ export function mapProductToCard(p: any): any {
     },
   };
 }
+
+
 
 function mapPrismaToRestOutput(p: any): any {
   if (!p) return p;
@@ -1814,3 +2271,105 @@ function mapPrismaToWixSellerListing(p: any) {
     updatedAt: p.updatedDate,
   };
 }
+
+function cleanHtmlText(text: any): string {
+  if (text === null || text === undefined) return '';
+  return String(text)
+    .replace(/<[^>]*>?/gm, '')
+    .replace(/&nbsp;/g, ' ')
+    .trim();
+}
+
+function convertWixMedia(urlOrObj: any, type: string = 'Image'): { src: string | null; poster?: string } | null {
+  if (!urlOrObj) return null;
+  let src = typeof urlOrObj === 'string' ? urlOrObj.trim() : (urlOrObj?.src ? String(urlOrObj.src).trim() : '');
+  if (!src) return null;
+
+  if (src.startsWith('wix:image://v1/')) {
+    const parts = src.split('/');
+    const rawFilename = parts[3] || '';
+    const mediaId = rawFilename.split('#')[0] || '';
+    if (mediaId) {
+      src = `https://static.wixstatic.com/media/${mediaId}`;
+    }
+  } else if (src.startsWith('wix:video://v1/')) {
+    const parts = src.split('/');
+    const mediaId = parts[3] ? parts[3].split('#')[0] : '';
+    if (mediaId) {
+      src = `https://video.wixstatic.com/video/${mediaId}/mp4/file.mp4`;
+    }
+  }
+
+  const result: { src: string | null; poster?: string } = { src };
+  if (type === 'Video' && urlOrObj && typeof urlOrObj === 'object' && urlOrObj.poster) {
+    result.poster = typeof urlOrObj.poster === 'string' ? urlOrObj.poster : undefined;
+  }
+  return result;
+}
+
+function computeDeliveryCharges(
+  sellerPin: string | number,
+  toPin: string | number,
+  rawWeight: number,
+  orderAmount: number,
+): { prepaid: number; cod: number } {
+  let weight = Number(rawWeight) || 0.5;
+  if (weight > 20) {
+    // If weight is passed in grams (e.g. 400g, 500g), convert to kg
+    weight = weight / 1000;
+  }
+  const sellerP = String(sellerPin || '').trim();
+  const toP = String(toPin || '').trim();
+
+  if (!sellerP || !toP || weight <= 0) {
+    return { prepaid: 0, cod: 0 };
+  }
+
+  const isLocal = sellerP.slice(0, 3) === toP.slice(0, 3);
+  const isRegional = sellerP.slice(0, 2) === toP.slice(0, 2);
+
+  let prepaid = 50;
+  let cod = 60;
+  if (isLocal) {
+    prepaid = 30;
+    cod = 40;
+  } else if (isRegional) {
+    prepaid = 40;
+    cod = 50;
+  }
+
+  const additionalSlabs = Math.max(0, Math.ceil((weight - 0.5) / 0.5));
+  if (additionalSlabs > 0) {
+    const slabRate = isLocal ? 15 : isRegional ? 25 : 35;
+    prepaid += additionalSlabs * slabRate;
+    cod += additionalSlabs * slabRate;
+  }
+
+  return { prepaid, cod };
+}
+
+function formatCurrencyString(val: any, fallbackNum?: number): string {
+  if (typeof val === 'string' && val.trim()) {
+    const trimmed = val.trim();
+    if (trimmed.startsWith('?')) {
+      return '₹' + trimmed.slice(1);
+    }
+    if (trimmed.startsWith('₹') || trimmed.startsWith('Rs') || trimmed.startsWith('INR')) {
+      return trimmed;
+    }
+    const num = Number(trimmed);
+    if (!isNaN(num)) {
+      return `₹${num}`;
+    }
+    return trimmed;
+  }
+  if (typeof val === 'number') {
+    return `₹${val}`;
+  }
+  if (fallbackNum !== undefined && !isNaN(fallbackNum)) {
+    return `₹${fallbackNum}`;
+  }
+  return '₹0';
+}
+
+

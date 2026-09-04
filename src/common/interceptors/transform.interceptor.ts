@@ -30,7 +30,11 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
             url.includes('check-user') ||
             url.includes('checkuser') ||
             url.includes('dashboard') ||
-            url.includes('register'))
+            url.includes('register') ||
+            url.includes('productdetails') ||
+            url.includes('product-details') ||
+            url.includes('sellerproductdetails') ||
+            url.includes('_functions'))
         ) {
           if ('statusCode' in data) {
             delete (data as any).statusCode;

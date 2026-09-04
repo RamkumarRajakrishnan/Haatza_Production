@@ -236,6 +236,8 @@ export class CategoryController {
   })
   @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID of parent category (e.g. CAT_FASH)' })
   @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Legacy alias for categoryId' })
+  @ApiQuery({ name: 'subCategoryId', required: false, type: String, description: 'SubCategory ID alias for parent category drill-down' })
+  @ApiQuery({ name: 'sub_category_id', required: false, type: String, description: 'Legacy alias for subCategoryId' })
   @ApiQuery({ name: 'parentCategoryId', required: false, type: String, description: 'Parent Category ID' })
   @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Legacy alias for parentCategoryId' })
   @ApiQuery({ name: 'module', required: false, type: String, description: 'Filter by module (haatza or lite)' })
@@ -249,11 +251,26 @@ export class CategoryController {
     @Query('parent_category_id') queryParentId?: string,
     @Query('categoryId') queryAliasId?: string,
     @Query('category_id') queryCategoryId?: string,
+    @Query('subCategoryId') querySubCategoryId?: string,
+    @Query('sub_category_id') querySnakeSubCategoryId?: string,
     @Query('module') queryModule?: string,
     @Query('Module') queryPascalModule?: string,
     @Query() allQueries?: any,
   ) {
-    let targetId = queryAliasId || queryCategoryId || queryAliasParentId || queryParentId || paramAliasParentId || paramParentId || '';
+    let targetId =
+      queryAliasId ||
+      queryCategoryId ||
+      queryAliasParentId ||
+      queryParentId ||
+      querySubCategoryId ||
+      querySnakeSubCategoryId ||
+      allQueries?.subCategoryId ||
+      allQueries?.sub_category_id ||
+      allQueries?.subCategory ||
+      allQueries?.subcategory ||
+      paramAliasParentId ||
+      paramParentId ||
+      '';
     
     // Support URL paths like /categories/categoryId=CAT_FASH or /categories/category_id=CAT_FASH cleanly
     if (targetId.includes('=')) {
@@ -262,20 +279,12 @@ export class CategoryController {
     }
 
     const targetModule = (queryModule || queryPascalModule || allQueries?.module || allQueries?.Module || '').toString().trim().toLowerCase();
+
     if (!targetModule) {
       throw new BadRequestException('module is required (haatza or lite)');
     }
     if (targetModule !== 'haatza' && targetModule !== 'lite') {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
-    }
-
-    const categoryParam = (allQueries?.category || allQueries?.categoryType || allQueries?.category_type || '').toString().trim().toLowerCase();
-    if (categoryParam === 'main' || targetId.toLowerCase() === 'main') {
-      return this.categoryService.getMainCategories({
-        module: targetModule,
-        page: allQueries?.page,
-        limit: allQueries?.limit,
-      });
     }
 
     if (targetId.trim()) {

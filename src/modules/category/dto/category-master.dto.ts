@@ -159,6 +159,20 @@ export class QueryCategoryDto {
   categoryId?: string;
 
   @ApiPropertyOptional({
+    description: 'Filter by SubCategory ID',
+  })
+  @IsOptional()
+  @IsString()
+  sub_category_id?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias filter by subCategoryId',
+  })
+  @IsOptional()
+  @IsString()
+  subCategoryId?: string;
+
+  @ApiPropertyOptional({
     description: 'Filter by Module (HAATZA, LITE, or ALL)',
   })
   @IsOptional()
@@ -209,14 +223,6 @@ export class QueryCategoryDto {
     typeof value === 'string' ? (value.toUpperCase().trim() as any) : value,
   )
   categoryType?: CategoryType;
-
-  @ApiPropertyOptional({
-    description: 'Filter by category level (e.g., main for top-level main categories)',
-    example: 'main',
-  })
-  @IsOptional()
-  @IsString()
-  category?: string;
 
   @ApiPropertyOptional({
     description: 'Search string for category name',

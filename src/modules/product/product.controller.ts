@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import { ProductService } from './product.service';
 import { ProductListQueryDto } from './dto/product-list.dto';
 import { CreateProductDto, UpdateProductDto, InventoryUpdateDto, CollectionsUpdateDto, MediaUpdateDto, StatusUpdateDto, PricingUpdateDto, AdStatsUpdateDto } from './dto/product-rest.dto';
+import { ProductDetailsQueryDto } from './dto/product-details.dto';
 
 @ApiTags('Products')
 @Controller(['_functions', 'api/v1', 'api', ''])
@@ -120,6 +121,67 @@ export class ProductController {
   }
 
 
+
+  @ApiOperation({
+    summary: 'Wix-compatible get product details by productId & toPincode (GET/POST /productDetails)',
+    description: 'Retrieves complete product details, dynamic delivery fees, variants, seller info, and reviews in camelCase format.',
+  })
+  @Get([
+    'productDetails',
+    'get_productDetails',
+    'product-details',
+  ])
+  @Post([
+    'productDetails',
+    'get_productDetails',
+    'product-details',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async getProductDetails(
+    @Query('productId') productId?: string,
+    @Query('product_id') querySnakeProductId?: string,
+    @Query('id') queryId?: string,
+    @Query('toPincode') toPincode?: string,
+    @Query('to_pincode') querySnakeToPincode?: string,
+    @Query('pincode') queryPincode?: string,
+    @Query('toPin') queryToPin?: string,
+    @Query('to_pin') querySnakeToPin?: string,
+    @Query('userId') userId?: string,
+    @Query('user_id') querySnakeUserId?: string,
+    @Body() body?: any,
+  ) {
+    const targetProductId =
+      productId ||
+      querySnakeProductId ||
+      queryId ||
+      body?.productId ||
+      body?.product_id ||
+      body?.id;
+
+    const targetToPincode =
+      toPincode ||
+      querySnakeToPincode ||
+      queryPincode ||
+      queryToPin ||
+      querySnakeToPin ||
+      body?.toPincode ||
+      body?.to_pincode ||
+      body?.pincode ||
+      body?.toPin ||
+      body?.to_pin;
+
+    const targetUserId =
+      userId ||
+      querySnakeUserId ||
+      body?.userId ||
+      body?.user_id;
+
+    return this.productService.getProductDetails({
+      productId: targetProductId,
+      toPincode: targetToPincode,
+      userId: targetUserId,
+    });
+  }
 
   @ApiOperation({ summary: 'Wix-compatible get product details by Table_ID (GET)' })
   @Get('sellerProductDetails')

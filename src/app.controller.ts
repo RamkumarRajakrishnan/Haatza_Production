@@ -26,10 +26,12 @@ export class AppController {
   @Get('routes')
   getAllRoutes() {
     return {
-      message: 'All API routes catalog',
+      message: 'All active API routes catalog',
       totalCategories: Object.keys(API_ROUTES).length,
       routes: API_ROUTES,
     };
   }
 }
+
+
 

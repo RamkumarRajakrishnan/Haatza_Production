@@ -1,134 +1,84 @@
 /**
  * Centralized API Routes Catalog
  * --------------------------------------------------
- * Single source of truth for all API endpoints across the system.
+ * Single source of truth for all active API endpoints across the system.
  */
 
 export const API_ROUTES = {
+  // 1. Authentication & Device Sessions
   AUTH: {
+    CHECK_USER: '/api/v1/auth/check-user',
+    CHECK_USER_GET: '/api/v1/users/check',
     REGISTER: '/api/v1/auth/register',
     LOGIN: '/api/v1/auth/login',
+    EMPLOYEE_LOGIN: '/api/v1/auth/employee-login',
+    FORGOT_PASSWORD: '/api/v1/auth/forgot-password',
+    RESET_PASSWORD: '/api/v1/auth/reset-password',
+    GENERATE_OTP: '/api/v1/auth/generate-otp',
+    VERIFY_OTP: '/api/v1/auth/verify-otp',
+    RESEND_OTP: '/api/v1/auth/resend-otp',
     REFRESH: '/api/v1/auth/refresh',
     LOGOUT: '/api/v1/auth/logout',
-    FORGOT_PASSWORD: '/api/v1/auth/forgotPassword',
-    GENERATE_OTP: '/api/v1/auth/generateotp',
-    VERIFY_OTP: '/api/v1/auth/verifyotp',
-    RESEND_OTP: '/api/v1/auth/resendotp',
+    GET_SESSIONS: '/api/v1/users/me/sessions',
+    DELETE_SESSION: '/api/v1/users/me/sessions/:sessionId',
+    REVOKE_OTHERS: '/api/v1/users/me/sessions/revoke-others',
+    ME: '/api/v1/auth/me',
   },
-  SELLER: {
-    PROFILE: '/api/v1/seller/profile',
-    DATA: '/api/v1/sellerdata',
-    ONBOARD_STATUS: '/api/v1/onboardStatus',
-    ONBOARDING: '/api/v1/Selleronboarding',
-    UPDATE_ONBOARDING: '/api/v1/updateSelleronboarding',
-    BANK_LIST: '/api/v1/bankList',
-    CHECK_SELLER: '/api/v1/checkseller',
-    CHECK_GST: '/api/v1/checksellergst',
-    CHECK_VERSION: '/api/v1/sellercheckVersion',
-    DELETE_ACCOUNT: '/api/v1/deleteAccount',
-  },
-  ORDERS: {
-    NEW_ORDERS: '/api/v1/sellernewOrders',
-    ORDER_DETAILS: '/api/v1/sellerOrderdetails',
-    UPDATE_STATUS: '/api/v1/updateOrdersstatus',
-    RETURNS: '/api/v1/returns',
-    RETURN_DETAILS: '/api/v1/sellerreturnDetails',
-    EXCHANGE_ORDERS: '/api/v1/SellerReturnExchangeOrders',
-    CLAIMS_LIST: '/api/v1/SellerClaimslist',
-    CREATE_CLAIM: '/api/v1/sellerClaim',
-  },
+
+  // 2. Products & Buyer Catalog
   PRODUCTS: {
-    SELLER_PRODUCTS: '/api/v1/seller_products',
+    CREATE_PRODUCT: '/api/v1/products',
     SELLER_LISTING: '/api/v1/sellerlisting',
-    PRODUCT_DETAILS: '/api/v1/sellerProductDetails',
+    PRODUCTS_LIST: '/api/v1/products-list',
     UPDATE_PRODUCT: '/api/v1/updateSellerProduct',
-    CATEGORIES: '/api/v1/category',
-    SUB_CATEGORIES: '/api/v1/subCategories',
-    SEARCH_CATEGORIES: '/api/v1/searchcategorylist',
-    CATEGORY_FIELDS: '/api/v1/CategoryFields',
-    UPLOAD_MEDIA: '/api/v1/uploadMedia',
-    UPLOAD_VIDEO: '/api/v1/uploadVideo',
-    INVENTORY: '/api/v1/sellerproductInventory',
-    INCREMENT_INVENTORY: '/api/v1/incrementInventory',
-    DECREMENT_INVENTORY: '/api/v1/decrementInventory',
-    INFLUENCER_PRODUCTS: '/api/v1/sellerIBProducts',
-    UPDATE_INFLUENCER_BRANDING: '/api/v1/updateInfluencerBranding',
+    DELETE_PRODUCT: '/api/v1/products/:product_id',
+    SELLER_PRODUCT_DETAILS: '/api/v1/sellerProductDetails',
+    PRODUCT_DETAILS: '/api/v1/productDetails',
+    BY_SUBCATEGORY: '/api/v1/productsBySubCategoryId',
+    BY_CATEGORY: '/api/v1/productsByCategory',
   },
-  CATEGORY_MASTER: {
+
+  // 3. Category Master & Hierarchy
+  CATEGORIES: {
+    SUBCATEGORIES: '/api/v1/categories', // Primary: ?module=haatza&category_id=CAT_ELEC
     CREATE_CATEGORY: '/api/v1/create_category',
     GET_CATEGORY: '/api/v1/get_category',
-    GET_CATEGORIES: '/api/v1/get_categories',
+    MAIN_CATEGORIES: '/api/v1/categories/main',
+    HIERARCHY: '/api/v1/categories/hierarchy',
     UPDATE_CATEGORY: '/api/v1/update_category',
-    UPDATE_CATEGORY_STATUS: '/api/v1/update_category_status',
-    GET_CATEGORY_HIERARCHY: '/api/v1/get_category_hierarchy',
-    GET_CHILD_CATEGORIES: '/api/v1/get_child_categories',
-    DELETE_CATEGORY: '/api/v1/delete_category',
+    UPDATE_STATUS: '/api/v1/update_category_status',
+    DELETE_CATEGORY: '/api/v1/delete_category/:id',
+    LEGACY_CATEGORY: '/api/v1/category',
+    LEGACY_SUBCATEGORY: '/api/v1/subcategorylist',
   },
-  PAYMENTS: {
-    SELLER_PAYMENTS: '/api/v1/sellerpayments',
-    CHECK_WALLET_BALANCE: '/api/v1/checkWalletBalance',
-    TRANSACTION_HISTORY: '/api/v1/transactionHistory',
-    ADD_FUNDS: '/api/v1/addFunds',
-    UPDATE_WALLET: '/api/v1/updateWallet',
-    CREATE_RAZORPAY_ORDER: '/api/v1/createRazorpayOrder',
-    VERIFY_RAZORPAY_PAYMENT: '/api/v1/verifyRazorpayPayment',
-    SETTLEMENT_SUMMARY: '/api/v1/settlementsummary',
-    CREATE_INVOICE: '/api/v1/createSellerInvoice',
-    INVOICES: '/api/v1/sellerInvoices',
-  },
-  CAMPAIGNS: {
-    CREATE_CAMPAIGN: '/api/v1/newSellerCampaign',
-    CAMPAIGNS: '/api/v1/sellerCampaigns',
-    CAMPAIGN_PRODUCTS: '/api/v1/sellerCampaignsproducts',
-    CAMPAIGN_DETAILS: '/api/v1/campaignDetails',
-    PUBLIC_CAMPAIGN_PRODUCTS: '/api/v1/CampaignProducts',
-    PRODUCT_PERFORMANCE: '/api/v1/CampaignproductPerformance',
-    CAMPAIGN_SUMMARY: '/api/v1/Campaignsummery',
-    UPDATE_CAMPAIGN: '/api/v1/updateSellerCampaign',
-    PAUSE_CAMPAIGN: '/api/v1/offSellerCampaign',
-    DELETE_CAMPAIGN: '/api/v1/deleteSellerCampaign',
-    CONFIRMED_ORDERS_COUNT: '/api/v1/sellerConfirmedOrdersCount',
-    TOP_SELLING_PRODUCTS: '/api/v1/getTopSellingProducts',
-    PRODUCT_STATS: '/api/v1/getProductStats',
-  },
-  SHIPPING: {
-    DELIVERY_AMOUNT: '/api/v1/getDeliveryAmount',
-    EXPECTED_TAT: '/api/v1/expectedTat',
-    CREATE_SHIPMENT: '/api/v1/createShipment',
-    EXCHANGE_SHIPMENT: '/api/v1/ExchangecreateShipment',
-    CANCEL_SHIPMENT: '/api/v1/cancelShipment',
-    PACKING_SLIP: '/api/v1/packingSlip',
-    TRACK_SHIPPING: '/api/v1/trackshipping',
-  },
-  SUPPORT: {
-    NOTIFICATIONS: '/api/v1/notifications',
-    UPDATE_NOTIFICATION: '/api/v1/updateNotification',
-    TICKETS: '/api/v1/sellertickets',
-    CREATE_TICKET: '/api/v1/createTicket',
-    TUTORIALS: '/api/v1/SellerTutorials',
-  },
-  SUBSCRIPTIONS: {
+
+
+  // 4. Grow Plan & Subscriptions
+  GROW_PLAN_SUBSCRIPTION: {
+    CREATE_ORDER: '/api/v1/subscription/create-order',
+    VERIFY_PAYMENT: '/api/v1/subscription/verify-payment',
+    PROCESS_ORDER: '/api/v1/subscription/process-order',
+    RESCHEDULE: '/api/v1/subscription/reschedule',
+    SELLER_SUBSCRIPTION: '/api/v1/subscription/seller-subscription',
     GET_PLANS: '/api/v1/getPlans',
     CREATE_SUBSCRIPTION: '/api/v1/createSubscription',
-    PROCESS_SUBSCRIPTION: '/api/v1/processSubscriptionOrder',
-    SELLER_SUBSCRIPTION: '/api/v1/sellersubscription',
-    ACTIVE_COUPONS: '/api/v1/activeCoupons',
-    REFERRAL_WITHDRAW: '/api/v1/referralWithdraw',
-    REFERRAL_CHECK: '/api/v1/referralCheck',
-    REFERRAL_UPDATE: '/api/v1/referralUpdate',
-    SELLER_REFERRAL: '/api/v1/sellerreferral',
-    REFERRAL_CODE: '/api/v1/sellerReferralcode',
+    CREATE_RAZORPAY_ORDER: '/api/v1/createRazorpayOrder',
+    GROW_PLANS: '/api/v1/grow-plans',
   },
-  HAATZUP: {
-    PRODUCTS: '/api/v1/sellerhaatzupProducts',
-    GENERATE_HASHTAGS: '/api/v1/generateHashtags',
-    UPLOAD_VIDEO: '/api/v1/uploadhaatzupVideo',
-    SELLER_VIDEOS: '/api/v1/SellerwiseHaatzUp',
-    VIDEO_DETAILS: '/api/v1/sellerHaatzUpdetails',
-    DELETE_VIDEO: '/api/v1/deletehaatzupVideo',
+
+  // 5. AppBar Categories
+  APPBAR_CATEGORIES: {
+    ACTIVE: '/api/v1/appbar-categories/active',
+    LIST: '/api/v1/appbar-categories',
+    CREATE: '/api/v1/appbar-categories',
   },
-  WAREHOUSE: {
-    WAREHOUSE_REQUESTS: '/api/v1/sellerwarehouseRequest',
-    CREATE_WAREHOUSE: '/api/v1/Createwarehouse',
+
+  // 6. Dashboard
+  DASHBOARD: {
+    WIDGETS: '/api/v1/dashboard',
+    WIDGETS_GET: '/api/v1/dashboard/widgets',
+    GET_DASHBOARD: '/api/v1/dashboard/get_dashboard',
+    PING: '/api/v1/dashboard/ping',
+    DELETE: '/api/v1/dashboard/:id',
   },
 };
