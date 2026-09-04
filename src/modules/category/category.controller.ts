@@ -28,7 +28,7 @@ import { CategoryModule } from '@prisma/client';
 @ApiTags('Category Master')
 @Controller(['category', 'categories', 'api/categories', 'api/v1/categories', 'api/v1/category', 'api/v1'])
 export class CategoryController {
-  constructor(private readonly categoryService: CategoryService) {}
+  constructor(private readonly categoryService: CategoryService) { }
 
   @Get(['main', 'categories/main'])
   @HttpCode(HttpStatus.OK)
@@ -219,59 +219,64 @@ export class CategoryController {
   @Get([
     '',
     'categories',
-    'subcategories',
-    'subcategories/:parentCategoryId',
-    'subcategories/:parent_category_id',
-    'parent/:parentCategoryId',
-    'parent/:parent_category_id',
-    'category/:parentCategoryId',
-    'category/:parent_category_id',
+    ':categoryId',
+    ':category_id',
     ':parentCategoryId',
     ':parent_category_id',
   ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Get Subcategories by Category ID (GET /api/v1/categories?categoryId=CAT_FASH)',
-    description: 'Returns direct and recursively nested subcategories under categoryId / parentCategoryId (Flipkart-style drill-down).',
+    summary: 'Get Category Tree / Categories List (GET /api/v1/categories?categoryId=CAT_ELEC)',
+    description: 'Returns nested subcategories under categoryId / category_id. If no categoryId is provided, returns active categories list filtered by module.',
   })
-  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID of parent category (e.g. CAT_FASH)' })
-  @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Legacy alias for categoryId' })
-  @ApiQuery({ name: 'subCategoryId', required: false, type: String, description: 'SubCategory ID alias for parent category drill-down' })
-  @ApiQuery({ name: 'sub_category_id', required: false, type: String, description: 'Legacy alias for subCategoryId' })
+  @ApiQuery({ name: 'categoryId', required: false, type: String, description: 'Category ID (e.g. CAT_ELEC)' })
+  @ApiQuery({ name: 'category_id', required: false, type: String, description: 'Category ID alias (e.g. CAT_ELEC)' })
   @ApiQuery({ name: 'parentCategoryId', required: false, type: String, description: 'Parent Category ID' })
-  @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Legacy alias for parentCategoryId' })
+  @ApiQuery({ name: 'parent_category_id', required: false, type: String, description: 'Parent Category ID alias' })
   @ApiQuery({ name: 'module', required: false, type: String, description: 'Filter by module (haatza or lite)' })
   @ApiQuery({ name: 'Module', required: false, type: String, description: 'Filter by Module (PascalCase alias)' })
-  @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree' })
-  @ApiResponse({ status: 404, description: 'Parent category not found' })
+  @ApiResponse({ status: 200, description: 'Nested subcategories hierarchy tree or categories list' })
+  @ApiResponse({ status: 404, description: 'Category not found' })
   async getSubcategoriesByParentId(
+    @Param('categoryId') paramCategoryId?: string,
+    @Param('category_id') paramSnakeCategoryId?: string,
     @Param('parentCategoryId') paramAliasParentId?: string,
     @Param('parent_category_id') paramParentId?: string,
-    @Query('parentCategoryId') queryAliasParentId?: string,
-    @Query('parent_category_id') queryParentId?: string,
     @Query('categoryId') queryAliasId?: string,
     @Query('category_id') queryCategoryId?: string,
-    @Query('subCategoryId') querySubCategoryId?: string,
-    @Query('sub_category_id') querySnakeSubCategoryId?: string,
+    @Query('parentCategoryId') queryAliasParentId?: string,
+    @Query('parent_category_id') queryParentId?: string,
     @Query('module') queryModule?: string,
     @Query('Module') queryPascalModule?: string,
     @Query() allQueries?: any,
   ) {
+    // Explicitly disallow subCategory / subCategoryId on this endpoint
+    const hasSubCategoryParam =
+      allQueries?.subCategoryId ||
+      allQueries?.sub_category_id ||
+      allQueries?.subCategory_id ||
+      allQueries?.SubCategory_id ||
+      allQueries?.SubCategoryId ||
+      allQueries?.subCategory ||
+      allQueries?.subcategory;
+
+    if (hasSubCategoryParam) {
+      throw new BadRequestException(
+        "The 'subCategory_id' parameter is not supported on /api/v1/categories. Use 'categoryId' for categories, or use '/api/v1/productsBySubCategoryId' for products.",
+      );
+    }
+
     let targetId =
       queryAliasId ||
       queryCategoryId ||
       queryAliasParentId ||
       queryParentId ||
-      querySubCategoryId ||
-      querySnakeSubCategoryId ||
-      allQueries?.subCategoryId ||
-      allQueries?.sub_category_id ||
-      allQueries?.subCategory ||
-      allQueries?.subcategory ||
+      paramCategoryId ||
+      paramSnakeCategoryId ||
       paramAliasParentId ||
       paramParentId ||
       '';
-    
+
     // Support URL paths like /categories/categoryId=CAT_FASH or /categories/category_id=CAT_FASH cleanly
     if (targetId.includes('=')) {
       const parts = targetId.split('=');

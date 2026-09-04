@@ -88,25 +88,46 @@ export class ProductService {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
     }
     const moduleEnum = rawModule === 'LITE' ? CategoryModule.LITE : CategoryModule.HAATZA;
-    const modCats = await this.db.categoryList.findMany({
-      where: { module: { in: [moduleEnum, CategoryModule.ALL] } },
-      select: { categoryId: true, categoryName: true },
+
+    // Find all categories specific to LITE module
+    const liteCats = await this.db.categoryList.findMany({
+      where: { module: CategoryModule.LITE },
+      select: { categoryId: true, categoryName: true, id: true },
     });
-    const modCatIds = modCats.map((c) => c.categoryId);
-    const modCatNames = modCats.map((c) => c.categoryName);
-    if (modCatIds.length > 0) {
-      where.AND = [
-        ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
-        {
-          OR: [
-            { categoryId: { in: modCatIds } },
-            { subCategoryId: { in: modCatIds } },
-            { collections: { hasSome: modCatIds } },
-            { subCategory: { in: modCatNames } },
-            { mainCategory: { in: modCatIds } },
-          ],
-        },
-      ];
+    const liteCatIds = liteCats.flatMap((c) => [c.categoryId, c.id].filter(Boolean));
+    const liteCatNames = liteCats.map((c) => c.categoryName).filter(Boolean);
+
+    if (moduleEnum === CategoryModule.LITE) {
+      if (liteCatIds.length > 0 || liteCatNames.length > 0) {
+        where.AND = [
+          ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+          {
+            OR: [
+              { categoryId: { in: liteCatIds } },
+              { subCategoryId: { in: liteCatIds } },
+              { collections: { hasSome: liteCatIds } },
+              { subCategory: { in: liteCatNames } },
+            ],
+          },
+        ];
+      }
+    } else {
+      // HAATZA module: general marketplace products; exclude strictly LITE-only categories if any exist
+      if (liteCatIds.length > 0 || liteCatNames.length > 0) {
+        where.AND = [
+          ...(where.AND ? (Array.isArray(where.AND) ? where.AND : [where.AND]) : []),
+          {
+            NOT: {
+              OR: [
+                { categoryId: { in: liteCatIds } },
+                { subCategoryId: { in: liteCatIds } },
+                { collections: { hasSome: liteCatIds } },
+                { subCategory: { in: liteCatNames } },
+              ],
+            },
+          },
+        ];
+      }
     }
 
     if (subCategory) {

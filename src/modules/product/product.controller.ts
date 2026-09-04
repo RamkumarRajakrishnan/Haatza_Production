@@ -8,7 +8,7 @@ import { ProductDetailsQueryDto } from './dto/product-details.dto';
 @ApiTags('Products')
 @Controller(['_functions', 'api/v1', 'api', ''])
 export class ProductController {
-  constructor(private readonly productService: ProductService) {}
+  constructor(private readonly productService: ProductService) { }
 
   @ApiOperation({
     summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET/POST /api/v1/ProductsBySubCategoryId)',
@@ -378,11 +378,11 @@ export class ProductController {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
     }
 
-    return this.productService.getProductsByCategory({ 
-      categoryId: categoryId || body?.categoryId, 
-      page: page || body?.page, 
-      count: count || body?.count, 
-      userId: userId || body?.userId, 
+    return this.productService.getProductsByCategory({
+      categoryId: categoryId || body?.categoryId,
+      page: page || body?.page,
+      count: count || body?.count,
+      userId: userId || body?.userId,
       toPincode: toPincode || body?.toPincode,
       brands: brands || body?.brands,
       minPrice: minPrice || body?.minPrice,

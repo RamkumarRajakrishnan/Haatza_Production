@@ -158,19 +158,6 @@ export class QueryCategoryDto {
   @IsString()
   categoryId?: string;
 
-  @ApiPropertyOptional({
-    description: 'Filter by SubCategory ID',
-  })
-  @IsOptional()
-  @IsString()
-  sub_category_id?: string;
-
-  @ApiPropertyOptional({
-    description: 'Alias filter by subCategoryId',
-  })
-  @IsOptional()
-  @IsString()
-  subCategoryId?: string;
 
   @ApiPropertyOptional({
     description: 'Filter by Module (HAATZA, LITE, or ALL)',
