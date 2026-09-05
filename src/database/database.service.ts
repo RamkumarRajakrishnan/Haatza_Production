@@ -807,6 +807,11 @@ export class DatabaseService
 
         ALTER TABLE public.appbar_categories ADD COLUMN IF NOT EXISTS secondary_appbar_color text;
 
+        -- Products pending price update fields (reviewed before live activation)
+        ALTER TABLE public.products ADD COLUMN IF NOT EXISTS new_mrp double precision;
+        ALTER TABLE public.products ADD COLUMN IF NOT EXISTS new_discount jsonb;
+        ALTER TABLE public.products ADD COLUMN IF NOT EXISTS new_onsale double precision;
+
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_module_status ON public.appbar_categories(module, status);
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_wh_mod_stat ON public.appbar_categories(warehouse_id, module, status);
         CREATE INDEX IF NOT EXISTS idx_appbar_categories_expire_date ON public.appbar_categories(expire_date);

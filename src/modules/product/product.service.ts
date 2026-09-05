@@ -980,24 +980,58 @@ export class ProductService {
     if (body.mainmedia !== undefined) updateData.mainMedia = body.mainmedia;
     if (body.mainMedia !== undefined) updateData.mainMedia = body.mainMedia;
     if (body.productOptions !== undefined) updateData.productOptions = body.productOptions;
-    if (body.price !== undefined) updateData.price = parseFloat(body.price) || 0;
-    if (body.discount !== undefined) updateData.discount = body.discount;
     if (body.manageVariants !== undefined) updateData.manageVariants = body.manageVariants === true || body.manageVariants === 'true';
     if (body.ribbon !== undefined) updateData.ribbon = body.ribbon;
-    if (body.varientPrice !== undefined) updateData.variantPrice = body.varientPrice;
-    if (body.variantPrice !== undefined) updateData.variantPrice = body.variantPrice;
     if (body.additionalInfoSections !== undefined) updateData.additionalInfoSections = body.additionalInfoSections;
     if (body.paymentType !== undefined) updateData.paymentType = body.paymentType;
     if (body.productReturn !== undefined) updateData.productReturn = body.productReturn;
     if (body.deliveryCharges !== undefined) updateData.deliveryCharges = body.deliveryCharges === true || body.deliveryCharges === 'true';
     if (body.sizeChart !== undefined) updateData.sizeChart = body.sizeChart;
-    if (body.newVariantPrice !== undefined) updateData.newVariantPrice = body.newVariantPrice;
-    if (body.mrp !== undefined) updateData.mrp = parseFloat(body.mrp) || 0;
-    if (body.onsalePrice !== undefined) updateData.onsalePrice = parseFloat(body.onsalePrice) || 0;
     if (body.cod !== undefined) updateData.cod = parseFloat(body.cod) || 0;
     if (body.upi !== undefined) updateData.upi = parseFloat(body.upi) || 0;
     if (body.gstSeller !== undefined) updateData.gstSeller = parseFloat(body.gstSeller) || 0;
     if (body.upiPaymentDiscount !== undefined) updateData.upiPaymentDiscount = parseFloat(body.upiPaymentDiscount) || 0;
+
+    // Route price updates to pending review fields (newMrp, newDiscount, newOnsale, newVariantPrice)
+    let isPriceUpdate = false;
+    if (body.newMrp !== undefined || body.new_mrp !== undefined) {
+      updateData.newMrp = parseFloat(body.newMrp ?? body.new_mrp) || 0;
+      isPriceUpdate = true;
+    } else if (body.mrp !== undefined) {
+      updateData.newMrp = parseFloat(body.mrp) || 0;
+      isPriceUpdate = true;
+    }
+
+    if (body.newDiscount !== undefined || body.new_discount !== undefined) {
+      updateData.newDiscount = body.newDiscount ?? body.new_discount;
+      isPriceUpdate = true;
+    } else if (body.discount !== undefined) {
+      updateData.newDiscount = body.discount;
+      isPriceUpdate = true;
+    }
+
+    if (body.newOnsale !== undefined || body.new_onsale !== undefined || body.new_onsale_price !== undefined) {
+      updateData.newOnsale = parseFloat(body.newOnsale ?? body.new_onsale ?? body.new_onsale_price) || 0;
+      isPriceUpdate = true;
+    } else if (body.onsalePrice !== undefined) {
+      updateData.newOnsale = parseFloat(body.onsalePrice) || 0;
+      isPriceUpdate = true;
+    } else if (body.price !== undefined) {
+      updateData.newOnsale = parseFloat(body.price) || 0;
+      isPriceUpdate = true;
+    }
+
+    if (body.newVariantPrice !== undefined) {
+      updateData.newVariantPrice = body.newVariantPrice;
+      isPriceUpdate = true;
+    } else if (body.variantPrice !== undefined || body.varientPrice !== undefined) {
+      updateData.newVariantPrice = body.variantPrice ?? body.varientPrice;
+      isPriceUpdate = true;
+    }
+
+    if (isPriceUpdate && !body.status) {
+      updateData.status = 'Under Review';
+    }
 
     updateData.updatedDate = new Date();
 
@@ -1182,6 +1216,32 @@ export class ProductService {
     }
 
     const data = mapRestToPrismaInput(dto);
+
+    // If status is being set to approved or active, promote pending review prices to live prices
+    if (data.status && ['approved', 'active'].includes((data.status as string).trim().toLowerCase())) {
+      const targetNewMrp = data.newMrp !== undefined ? data.newMrp : existing.newMrp;
+      if (targetNewMrp !== null && targetNewMrp !== undefined) {
+        data.mrp = targetNewMrp;
+        data.newMrp = null;
+      }
+      const targetNewDiscount = data.newDiscount !== undefined ? data.newDiscount : existing.newDiscount;
+      if (targetNewDiscount !== null && targetNewDiscount !== undefined) {
+        data.discount = targetNewDiscount;
+        data.newDiscount = Prisma.DbNull;
+      }
+      const targetNewOnsale = data.newOnsale !== undefined ? data.newOnsale : existing.newOnsale;
+      if (targetNewOnsale !== null && targetNewOnsale !== undefined) {
+        data.onsalePrice = targetNewOnsale;
+        data.price = targetNewOnsale;
+        data.newOnsale = null;
+      }
+      const targetNewVariantPrice = data.newVariantPrice !== undefined ? data.newVariantPrice : existing.newVariantPrice;
+      if (targetNewVariantPrice !== null && targetNewVariantPrice !== undefined) {
+        data.variantPrice = targetNewVariantPrice;
+        data.newVariantPrice = Prisma.DbNull;
+      }
+    }
+
     data.updatedDate = new Date();
 
     const updated = await this.db.product.update({
@@ -1303,12 +1363,36 @@ export class ProductService {
       throw new NotFoundException(`Product with ID ${id} not found`);
     }
 
+    const data: Prisma.ProductUpdateInput = {
+      status,
+      updatedDate: new Date(),
+    };
+
+    // When status is approved or active, activate pending price updates (newMrp, newDiscount, newOnsale, newVariantPrice)
+    const isApproval = ['approved', 'active'].includes((status || '').trim().toLowerCase());
+    if (isApproval) {
+      if (existing.newMrp !== null && existing.newMrp !== undefined) {
+        data.mrp = existing.newMrp;
+        data.newMrp = null;
+      }
+      if (existing.newDiscount !== null && existing.newDiscount !== undefined) {
+        data.discount = existing.newDiscount;
+        data.newDiscount = Prisma.DbNull;
+      }
+      if (existing.newOnsale !== null && existing.newOnsale !== undefined) {
+        data.onsalePrice = existing.newOnsale;
+        data.price = existing.newOnsale;
+        data.newOnsale = null;
+      }
+      if (existing.newVariantPrice !== null && existing.newVariantPrice !== undefined) {
+        data.variantPrice = existing.newVariantPrice;
+        data.newVariantPrice = Prisma.DbNull;
+      }
+    }
+
     const updated = await this.db.product.update({
       where: { id },
-      data: {
-        status,
-        updatedDate: new Date(),
-      },
+      data,
     });
     return mapPrismaToRestOutput(updated);
   }
@@ -1346,13 +1430,33 @@ export class ProductService {
     }
 
     const data: any = {};
-    if (dto.price !== undefined) data.price = parseFloat(dto.price) || 0;
-    if (dto.mrp !== undefined) data.mrp = parseFloat(dto.mrp) || 0;
-    if (dto.onsale_price !== undefined) data.onsalePrice = parseFloat(dto.onsale_price) || 0;
-    if (dto.discount !== undefined) data.discount = dto.discount;
-    if (dto.variant_price !== undefined) data.variantPrice = dto.variant_price;
-    if (dto.new_variant_price !== undefined) data.newVariantPrice = dto.new_variant_price;
+    if (dto.new_mrp !== undefined || dto.newMrp !== undefined) {
+      data.newMrp = parseFloat(dto.new_mrp ?? dto.newMrp) || 0;
+    } else if (dto.mrp !== undefined) {
+      data.newMrp = parseFloat(dto.mrp) || 0;
+    }
 
+    if (dto.new_onsale !== undefined || dto.newOnsale !== undefined) {
+      data.newOnsale = parseFloat(dto.new_onsale ?? dto.newOnsale) || 0;
+    } else if (dto.onsale_price !== undefined || dto.onsalePrice !== undefined) {
+      data.newOnsale = parseFloat(dto.onsale_price ?? dto.onsalePrice) || 0;
+    } else if (dto.price !== undefined) {
+      data.newOnsale = parseFloat(dto.price) || 0;
+    }
+
+    if (dto.new_discount !== undefined || dto.newDiscount !== undefined) {
+      data.newDiscount = dto.new_discount ?? dto.newDiscount;
+    } else if (dto.discount !== undefined) {
+      data.newDiscount = dto.discount;
+    }
+
+    if (dto.new_variant_price !== undefined || dto.newVariantPrice !== undefined) {
+      data.newVariantPrice = dto.new_variant_price ?? dto.newVariantPrice;
+    } else if (dto.variant_price !== undefined || dto.variantPrice !== undefined) {
+      data.newVariantPrice = dto.variant_price ?? dto.variantPrice;
+    }
+
+    data.status = 'Under Review';
     data.updatedDate = new Date();
 
     const updated = await this.db.product.update({
@@ -2321,6 +2425,16 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
   if (dto.newVariantPrice !== undefined) data.newVariantPrice = dto.newVariantPrice;
   else if (dto.new_variant_price !== undefined) data.newVariantPrice = dto.new_variant_price;
 
+  if (dto.newMrp !== undefined) data.newMrp = parseFloat(dto.newMrp) || 0;
+  else if (dto.new_mrp !== undefined) data.newMrp = parseFloat(dto.new_mrp) || 0;
+
+  if (dto.newOnsale !== undefined) data.newOnsale = parseFloat(dto.newOnsale) || 0;
+  else if (dto.new_onsale !== undefined) data.newOnsale = parseFloat(dto.new_onsale) || 0;
+  else if (dto.new_onsale_price !== undefined) data.newOnsale = parseFloat(dto.new_onsale_price) || 0;
+
+  if (dto.newDiscount !== undefined) data.newDiscount = dto.newDiscount;
+  else if (dto.new_discount !== undefined) data.newDiscount = dto.new_discount;
+
   if (dto.mrp !== undefined) data.mrp = parseFloat(dto.mrp) || 0;
 
   if (dto.onsalePrice !== undefined) data.onsalePrice = parseFloat(dto.onsalePrice) || 0;
@@ -2562,11 +2676,17 @@ function mapPrismaToRestOutput(p: any): any {
     variantPrice: p.variantPrice,
     newVariantPrice: p.newVariantPrice,
     mrp: p.mrp,
+    newMrp: p.newMrp,
+    new_mrp: p.newMrp,
     onsalePrice: p.onsalePrice,
+    newOnsale: p.newOnsale,
+    new_onsale: p.newOnsale,
     cod: p.cod,
     upi: p.upi,
     price: p.price,
     discount: p.discount,
+    newDiscount: p.newDiscount,
+    new_discount: p.newDiscount,
     status: p.status,
     deliveryCharges: p.deliveryCharges,
     mainCategory: p.mainCategory,
@@ -2651,12 +2771,21 @@ function mapPrismaToWixSellerListing(p: any) {
     brand: p.brand || '',
     shippingWeight: p.shippingWeight || 0,
     price: p.price || 0,
+    mrp: p.mrp || 0,
+    newMrp: p.newMrp !== undefined ? p.newMrp : null,
+    new_mrp: p.newMrp !== undefined ? p.newMrp : null,
+    onsalePrice: p.onsalePrice || 0,
+    newOnsale: p.newOnsale !== undefined ? p.newOnsale : null,
+    new_onsale: p.newOnsale !== undefined ? p.newOnsale : null,
     discount: p.discount && typeof p.discount === 'object' && Object.keys(p.discount).length > 0 ? p.discount : {},
+    newDiscount: p.newDiscount !== undefined ? p.newDiscount : null,
+    new_discount: p.newDiscount !== undefined ? p.newDiscount : null,
     ribbon: p.ribbon || '',
     productOptions: p.productOptions && typeof p.productOptions === 'object' && Object.keys(p.productOptions).length > 0 ? p.productOptions : {},
     additionalInfoSections: Array.isArray(p.additionalInfoSections) ? p.additionalInfoSections : [],
     sellerId: p.sellerId || '',
     variantPrice: p.variantPrice && typeof p.variantPrice === 'object' && Object.keys(p.variantPrice).length > 0 ? p.variantPrice : {},
+    newVariantPrice: p.newVariantPrice !== undefined ? p.newVariantPrice : null,
     status: p.status || '',
     manageVariants: p.manageVariants || false,
     trackInventory: p.trackInventory || false,

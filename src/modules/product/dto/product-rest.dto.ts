@@ -85,10 +85,30 @@ export class CreateProductDto {
   @IsOptional()
   new_variant_price?: any;
 
+  @ApiPropertyOptional({ description: 'New MRP list price pending review' })
+  @IsOptional()
+  @IsNumber()
+  new_mrp?: number;
+
+  @ApiPropertyOptional({ description: 'New MRP list price pending review (camelCase)' })
+  @IsOptional()
+  @IsNumber()
+  newMrp?: number;
+
   @ApiPropertyOptional({ description: 'On-sale discount price' })
   @IsOptional()
   @IsNumber()
   onsale_price?: number;
+
+  @ApiPropertyOptional({ description: 'New Onsale price pending review' })
+  @IsOptional()
+  @IsNumber()
+  new_onsale?: number;
+
+  @ApiPropertyOptional({ description: 'New Onsale price pending review (camelCase)' })
+  @IsOptional()
+  @IsNumber()
+  newOnsale?: number;
 
   @ApiPropertyOptional({ description: 'Cash on delivery limit/value' })
   @IsOptional()
@@ -103,6 +123,14 @@ export class CreateProductDto {
   @ApiPropertyOptional({ description: 'Discount detail' })
   @IsOptional()
   discount?: any;
+
+  @ApiPropertyOptional({ description: 'New Discount detail pending review' })
+  @IsOptional()
+  new_discount?: any;
+
+  @ApiPropertyOptional({ description: 'New Discount detail pending review (camelCase)' })
+  @IsOptional()
+  newDiscount?: any;
 
   @ApiPropertyOptional({ description: 'Product Status (active, inactive, pending, Approved, Under Review, Reject)' })
   @IsOptional()
@@ -619,14 +647,42 @@ export class PricingUpdateDto {
   @IsNumber()
   mrp?: number;
 
+  @ApiPropertyOptional({ description: 'New MRP list price pending review' })
+  @IsOptional()
+  @IsNumber()
+  new_mrp?: number;
+
+  @ApiPropertyOptional({ description: 'New MRP list price pending review (camelCase)' })
+  @IsOptional()
+  @IsNumber()
+  newMrp?: number;
+
   @ApiPropertyOptional({ description: 'Discounted sale price' })
   @IsOptional()
   @IsNumber()
   onsale_price?: number;
 
+  @ApiPropertyOptional({ description: 'New Onsale price pending review' })
+  @IsOptional()
+  @IsNumber()
+  new_onsale?: number;
+
+  @ApiPropertyOptional({ description: 'New Onsale price pending review (camelCase)' })
+  @IsOptional()
+  @IsNumber()
+  newOnsale?: number;
+
   @ApiPropertyOptional({ description: 'Discount details object/JSON' })
   @IsOptional()
   discount?: any;
+
+  @ApiPropertyOptional({ description: 'New Discount details pending review' })
+  @IsOptional()
+  new_discount?: any;
+
+  @ApiPropertyOptional({ description: 'New Discount details pending review (camelCase)' })
+  @IsOptional()
+  newDiscount?: any;
 
   @ApiPropertyOptional({ description: 'Variant Price structure' })
   @IsOptional()
