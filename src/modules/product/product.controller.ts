@@ -185,9 +185,9 @@ export class ProductController {
 
   @ApiOperation({
     summary: 'Get similar/recommended products for a product (GET/POST /similarProducts)',
-    description: 'E-commerce multi-tier recommendation engine (Amazon/Flipkart model): returns alternative and sibling products in the same subcategory/category, excluding the current product.',
+    description: 'E-commerce multi-tier recommendation engine (Amazon/Flipkart model): returns alternative and sibling products in the same subcategory/category, excluding the current product in a lightweight camelCase format.',
   })
-  @ApiQuery({ name: 'module', required: true, type: String, description: 'Module name (haatza, lite, HAATZA, or LITE)' })
+  @ApiQuery({ name: 'module', required: false, type: String, description: 'Module name (haatza, lite, HAATZA, or LITE - defaults to haatza)' })
   @ApiQuery({ name: 'productId', required: true, type: String, description: 'Source product ID (aliases: product_id, id)' })
   @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return (default: 10, max: 100)' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
@@ -220,7 +220,7 @@ export class ProductController {
     @Body() body?: any,
     @Query() allQueries?: any,
   ) {
-    // 1. Validate module - required, allows haatza, lite, HAATZA, and LITE
+    // 1. Validate module - allows haatza, lite, HAATZA, and LITE (defaults to haatza)
     let rawModule = (
       module !== undefined
         ? module
@@ -239,10 +239,7 @@ export class ProductController {
       }
     }
 
-    const trimmedModule = rawModule?.toString().trim();
-    if (!trimmedModule) {
-      throw new BadRequestException('module is required (haatza, lite, HAATZA, or LITE)');
-    }
+    const trimmedModule = rawModule ? rawModule.toString().trim() : 'haatza';
     const normalizedModule = trimmedModule.toLowerCase();
     if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");

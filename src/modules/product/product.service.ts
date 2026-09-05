@@ -633,10 +633,7 @@ export class ProductService {
       throw new BadRequestException('productId is required');
     }
 
-    const rawModule = (params.module || '').toString().trim();
-    if (!rawModule) {
-      throw new BadRequestException('module is required (haatza, lite, HAATZA, or LITE)');
-    }
+    const rawModule = (params.module || 'haatza').toString().trim();
     const normalizedModule = rawModule.toLowerCase();
     if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
       throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");
@@ -713,6 +710,18 @@ export class ProductService {
     if (sourceProduct.productId) {
       excludeIds.add(sourceProduct.productId);
     }
+    const excludeIdsList = Array.from(excludeIds);
+    const notExcludedFilter: Prisma.ProductWhereInput = {
+      AND: [
+        { id: { notIn: excludeIdsList } },
+        {
+          OR: [
+            { productId: null },
+            { productId: { notIn: excludeIdsList } },
+          ],
+        },
+      ],
+    };
 
     const targetSubCategoryId = sourceProduct.subCategoryId?.trim() || '';
     const targetSubCategoryName = sourceProduct.subCategory?.trim() || '';
@@ -723,12 +732,34 @@ export class ProductService {
     const neededTotal = page * limit;
     const collectedProducts: any[] = [];
 
+    // Ultra-lean column selection for similar product cards
+    const SIMILAR_PRODUCT_SELECT: Prisma.ProductSelect = {
+      id: true,
+      productId: true,
+      name: true,
+      brand: true,
+      mainMedia: true,
+      productImages: true,
+      price: true,
+      onsalePrice: true,
+      mrp: true,
+      cod: true,
+      upi: true,
+      inventory: true,
+      status: true,
+      activeAd: true,
+      priorityScore: true,
+      createdDate: true,
+    };
+
     // Helper to add products without duplicates
     const addUniqueProducts = (products: any[]) => {
       for (const p of products) {
         const pKey = p.id || p.productId;
         if (pKey && !excludeIds.has(pKey)) {
           excludeIds.add(pKey);
+          if (p.id) excludeIds.add(p.id);
+          if (p.productId) excludeIds.add(p.productId);
           collectedProducts.push(p);
         }
       }
@@ -748,11 +779,12 @@ export class ProductService {
       const tier1Products = await this.db.product.findMany({
         where: {
           AND: [
-            { id: { notIn: Array.from(excludeIds) } },
+            notExcludedFilter,
             { OR: subCatConditions },
             ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
+        select: SIMILAR_PRODUCT_SELECT,
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
         take: neededTotal,
       });
@@ -766,7 +798,7 @@ export class ProductService {
       const tier2Products = await this.db.product.findMany({
         where: {
           AND: [
-            { id: { notIn: Array.from(excludeIds) } },
+            notExcludedFilter,
             {
               OR: [
                 { mainCategory: parentCategoryId },
@@ -777,6 +809,7 @@ export class ProductService {
             ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
+        select: SIMILAR_PRODUCT_SELECT,
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
         take: remainingCount,
       });
@@ -790,11 +823,12 @@ export class ProductService {
       const tier3Products = await this.db.product.findMany({
         where: {
           AND: [
-            { id: { notIn: Array.from(excludeIds) } },
+            notExcludedFilter,
             { brand: { equals: sourceBrand, mode: 'insensitive' } },
             ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
+        select: SIMILAR_PRODUCT_SELECT,
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
         take: remainingCount,
       });
@@ -808,10 +842,11 @@ export class ProductService {
       const tier4Products = await this.db.product.findMany({
         where: {
           AND: [
-            { id: { notIn: Array.from(excludeIds) } },
+            notExcludedFilter,
             ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
+        select: SIMILAR_PRODUCT_SELECT,
         orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
         take: remainingCount,
       });
@@ -859,29 +894,23 @@ export class ProductService {
     // Slice requested page window
     const startIndex = (page - 1) * limit;
     const pagedProducts = deduplicatedFinal.slice(startIndex, startIndex + limit);
-    const mappedCards = pagedProducts.map(mapProductToCard);
+    const mappedCards = pagedProducts.map(mapToSimilarProductCard);
 
     const totalItems = deduplicatedFinal.length;
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
+    const resultData = {
+      totalItems,
+      totalPages,
+      currentPage: page,
+      limit,
+      products: mappedCards,
+    };
+
     return {
       status: 'success',
-      message: {
-        sourceProduct: {
-          productId: sourceProduct.id,
-          name: sourceProduct.name,
-          brand: sourceProduct.brand || '',
-          subCategory: sourceProduct.subCategory || '',
-          subCategoryId: sourceProduct.subCategoryId || '',
-          mainCategory: sourceProduct.mainCategory || sourceProduct.categoryId || '',
-          price: sourcePrice,
-        },
-        totalItems,
-        totalPages,
-        currentPage: page,
-        limit,
-        products: mappedCards,
-      },
+      data: resultData,
+      message: resultData,
     };
   }
 
@@ -2399,12 +2428,13 @@ function mapRestToPrismaInput(dto: any): Prisma.ProductCreateInput & Prisma.Prod
 
 export function mapProductToCard(p: any): any {
   if (!p) return null;
-  const pid = p.id || p.productId || '';
+  const pid = p.productId || p.id || '';
+  const internalId = p.id || pid;
 
   let image = p.mainMedia || '';
   if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
     const firstMedia: any = p.productImages[0];
-    image = typeof firstMedia === 'string' ? firstMedia : firstMedia?.src || '';
+    image = typeof firstMedia === 'string' ? firstMedia : (firstMedia?.url || firstMedia?.src || firstMedia?.image || '');
   }
 
   const codVal = p.cod !== undefined && p.cod !== null ? Number(p.cod) : Number(p.price || p.mrp || 0);
@@ -2416,14 +2446,39 @@ export function mapProductToCard(p: any): any {
   const subCatVal = p.subCategoryId || p.subCategory || '';
   const mainCatVal = p.mainCategory || '';
 
+  const mrpVal = p.mrp !== undefined && p.mrp !== null ? Number(p.mrp) : 0;
+  const rawPrice = p.onsalePrice !== undefined && p.onsalePrice !== null
+    ? Number(p.onsalePrice)
+    : (p.price !== undefined && p.price !== null ? Number(p.price) : codVal);
+  const priceVal = isNaN(rawPrice) ? 0 : rawPrice;
+
+  let discountPercentage = 0;
+  if (mrpVal > 0 && priceVal > 0 && mrpVal > priceVal) {
+    discountPercentage = Math.round(((mrpVal - priceVal) / mrpVal) * 100);
+  } else if (p.discount && typeof p.discount === 'object' && p.discount.percentage) {
+    discountPercentage = Number(p.discount.percentage) || 0;
+  }
+
+  const inventoryVal = typeof p.inventory === 'number' ? p.inventory : (parseInt(String(p.inventory || '0'), 10) || 0);
+  const statusStr = String(p.status || '').toUpperCase();
+  const inStock = statusStr !== 'OUT_OF_STOCK' && (p.inventory === null || p.inventory === undefined || inventoryVal > 0);
+
   return {
-    brand,
-    name: p.name || '',
+    id: internalId,
     productId: pid,
-    productOptions,
+    name: p.name || '',
+    brand,
     image: image || '',
-    activeAd: p.activeAd === true || p.activeAd === 'true',
+    mrp: isNaN(mrpVal) ? 0 : mrpVal,
+    price: priceVal,
+    discount: discountPercentage,
+    finalPricing: {
+      codFinal: isNaN(codVal) ? 0 : codVal,
+      upiFinal: isNaN(upiVal) ? 0 : upiVal,
+    },
+    inStock,
     averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
+    totalReviews: typeof p.totalReviews === 'number' ? p.totalReviews : 0,
     isWishlist: false,
     wishlistTableId: '',
     sellerId: p.sellerId || '',
@@ -2431,10 +2486,60 @@ export function mapProductToCard(p: any): any {
     deliveryCharges: p.deliveryCharges === true || p.deliveryCharges === 'true',
     mainCategoryId: mainCatVal,
     subCategoryId: subCatVal,
+    productOptions,
+    activeAd: p.activeAd === true || p.activeAd === 'true',
+  };
+}
+
+export function mapToSimilarProductCard(p: any): any {
+  if (!p) return null;
+  const pid = p.productId || p.id || '';
+
+  let image = p.mainMedia || '';
+  if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+    const firstMedia: any = p.productImages[0];
+    image = typeof firstMedia === 'string' ? firstMedia : (firstMedia?.url || firstMedia?.src || firstMedia?.image || '');
+  }
+
+  const codVal = p.cod !== undefined && p.cod !== null ? Number(p.cod) : Number(p.price || p.mrp || 0);
+  const upiVal = p.upi !== undefined && p.upi !== null ? Number(p.upi) : Number(p.price || p.mrp || 0);
+
+  const brand = (p.brand === 'Generic' || !p.brand) ? 'Generic' : String(p.brand).trim();
+
+  const mrpVal = p.mrp !== undefined && p.mrp !== null ? Number(p.mrp) : 0;
+  const rawPrice = p.onsalePrice !== undefined && p.onsalePrice !== null
+    ? Number(p.onsalePrice)
+    : (p.price !== undefined && p.price !== null ? Number(p.price) : codVal);
+  const priceVal = isNaN(rawPrice) ? 0 : rawPrice;
+
+  let discountPercentage = 0;
+  if (mrpVal > 0 && priceVal > 0 && mrpVal > priceVal) {
+    discountPercentage = Math.round(((mrpVal - priceVal) / mrpVal) * 100);
+  } else if (p.discount && typeof p.discount === 'object' && p.discount.percentage) {
+    discountPercentage = Number(p.discount.percentage) || 0;
+  }
+
+  const inventoryVal = typeof p.inventory === 'number' ? p.inventory : (parseInt(String(p.inventory || '0'), 10) || 0);
+  const statusStr = String(p.status || '').toUpperCase();
+  const inStock = statusStr !== 'OUT_OF_STOCK' && (p.inventory === null || p.inventory === undefined || inventoryVal > 0);
+
+  return {
+    productId: pid,
+    name: p.name || '',
+    brand,
+    image: image || '',
+    price: priceVal,
+    mrp: isNaN(mrpVal) ? 0 : mrpVal,
+    discount: discountPercentage,
     finalPricing: {
       codFinal: isNaN(codVal) ? 0 : codVal,
       upiFinal: isNaN(upiVal) ? 0 : upiVal,
     },
+    inStock,
+    averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
+    totalReviews: typeof p.totalReviews === 'number' ? p.totalReviews : 0,
+    isWishlist: false,
+    activeAd: p.activeAd === true || p.activeAd === 'true',
   };
 }
 
