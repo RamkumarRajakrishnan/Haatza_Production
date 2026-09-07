@@ -35,6 +35,7 @@ export const API_ROUTES = {
     SELLER_PRODUCT_DETAILS: '/api/v1/sellerProductDetails',
     PRODUCT_DETAILS: '/api/v1/productDetails',
     BY_SUBCATEGORY: '/api/v1/productsBySubCategoryId',
+    BY_MAIN_CATEGORY: '/api/v1/productsByMainCategoryId',
     BY_CATEGORY: '/api/v1/productsByCategory',
     SIMILAR_PRODUCTS: '/api/v1/similarProducts',
   },

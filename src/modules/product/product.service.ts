@@ -285,6 +285,17 @@ export class ProductService {
       this.setCache(`product_${productId}`, product, 300_000);
     }
 
+    /* ---------------- BUILD STANDARDIZED PRODUCT DETAILS RESPONSE ---------------- */
+    const response = await this.buildProductDetailResponse(product, toPincode, userId);
+    this.setCache(responseCacheKey, response, 300_000);
+    return response;
+  }
+
+  /**
+   * Builds standardized, rich product details object (Wix-compatible / PDP).
+   * Supports optional toPincode for delivery charge calculation.
+   */
+  async buildProductDetailResponse(product: any, toPincode?: string, userId?: string): Promise<any> {
     /* ---------------- SELLER DETAILS LOOKUP ---------------- */
     let sellerDetails: any = null;
     const sellerIdForQuery = product.sellerId || null;
@@ -410,7 +421,7 @@ export class ProductService {
     let prepaid = 0;
     let cod = 0;
 
-    if (deliveryCharges && sellerPinCode && shippingWeight > 0) {
+    if (deliveryCharges && sellerPinCode && shippingWeight > 0 && toPincode) {
       try {
         const deliveryObj = computeDeliveryCharges(
           sellerPinCode,
@@ -535,7 +546,9 @@ export class ProductService {
     /* ---------------- CONSTRUCT RESPONSE (STRICT SCHEMA) ---------------- */
     const response = {
       // Basic product info
-      productId: product.id,
+      id: product.id,
+      productId: product.productId || product.id,
+      tableId: product.id,
       name: product.name || '',
       description: product.description ? cleanHtmlText(product.description) : '',
       mainMedia: mainMediaSrc,
@@ -583,7 +596,11 @@ export class ProductService {
 
       // Pricing (only present if importResult found)
       mrp,
+      newMrp: product.newMrp !== undefined ? product.newMrp : null,
       onsalePrice,
+      newOnsale: product.newOnsale !== undefined ? product.newOnsale : null,
+      discount: product.discount || null,
+      newDiscount: product.newDiscount !== undefined ? product.newDiscount : null,
       codFinal,
       upiFinal,
       upiPaymentDiscount,
@@ -606,23 +623,25 @@ export class ProductService {
       reviews: [],
     };
 
-    this.setCache(responseCacheKey, response, 300_000);
     return response;
   }
 
   /**
-   * GET /api/v1/similarProducts
+   * GET/POST /api/v1/similarProducts
    * 
-   * E-Commerce Multi-Tier Recommendation Engine (Amazon / Flipkart Model):
-   * 1. Excludes current product (id != productId).
-   * 2. Tier 1: Exact Subcategory Alternatives (subCategoryId / subCategory).
-   * 3. Tier 2: Sibling Subcategories under the same parent / mainCategory.
-   * 4. Tier 3: Same Brand Alternatives.
-   * 5. Tier 4: Trending / Popular in catalog (priorityScore desc).
-   * Formatted using standard card schema (mapProductToCard).
+   * Unified Product Detail Page (PDP) & Recommendation Engine (Flipkart / Amazon Model):
+   * 1. productDetail: Complete details of hero product (via productId).
+   * 2. sponsored: Top 10 high-priority active ads (activeAd: true) for the subcategory.
+   *    (categoryId, subCategoryId, productId, image, name, discount, price, etc.)
+   * 3. similarProducts: Multi-tier recommendations interleaved 2 active ads + 2 organic items (priority high to low).
+   * 4. Strict Deduplication: Hero product and all sponsored products are strictly excluded
+   *    from similarProducts so there is zero repetition.
    */
   async getSimilarProducts(params: {
     productId?: string;
+    subcategoryId?: string;
+    subCategoryId?: string;
+    toPincode?: string;
     limit?: string | number;
     page?: string | number;
     module?: string;
@@ -651,28 +670,40 @@ export class ProductService {
           { productId: rawProductId },
         ],
       },
-      select: {
-        id: true,
-        productId: true,
-        name: true,
-        brand: true,
-        price: true,
-        onsalePrice: true,
-        mrp: true,
-        subCategory: true,
-        subCategoryId: true,
-        mainCategory: true,
-        categoryId: true,
-        collections: true,
-        status: true,
-      },
     });
 
     if (!sourceProduct) {
       throw new NotFoundException({ error: 'Product not found' });
     }
 
-    // 2. Module category filtering
+    // 2. Build full hero product detail (Wix/PDP schema)
+    const productDetail = await this.buildProductDetailResponse(
+      sourceProduct,
+      params.toPincode?.trim(),
+      params.userId?.trim(),
+    );
+
+    // 3. Target subcategory & category resolution
+    const targetSubCategoryId = (
+      params.subcategoryId ||
+      params.subCategoryId ||
+      sourceProduct.subCategoryId ||
+      ''
+    ).toString().trim();
+    const targetSubCategoryName = sourceProduct.subCategory?.toString().trim() || '';
+    const parentCategoryId = (
+      sourceProduct.mainCategory ||
+      sourceProduct.categoryId ||
+      (Array.isArray(sourceProduct.collections) && sourceProduct.collections.length > 0 ? sourceProduct.collections[0] : '')
+    )?.toString().trim() || '';
+    const sourceBrand = sourceProduct.brand?.toString().trim() || '';
+
+    // 4. Excluded IDs set (Initial anchor: Hero product is NEVER repeated in ads or similar items)
+    const excludeIds = new Set<string>();
+    if (sourceProduct.id) excludeIds.add(sourceProduct.id);
+    if (sourceProduct.productId) excludeIds.add(sourceProduct.productId);
+
+    // 5. Module category filtering
     const liteCats = await this.db.categoryList.findMany({
       where: { module: CategoryModule.LITE },
       select: { categoryId: true, categoryName: true, id: true },
@@ -705,34 +736,127 @@ export class ProductService {
               }
             : undefined);
 
-    // 3. Track excluded IDs (ensure source product is strictly omitted)
-    const excludeIds = new Set<string>([sourceProduct.id]);
-    if (sourceProduct.productId) {
-      excludeIds.add(sourceProduct.productId);
-    }
-    const excludeIdsList = Array.from(excludeIds);
-    const notExcludedFilter: Prisma.ProductWhereInput = {
-      AND: [
-        { id: { notIn: excludeIdsList } },
-        {
-          OR: [
-            { productId: null },
-            { productId: { notIn: excludeIdsList } },
-          ],
-        },
-      ],
+    // Helper for notExcludedFilter
+    const buildNotExcludedFilter = (excluded: Set<string>): Prisma.ProductWhereInput => {
+      const list = Array.from(excluded).filter(Boolean);
+      if (list.length === 0) return {};
+      return {
+        AND: [
+          { id: { notIn: list } },
+          {
+            OR: [
+              { productId: null },
+              { productId: { notIn: list } },
+            ],
+          },
+        ],
+      };
     };
 
-    const targetSubCategoryId = sourceProduct.subCategoryId?.trim() || '';
-    const targetSubCategoryName = sourceProduct.subCategory?.trim() || '';
-    const parentCategoryId = (sourceProduct.mainCategory || sourceProduct.categoryId)?.trim() || '';
-    const sourceBrand = sourceProduct.brand?.trim() || '';
-    const sourcePrice = Number(sourceProduct.onsalePrice || sourceProduct.price || 0);
+    // Sponsored product card column selection
+    const SPONSORED_PRODUCT_SELECT: Prisma.ProductSelect = {
+      id: true,
+      productId: true,
+      name: true,
+      brand: true,
+      mainMedia: true,
+      productImages: true,
+      price: true,
+      onsalePrice: true,
+      mrp: true,
+      cod: true,
+      upi: true,
+      discount: true,
+      categoryId: true,
+      subCategory: true,
+      subCategoryId: true,
+      mainCategory: true,
+      collections: true,
+      activeAd: true,
+      priorityScore: true,
+      createdDate: true,
+    };
 
-    const neededTotal = page * limit;
-    const collectedProducts: any[] = [];
+    // 6. Fetch Top 10 High-Priority Sponsored Campaign Items
+    const subCatAdsConditions: Prisma.ProductWhereInput[] = [];
+    if (targetSubCategoryId) {
+      subCatAdsConditions.push({ subCategoryId: targetSubCategoryId });
+      subCatAdsConditions.push({ collections: { hasSome: [targetSubCategoryId] } });
+    }
+    if (targetSubCategoryName) {
+      subCatAdsConditions.push({ subCategory: { equals: targetSubCategoryName, mode: 'insensitive' } });
+    }
 
-    // Ultra-lean column selection for similar product cards
+    let sponsoredRaw: any[] = [];
+    if (subCatAdsConditions.length > 0) {
+      sponsoredRaw = await this.db.product.findMany({
+        where: {
+          AND: [
+            buildNotExcludedFilter(excludeIds),
+            { activeAd: true },
+            { OR: subCatAdsConditions },
+            ...(moduleFilter ? [moduleFilter] : []),
+          ],
+        },
+        select: SPONSORED_PRODUCT_SELECT,
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: 10,
+      });
+    }
+
+    // Fallback to parent category ads if exact subcategory ads are fewer than 10
+    if (sponsoredRaw.length < 10 && parentCategoryId) {
+      const remainingAds = 10 - sponsoredRaw.length;
+      const currentExcluded = new Set([...excludeIds]);
+      for (const p of sponsoredRaw) {
+        if (p.id) currentExcluded.add(p.id);
+        if (p.productId) currentExcluded.add(p.productId);
+      }
+
+      const parentAds = await this.db.product.findMany({
+        where: {
+          AND: [
+            buildNotExcludedFilter(currentExcluded),
+            { activeAd: true },
+            {
+              OR: [
+                { mainCategory: parentCategoryId },
+                { categoryId: parentCategoryId },
+                { collections: { hasSome: [parentCategoryId] } },
+              ],
+            },
+            ...(moduleFilter ? [moduleFilter] : []),
+          ],
+        },
+        select: SPONSORED_PRODUCT_SELECT,
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: remainingAds,
+      });
+      sponsoredRaw.push(...parentAds);
+    }
+
+    // Deduplicate sponsored items internally and register in excludeIds
+    const seenSponsoredIds = new Set<string>();
+    const deduplicatedSponsored: any[] = [];
+    for (const sp of sponsoredRaw) {
+      const key = sp.id || sp.productId;
+      if (key && !seenSponsoredIds.has(key)) {
+        seenSponsoredIds.add(key);
+        if (sp.id) {
+          seenSponsoredIds.add(sp.id);
+          excludeIds.add(sp.id);
+        }
+        if (sp.productId) {
+          seenSponsoredIds.add(sp.productId);
+          excludeIds.add(sp.productId);
+        }
+        deduplicatedSponsored.push(sp);
+      }
+    }
+    const sponsored = deduplicatedSponsored.map(mapToSponsoredCard);
+
+    // 7. Multi-Tier Recommendation Engine for Similar Products
+    // Notice: buildNotExcludedFilter(excludeIds) now excludes hero product AND all sponsored products!
     const SIMILAR_PRODUCT_SELECT: Prisma.ProductSelect = {
       id: true,
       productId: true,
@@ -752,15 +876,18 @@ export class ProductService {
       createdDate: true,
     };
 
-    // Helper to add products without duplicates
-    const addUniqueProducts = (products: any[]) => {
+    const neededTotal = Math.max(page * limit * 2, 40);
+    const collectedSimilarProducts: any[] = [];
+    const collectedSimilarKeys = new Set<string>();
+
+    const addUniqueSimilar = (products: any[]) => {
       for (const p of products) {
         const pKey = p.id || p.productId;
-        if (pKey && !excludeIds.has(pKey)) {
-          excludeIds.add(pKey);
-          if (p.id) excludeIds.add(p.id);
-          if (p.productId) excludeIds.add(p.productId);
-          collectedProducts.push(p);
+        if (pKey && !excludeIds.has(pKey) && !collectedSimilarKeys.has(pKey)) {
+          collectedSimilarKeys.add(pKey);
+          if (p.id) collectedSimilarKeys.add(p.id);
+          if (p.productId) collectedSimilarKeys.add(p.productId);
+          collectedSimilarProducts.push(p);
         }
       }
     };
@@ -779,7 +906,7 @@ export class ProductService {
       const tier1Products = await this.db.product.findMany({
         where: {
           AND: [
-            notExcludedFilter,
+            buildNotExcludedFilter(excludeIds),
             { OR: subCatConditions },
             ...(moduleFilter ? [moduleFilter] : []),
           ],
@@ -789,16 +916,16 @@ export class ProductService {
         take: neededTotal,
       });
 
-      addUniqueProducts(tier1Products);
+      addUniqueSimilar(tier1Products);
     }
 
     // Tier 2: Sibling Subcategories under same Parent / Main Category
-    if (collectedProducts.length < neededTotal && parentCategoryId) {
-      const remainingCount = neededTotal - collectedProducts.length;
+    if (collectedSimilarProducts.length < neededTotal && parentCategoryId) {
+      const remainingCount = neededTotal - collectedSimilarProducts.length;
       const tier2Products = await this.db.product.findMany({
         where: {
           AND: [
-            notExcludedFilter,
+            buildNotExcludedFilter(excludeIds),
             {
               OR: [
                 { mainCategory: parentCategoryId },
@@ -814,16 +941,16 @@ export class ProductService {
         take: remainingCount,
       });
 
-      addUniqueProducts(tier2Products);
+      addUniqueSimilar(tier2Products);
     }
 
     // Tier 3: Same Brand Alternatives (if brand is meaningful and not Generic)
-    if (collectedProducts.length < neededTotal && sourceBrand && sourceBrand.toLowerCase() !== 'generic') {
-      const remainingCount = neededTotal - collectedProducts.length;
+    if (collectedSimilarProducts.length < neededTotal && sourceBrand && sourceBrand.toLowerCase() !== 'generic') {
+      const remainingCount = neededTotal - collectedSimilarProducts.length;
       const tier3Products = await this.db.product.findMany({
         where: {
           AND: [
-            notExcludedFilter,
+            buildNotExcludedFilter(excludeIds),
             { brand: { equals: sourceBrand, mode: 'insensitive' } },
             ...(moduleFilter ? [moduleFilter] : []),
           ],
@@ -833,16 +960,16 @@ export class ProductService {
         take: remainingCount,
       });
 
-      addUniqueProducts(tier3Products);
+      addUniqueSimilar(tier3Products);
     }
 
     // Tier 4: Global Trending / Popular items
-    if (collectedProducts.length < neededTotal) {
-      const remainingCount = neededTotal - collectedProducts.length;
+    if (collectedSimilarProducts.length < neededTotal) {
+      const remainingCount = neededTotal - collectedSimilarProducts.length;
       const tier4Products = await this.db.product.findMany({
         where: {
           AND: [
-            notExcludedFilter,
+            buildNotExcludedFilter(excludeIds),
             ...(moduleFilter ? [moduleFilter] : []),
           ],
         },
@@ -851,37 +978,46 @@ export class ProductService {
         take: remainingCount,
       });
 
-      addUniqueProducts(tier4Products);
+      addUniqueSimilar(tier4Products);
     }
 
-    // Separate sponsored (Ads) and organic items for e-commerce interleaving
+    // 8. Separate candidate products into ads and organic, sorted by priorityScore desc
     const ads: any[] = [];
     const organic: any[] = [];
-    for (const p of collectedProducts) {
+    for (const p of collectedSimilarProducts) {
       if (p.activeAd === true) {
         ads.push(p);
       } else {
         organic.push(p);
       }
     }
+    ads.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
+    organic.sort((a, b) => (b.priorityScore || 0) - (a.priorityScore || 0));
 
-    // Helper: Interleave sponsored and organic products
-    let finalOrdered: any[] = [];
-    if (ads.length > 0) {
+    // 9. Interleave 2 Active Ads + 2 Organic Products (by priority high to low)
+    const interleave2Active2Organic = (adsArr: any[], orgArr: any[]): any[] => {
+      const list: any[] = [];
       let adIdx = 0;
       let orgIdx = 0;
-      while (adIdx < ads.length || orgIdx < organic.length) {
-        for (let i = 0; i < 2 && adIdx < ads.length; i++) finalOrdered.push(ads[adIdx++]);
-        for (let i = 0; i < 4 && orgIdx < organic.length; i++) finalOrdered.push(organic[orgIdx++]);
+      while (adIdx < adsArr.length || orgIdx < orgArr.length) {
+        for (let i = 0; i < 2; i++) {
+          if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+          else if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+          else if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+        }
       }
-    } else {
-      finalOrdered = organic;
-    }
+      return list;
+    };
 
-    // Strict deduplication of finalOrdered list (guarantee zero duplicate products)
+    const interleavedList = interleave2Active2Organic(ads, organic);
+
+    // Strict deduplication of final list (guarantee zero duplicate products)
     const seenFinalIds = new Set<string>();
     const deduplicatedFinal: any[] = [];
-    for (const p of finalOrdered) {
+    for (const p of interleavedList) {
       const pKey = p.id || p.productId;
       if (pKey && !seenFinalIds.has(pKey)) {
         seenFinalIds.add(pKey);
@@ -900,17 +1036,20 @@ export class ProductService {
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
     const resultData = {
+      productDetail,
+      sponsored,
+      similarProducts: mappedCards,
+      products: mappedCards, // alias for backwards compatibility
       totalItems,
       totalPages,
       currentPage: page,
       limit,
-      products: mappedCards,
     };
 
     return {
       status: 'success',
       data: resultData,
-      message: resultData,
+      message: 'Product details, sponsored campaign items, and similar products retrieved successfully',
     };
   }
 
@@ -1647,6 +1786,83 @@ export class ProductService {
   }
 
   /**
+   * Helper to determine category hierarchy role (MAIN department vs SUB shelf)
+   * aligned with Amazon Browse Nodes and Flipkart Store IDs taxonomy.
+   */
+  private async resolveCategoryType(
+    categoryId: string,
+    moduleEnum?: CategoryModule,
+  ): Promise<{
+    record: any;
+    categoryType: 'MAIN' | 'SUB' | 'UNKNOWN';
+    resolvedId: string;
+  }> {
+    const trimmed = (categoryId || '').trim();
+    if (!trimmed) {
+      return { record: null, categoryType: 'UNKNOWN', resolvedId: '' };
+    }
+
+    // 1. Check in category_list
+    let record = await this.db.categoryList.findFirst({
+      where: {
+        OR: [
+          { categoryId: trimmed },
+          { id: trimmed },
+          { categoryName: { equals: trimmed, mode: 'insensitive' } },
+        ],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+      },
+    });
+
+    // 2. Check in category_master
+    if (!record) {
+      record = await this.db.categoryMaster.findFirst({
+        where: {
+          OR: [
+            { categoryId: trimmed },
+            { id: trimmed },
+            { categoryName: { equals: trimmed, mode: 'insensitive' } },
+          ],
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+      });
+    }
+
+    if (record) {
+      const isMain =
+        !record.parentCategoryId ||
+        record.parentCategoryId === '0' ||
+        record.parentCategoryId === '';
+      return {
+        record,
+        categoryType: isMain ? 'MAIN' : 'SUB',
+        resolvedId: record.categoryId || record.id || trimmed,
+      };
+    }
+
+    // 3. Fallback for UUIDs directly present in products table
+    const [sampleMain, sampleSub] = await Promise.all([
+      this.db.product.findFirst({
+        where: { mainCategory: trimmed },
+        select: { id: true },
+      }),
+      this.db.product.findFirst({
+        where: { subCategoryId: trimmed },
+        select: { id: true },
+      }),
+    ]);
+
+    if (sampleMain && !sampleSub) {
+      return { record: null, categoryType: 'MAIN', resolvedId: trimmed };
+    }
+    if (sampleSub) {
+      return { record: null, categoryType: 'SUB', resolvedId: trimmed };
+    }
+
+    return { record: null, categoryType: 'UNKNOWN', resolvedId: trimmed };
+  }
+
+  /**
    * GET /api/v1/ProductsBySubCategoryId
    * 
    * Parallel execution of Bucket A (Ads) and Bucket B (Organic) by sub_category_id
@@ -1693,36 +1909,22 @@ export class ProductService {
       limit = 20;
     }
 
-    // 2. Validate subcategory existence in CategoryMaster
-    const categoryExists = await this.db.categoryMaster.findFirst({
-      where: {
-        OR: [
-          { categoryId: rawSubCategoryId },
-          { id: rawSubCategoryId },
-          { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
-        ],
-        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
-      },
-    });
-
-    let resolvedCategoryRecord = categoryExists;
-    if (!resolvedCategoryRecord) {
-      resolvedCategoryRecord = await this.db.categoryList.findFirst({
-        where: {
-          OR: [
-            { categoryId: rawSubCategoryId },
-            { id: rawSubCategoryId },
-            { categoryName: { equals: rawSubCategoryId, mode: 'insensitive' } },
-          ],
-          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
-        },
-      });
+    // 2. Strict Category Role Validation (Amazon / Flipkart Architecture)
+    const categoryInfo = await this.resolveCategoryType(rawSubCategoryId, moduleEnum);
+    if (categoryInfo.categoryType === 'MAIN') {
+      throw new BadRequestException(
+        `Invalid subcategory: '${rawSubCategoryId}' is a Main Category. Please use /api/v1/ProductsByMainCategoryId?mainCategoryId=${rawSubCategoryId} for department-level products.`
+      );
     }
 
-    const resolvedCategoryId = categoryExists?.categoryId || resolvedCategoryRecord?.categoryId || rawSubCategoryId;
+    const resolvedCategoryRecord = categoryInfo.record;
+    const resolvedCategoryId = categoryInfo.resolvedId;
 
-    // Collect all target category IDs and names (including child categories)
+    // Collect all target category IDs and names (including child sub-subcategories)
     const targetCategoryIds = new Set<string>([rawSubCategoryId, resolvedCategoryId]);
+    if (resolvedCategoryRecord?.id) {
+      targetCategoryIds.add(resolvedCategoryRecord.id);
+    }
     const targetCategoryNames = new Set<string>();
 
     if (resolvedCategoryRecord?.categoryName) {
@@ -1732,66 +1934,44 @@ export class ProductService {
       targetCategoryNames.add(name.replace(/&/g, 'and').trim());
     }
 
-    // Resolve any children categories under this category from CategoryList & CategoryMaster
+    // Resolve any children categories under this subcategory (sub-subcategories if any)
     const childRecords = await this.db.categoryList.findMany({
       where: {
         OR: [
           { parentCategoryId: rawSubCategoryId },
           { parentCategoryId: resolvedCategoryId },
+          ...(resolvedCategoryRecord?.id ? [{ parentCategoryId: resolvedCategoryRecord.id }] : []),
         ],
         ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
       },
-      select: { categoryId: true, categoryName: true },
+      select: { categoryId: true, categoryName: true, id: true },
     });
 
     for (const child of childRecords) {
       if (child.categoryId) targetCategoryIds.add(child.categoryId);
+      if (child.id) targetCategoryIds.add(child.id);
       if (child.categoryName) {
         targetCategoryNames.add(child.categoryName);
         targetCategoryNames.add(child.categoryName.replace(/'s/gi, '').trim());
       }
-      // Also check grandchildren level
-      const grandChildren = await this.db.categoryList.findMany({
-        where: {
-          parentCategoryId: child.categoryId,
-          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
-        },
-        select: { categoryId: true, categoryName: true },
-      });
-      for (const gc of grandChildren) {
-        if (gc.categoryId) targetCategoryIds.add(gc.categoryId);
-        if (gc.categoryName) {
-          targetCategoryNames.add(gc.categoryName);
-          targetCategoryNames.add(gc.categoryName.replace(/'s/gi, '').trim());
-        }
-      }
     }
 
-    // Common fashion subcategory aliases
-    if (targetCategoryIds.has('CAT_MENS_TSHIRTS')) {
+    // Fashion subcategory aliases (strictly specific to subcategories)
+    if (targetCategoryIds.has('CAT_MENS_TSHIRTS') || targetCategoryNames.has('T-Shirts & Polos')) {
       targetCategoryNames.add("Men's Tshirts");
       targetCategoryNames.add("Men's T-Shirts");
       targetCategoryNames.add("T-Shirts");
       targetCategoryNames.add("Tshirts");
     }
-    if (targetCategoryIds.has('CAT_MENS_SHIRTS')) {
+    if (targetCategoryIds.has('CAT_MENS_SHIRTS') || targetCategoryNames.has('Casual & Formal Shirts')) {
       targetCategoryNames.add("Men's Shirts");
       targetCategoryNames.add("Shirts");
     }
-    if (targetCategoryIds.has('CAT_MENS_JEANS')) {
+    if (targetCategoryIds.has('CAT_MENS_JEANS') || targetCategoryNames.has('Jeans & Trousers')) {
       targetCategoryNames.add("Jeans");
       targetCategoryNames.add("Men's Jeans");
     }
-    if (targetCategoryIds.has('CAT_MENS_WEAR')) {
-      targetCategoryNames.add("Men Fashion");
-      targetCategoryNames.add("Men's Fashion");
-      targetCategoryNames.add("Men's Tshirts");
-      targetCategoryNames.add("Men's Formal Shoes");
-      targetCategoryNames.add("Men's Casual Shoes");
-      targetCategoryNames.add("Men's Shirts");
-      targetCategoryNames.add("Men's Jackets");
-    }
-    if (targetCategoryIds.has('CAT_WOMENS_WEAR')) {
+    if (targetCategoryIds.has('CAT_WOMENS_WEAR') || targetCategoryNames.has("Women's Fashion")) {
       targetCategoryNames.add("Women Fashion");
       targetCategoryNames.add("Women's Fashion");
       targetCategoryNames.add("Leggings");
@@ -1801,23 +1981,15 @@ export class ProductService {
       targetCategoryNames.add("Women's Shorts");
       targetCategoryNames.add("Active Topwear");
     }
-    if (targetCategoryIds.has('CAT_FASH')) {
-      targetCategoryNames.add("Fashion");
-      targetCategoryNames.add("Men Fashion");
-      targetCategoryNames.add("Men's Fashion");
-      targetCategoryNames.add("Women Fashion");
-      targetCategoryNames.add("Women's Fashion");
-    }
 
     const allCatIdsList = Array.from(targetCategoryIds);
     const allCatNamesList = Array.from(targetCategoryNames);
 
+    // Amazon/Flipkart Shelf Product Matching: Strictly subcategory fields (NO mainCategory matching!)
     const subCategoryFilter: Prisma.ProductWhereInput = {
       OR: [
         { subCategoryId: { in: allCatIdsList } },
-        { categoryId: { in: allCatIdsList } },
         { collections: { hasSome: allCatIdsList } },
-        { mainCategory: { in: allCatIdsList } },
         ...(allCatNamesList.length > 0
           ? [
             { subCategory: { in: allCatNamesList, mode: 'insensitive' as const } },
@@ -1922,7 +2094,7 @@ export class ProductService {
           OR: [
             { categoryId: rawSubCategoryId },
             { categoryId: resolvedCategoryId },
-            ...(categoryExists?.id ? [{ categoryId: categoryExists.id }] : []),
+            ...(resolvedCategoryRecord?.id ? [{ categoryId: resolvedCategoryRecord.id }] : []),
           ],
         },
       }),
@@ -1982,15 +2154,15 @@ export class ProductService {
     const fallbackAds: any[] = [];
     const fallbackOrganic: any[] = [];
 
-    const neededTotal = (page * limit) + (limit * 2);
+    const neededEndIndex = page * limit;
 
-    if (primaryInterleaved.length < neededTotal) {
+    if (primaryInterleaved.length < neededEndIndex || totalItems === 0) {
       const existingProductIds = new Set<string>([
         ...ads.map((p) => p.id),
         ...organic.map((p) => p.id),
       ]);
 
-      const neededCount = neededTotal - primaryInterleaved.length + (limit * 2);
+      const neededCount = Math.max(neededEndIndex - primaryInterleaved.length, limit) + (limit * 2);
 
       // Tier 1. Sibling Subcategories under Parent Category
       let parentCategoryId = resolvedCategoryRecord?.parentCategoryId;
@@ -2081,8 +2253,8 @@ export class ProductService {
         }
       }
 
-      // Tier 2. Global Popular/Trending Fallback (if still under neededTotal)
-      if (primaryInterleaved.length + fallbackAds.length + fallbackOrganic.length < neededTotal) {
+      // Tier 2. Global Popular/Trending Fallback (if still under neededEndIndex)
+      if (primaryInterleaved.length + fallbackAds.length + fallbackOrganic.length < neededEndIndex) {
         const globalFilter: Prisma.ProductWhereInput = {
           AND: [
             { id: { notIn: Array.from(existingProductIds) } },
@@ -2218,12 +2390,16 @@ export class ProductService {
         startIndex + pagedProducts.length > primaryInterleaved.length ||
         totalItems === 0);
 
-    const grandTotalItems = isFallback
+    const grandTotalItems = currentSliceHasFallback
       ? Math.max(totalItems + fallbackTotalAvailable, deduplicatedCombinedList.length)
       : totalItems;
 
     const grandTotalPages = Math.ceil(grandTotalItems / limit) || 1;
-    const hasMore = (startIndex + limit) < grandTotalItems || (startIndex + limit) < deduplicatedCombinedList.length;
+    const hasMore = pagedProducts.length > 0 && (
+      currentSliceHasFallback
+        ? ((startIndex + limit) < grandTotalItems || (startIndex + limit) < deduplicatedCombinedList.length)
+        : ((startIndex + limit) < totalItems || fallbackTotalAvailable > 0 || totalItems > (startIndex + pagedProducts.length))
+    );
     const mappedProducts = pagedProducts.map(mapProductToCard);
 
 
@@ -2253,6 +2429,544 @@ export class ProductService {
 
 
 
+  }
+
+  /**
+   * GET / POST /api/v1/ProductsByMainCategoryId
+   * 
+   * Parallel execution of Bucket A (Ads) and Bucket B (Organic) by main_category_id
+   * Interleaved 2-Ad / 2-Organic / 2-Ad / 2-Organic repeating cycle with default limit=20 per page.
+   * Includes category_filters data by mainCategoryId (with fallback dynamic filter generation).
+   */
+  async getProductsByMainCategoryIdInterleaved(params: {
+    mainCategoryId: string;
+    page?: string | number;
+    limit?: string | number;
+    brands?: string | string[];
+    minPrice?: string | number;
+    maxPrice?: string | number;
+    productOptions?: any;
+    specification?: any;
+    rating?: string | number;
+    sort?: string;
+    module?: string;
+  }) {
+    const rawMainCategoryId = params.mainCategoryId?.trim();
+    if (!rawMainCategoryId) {
+      throw new BadRequestException('main_category_id is required');
+    }
+
+    const rawModule = (params.module || '').trim();
+    let moduleEnum: CategoryModule | undefined;
+    if (rawModule) {
+      const upper = rawModule.toUpperCase();
+      if (upper === 'LITE') {
+        moduleEnum = CategoryModule.LITE;
+      } else if (upper === 'HAATZA') {
+        moduleEnum = CategoryModule.HAATZA;
+      }
+    }
+
+    // 1. Input validation & normalization: default page 1, default limit 20
+    let page = parseInt(String(params.page || '1'), 10);
+    if (isNaN(page) || page < 1) {
+      page = 1;
+    }
+
+    let limit = parseInt(String(params.limit || '20'), 10);
+    if (isNaN(limit) || limit < 1) {
+      limit = 20;
+    }
+
+    // 2. Strict Category Role Validation (Amazon / Flipkart Architecture)
+    const categoryInfo = await this.resolveCategoryType(rawMainCategoryId, moduleEnum);
+    if (categoryInfo.categoryType === 'SUB') {
+      throw new BadRequestException(
+        `Invalid main category: '${rawMainCategoryId}' is a Subcategory. Please use /api/v1/ProductsBySubCategoryId?subCategoryId=${rawMainCategoryId} for subcategory-level products.`
+      );
+    }
+
+    const resolvedCategoryRecord = categoryInfo.record;
+    const resolvedCategoryId = categoryInfo.resolvedId;
+
+    // Collect all target category IDs and names (including child subcategories and grandchild categories)
+    const targetCategoryIds = new Set<string>([rawMainCategoryId, resolvedCategoryId]);
+    if (resolvedCategoryRecord?.id) {
+      targetCategoryIds.add(resolvedCategoryRecord.id);
+    }
+    const targetCategoryNames = new Set<string>();
+
+    if (resolvedCategoryRecord?.categoryName) {
+      const name = resolvedCategoryRecord.categoryName;
+      targetCategoryNames.add(name);
+      targetCategoryNames.add(name.replace(/'s/gi, '').trim());
+      targetCategoryNames.add(name.replace(/&/g, 'and').trim());
+    }
+
+    // Resolve any direct children subcategories under this main category from CategoryList & CategoryMaster
+    const childRecords = await this.db.categoryList.findMany({
+      where: {
+        OR: [
+          { parentCategoryId: rawMainCategoryId },
+          { parentCategoryId: resolvedCategoryId },
+          ...(resolvedCategoryRecord?.id ? [{ parentCategoryId: resolvedCategoryRecord.id }] : []),
+        ],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+      },
+      select: { categoryId: true, categoryName: true, id: true },
+    });
+
+    const directChildCategoryIds: string[] = [];
+    for (const child of childRecords) {
+      if (child.categoryId) {
+        targetCategoryIds.add(child.categoryId);
+        directChildCategoryIds.push(child.categoryId);
+      }
+      if (child.id) {
+        targetCategoryIds.add(child.id);
+        directChildCategoryIds.push(child.id);
+      }
+      if (child.categoryName) {
+        targetCategoryNames.add(child.categoryName);
+        targetCategoryNames.add(child.categoryName.replace(/'s/gi, '').trim());
+      }
+    }
+
+    const masterChildRecords = await this.db.categoryMaster.findMany({
+      where: {
+        OR: [
+          { parentCategoryId: rawMainCategoryId },
+          { parentCategoryId: resolvedCategoryId },
+          ...(resolvedCategoryRecord?.id ? [{ parentCategoryId: resolvedCategoryRecord.id }] : []),
+        ],
+        ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+      },
+      select: { categoryId: true, categoryName: true, id: true },
+    });
+
+    for (const child of masterChildRecords) {
+      if (child.categoryId) {
+        targetCategoryIds.add(child.categoryId);
+        directChildCategoryIds.push(child.categoryId);
+      }
+      if (child.id) {
+        targetCategoryIds.add(child.id);
+        directChildCategoryIds.push(child.id);
+      }
+      if (child.categoryName) {
+        targetCategoryNames.add(child.categoryName);
+        targetCategoryNames.add(child.categoryName.replace(/'s/gi, '').trim());
+      }
+    }
+
+    // Check grandchildren level under all direct children
+    if (directChildCategoryIds.length > 0) {
+      const grandChildren = await this.db.categoryList.findMany({
+        where: {
+          parentCategoryId: { in: directChildCategoryIds },
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+        select: { categoryId: true, categoryName: true, id: true },
+      });
+      for (const gc of grandChildren) {
+        if (gc.categoryId) targetCategoryIds.add(gc.categoryId);
+        if (gc.id) targetCategoryIds.add(gc.id);
+        if (gc.categoryName) {
+          targetCategoryNames.add(gc.categoryName);
+          targetCategoryNames.add(gc.categoryName.replace(/'s/gi, '').trim());
+        }
+      }
+
+      const masterGrandChildren = await this.db.categoryMaster.findMany({
+        where: {
+          parentCategoryId: { in: directChildCategoryIds },
+          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
+        },
+        select: { categoryId: true, categoryName: true, id: true },
+      });
+      for (const gc of masterGrandChildren) {
+        if (gc.categoryId) targetCategoryIds.add(gc.categoryId);
+        if (gc.id) targetCategoryIds.add(gc.id);
+        if (gc.categoryName) {
+          targetCategoryNames.add(gc.categoryName);
+          targetCategoryNames.add(gc.categoryName.replace(/'s/gi, '').trim());
+        }
+      }
+    }
+
+    // Common category aliases
+    if (targetCategoryIds.has('CAT_FASH') || targetCategoryNames.has('Fashion')) {
+      targetCategoryNames.add("Men Fashion");
+      targetCategoryNames.add("Men's Fashion");
+      targetCategoryNames.add("Women Fashion");
+      targetCategoryNames.add("Women's Fashion");
+      targetCategoryNames.add("Tshirts");
+      targetCategoryNames.add("Shirts");
+      targetCategoryNames.add("Jeans");
+      targetCategoryNames.add("Sarees");
+      targetCategoryNames.add("Kurtis");
+      targetCategoryNames.add("Leggings");
+    }
+    if (targetCategoryIds.has('CAT_ELEC') || targetCategoryNames.has('Electronics')) {
+      targetCategoryNames.add("Mobiles");
+      targetCategoryNames.add("Laptops");
+      targetCategoryNames.add("Accessories");
+    }
+
+    const allCatIdsList = Array.from(targetCategoryIds);
+    const allCatNamesList = Array.from(targetCategoryNames);
+
+    const mainCategoryFilter: Prisma.ProductWhereInput = {
+      OR: [
+        { mainCategory: { in: allCatIdsList } },
+        { categoryId: { in: allCatIdsList } },
+        { subCategoryId: { in: allCatIdsList } },
+        { collections: { hasSome: allCatIdsList } },
+        ...(allCatNamesList.length > 0
+          ? [
+            { subCategory: { in: allCatNamesList, mode: 'insensitive' as const } },
+            { categoryName: { hasSome: allCatNamesList } },
+          ]
+          : []),
+      ],
+    };
+
+    // 3. User Filter parameters (brands, priceRange, etc.)
+    const extraFilterConditions: Prisma.ProductWhereInput[] = [];
+
+    if (params.brands) {
+      const brandList = typeof params.brands === 'string'
+        ? params.brands.split(',').map((b) => b.trim()).filter(Boolean)
+        : (Array.isArray(params.brands) ? params.brands : [params.brands]);
+      if (brandList.length > 0) {
+        extraFilterConditions.push({ brand: { in: brandList, mode: 'insensitive' } });
+      }
+    }
+
+    if (params.minPrice !== undefined && params.minPrice !== '') {
+      const min = parseFloat(String(params.minPrice));
+      if (!isNaN(min)) {
+        extraFilterConditions.push({
+          OR: [
+            { price: { gte: min } },
+            { onsalePrice: { gte: min } },
+            { mrp: { gte: min } },
+          ],
+        });
+      }
+    }
+
+    if (params.maxPrice !== undefined && params.maxPrice !== '') {
+      const max = parseFloat(String(params.maxPrice));
+      if (!isNaN(max)) {
+        extraFilterConditions.push({
+          OR: [
+            { price: { lte: max } },
+            { onsalePrice: { lte: max } },
+            { mrp: { lte: max } },
+          ],
+        });
+      }
+    }
+
+    // 4. Sort ordering configuration
+    let adsOrderBy: any = [{ priorityScore: 'desc' }, { id: 'asc' }];
+    let organicOrderBy: any = [{ priorityScore: 'desc' }, { id: 'asc' }];
+
+    if (params.sort === 'price_low_high') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { price: 'asc' }, { id: 'asc' }];
+      organicOrderBy = [{ price: 'asc' }, { id: 'asc' }];
+    } else if (params.sort === 'price_high_low') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { price: 'desc' }, { id: 'asc' }];
+      organicOrderBy = [{ price: 'desc' }, { id: 'asc' }];
+    } else if (params.sort === 'newest') {
+      adsOrderBy = [{ priorityScore: 'desc' }, { createdDate: 'desc' }, { id: 'asc' }];
+      organicOrderBy = [{ createdDate: 'desc' }, { id: 'asc' }];
+    }
+
+    const whereAds: Prisma.ProductWhereInput = {
+      AND: [
+        mainCategoryFilter,
+        { activeAd: true },
+        ...extraFilterConditions,
+      ],
+    };
+
+    const whereOrganic: Prisma.ProductWhereInput = {
+      AND: [
+        mainCategoryFilter,
+        {
+          OR: [
+            { activeAd: false },
+            { activeAd: null },
+          ],
+        },
+        ...extraFilterConditions,
+      ],
+    };
+
+    const takeCount = page * limit;
+
+    // 5. Parallel database query execution (Counts, Ads, Organic, CategoryFilters)
+    const [totalAds, totalOrganic, ads, organic, dbCategoryFilter] = await Promise.all([
+      this.db.product.count({ where: whereAds }),
+      this.db.product.count({ where: whereOrganic }),
+      this.db.product.findMany({
+        where: whereAds,
+        orderBy: adsOrderBy,
+        take: takeCount,
+      }),
+      this.db.product.findMany({
+        where: whereOrganic,
+        orderBy: organicOrderBy,
+        take: takeCount,
+      }),
+      this.db.categoryFilters.findFirst({
+        where: {
+          OR: [
+            { categoryId: rawMainCategoryId },
+            { categoryId: resolvedCategoryId },
+            ...(resolvedCategoryRecord?.id ? [{ categoryId: resolvedCategoryRecord.id }] : []),
+          ],
+        },
+      }),
+    ]);
+
+    const totalItems = totalAds + totalOrganic;
+    let totalPages = Math.ceil(totalItems / limit) || 1;
+
+    // Helper: Interleave 2 Ads / 2 Organic in repeating 8-item cycle
+    const interleaveAdAndOrganic = (adsArr: any[], orgArr: any[]): any[] => {
+      const list: any[] = [];
+      let adIdx = 0;
+      let orgIdx = 0;
+      while (adIdx < adsArr.length || orgIdx < orgArr.length) {
+        for (let i = 0; i < 2; i++) {
+          if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+          else if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+          else if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+          else if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+        }
+        for (let i = 0; i < 2; i++) {
+          if (orgIdx < orgArr.length) list.push(orgArr[orgIdx++]);
+          else if (adIdx < adsArr.length) list.push(adsArr[adIdx++]);
+        }
+      }
+      return list;
+    };
+
+    const parsedProductOptions = parseProductOptionsInput(params.productOptions);
+    const parsedSpecifications = parseSpecificationInput(params.specification);
+
+    let activeAds = ads;
+    let activeOrganic = organic;
+    if (parsedProductOptions.length > 0 || parsedSpecifications.length > 0) {
+      activeAds = ads.filter(
+        (p) => matchProductOptions(p, parsedProductOptions) && matchSpecifications(p, parsedSpecifications),
+      );
+      activeOrganic = organic.filter(
+        (p) => matchProductOptions(p, parsedProductOptions) && matchSpecifications(p, parsedSpecifications),
+      );
+    }
+
+    // 1. Interleave primary products first
+    const primaryInterleaved = interleaveAdAndOrganic(activeAds, activeOrganic);
+
+    // Fallback Engine:
+    // If exact category products are exhausted or low, fill remaining slots from global trending products
+    let isFallback = false;
+    let fallbackTitle: string | null = null;
+    let fallbackTotalAvailable = 0;
+    const fallbackAds: any[] = [];
+    const fallbackOrganic: any[] = [];
+
+    const neededEndIndex = page * limit;
+
+    if (primaryInterleaved.length < neededEndIndex || totalItems === 0) {
+      const existingProductIds = new Set<string>([
+        ...ads.map((p) => p.id),
+        ...organic.map((p) => p.id),
+      ]);
+
+      const neededCount = Math.max(neededEndIndex - primaryInterleaved.length, limit) + (limit * 2);
+
+      const globalFilter: Prisma.ProductWhereInput = {
+        AND: [
+          { id: { notIn: Array.from(existingProductIds) } },
+          ...extraFilterConditions,
+        ],
+      };
+
+      const [globalCount, gAds, gOrganic] = await Promise.all([
+        this.db.product.count({ where: globalFilter }),
+        this.db.product.findMany({
+          where: { AND: [globalFilter, { activeAd: true }] },
+          orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+          take: neededCount,
+        }),
+        this.db.product.findMany({
+          where: {
+            AND: [
+              globalFilter,
+              { OR: [{ activeAd: false }, { activeAd: null }] },
+            ],
+          },
+          orderBy: [{ priorityScore: 'desc' }, { id: 'asc' }],
+          take: neededCount,
+        }),
+      ]);
+
+      fallbackTotalAvailable += globalCount;
+
+      gAds.forEach((p) => {
+        if (!existingProductIds.has(p.id)) {
+          existingProductIds.add(p.id);
+          fallbackAds.push(p);
+        }
+      });
+
+      gOrganic.forEach((p) => {
+        if (!existingProductIds.has(p.id)) {
+          existingProductIds.add(p.id);
+          fallbackOrganic.push(p);
+        }
+      });
+
+      if (gAds.length > 0 || gOrganic.length > 0) {
+        isFallback = true;
+        fallbackTitle = 'Trending Products';
+      }
+    }
+
+    // 2. Interleave fallback products separately and append after primary products
+    const fallbackInterleaved = interleaveAdAndOrganic(fallbackAds, fallbackOrganic);
+    const combinedList = [...primaryInterleaved, ...fallbackInterleaved];
+
+    // 6. Resolve CategoryFilters (use database record if exists, or compute dynamic fallback)
+    let categoryFilters: any = null;
+
+    if (dbCategoryFilter) {
+      const dbOptions = dbCategoryFilter.productOptions && typeof dbCategoryFilter.productOptions === 'object'
+        ? dbCategoryFilter.productOptions
+        : {};
+      const dbSpecs = Array.isArray(dbCategoryFilter.specification) ? dbCategoryFilter.specification : [];
+      const hasOptions = Object.keys(dbOptions).length > 0;
+      const hasSpecs = dbSpecs.length > 0;
+
+      categoryFilters = {
+        brands: dbCategoryFilter.brands || [],
+        priceRange: dbCategoryFilter.priceRange || { min: 0, max: 0 },
+        productOptions: dbOptions,
+        ratingCounts: dbCategoryFilter.ratingCounts || { '1+': 0, '2+': 0, '3+': 10, '4+': 20 },
+        specification: dbSpecs,
+      };
+
+      if (!hasOptions || !hasSpecs) {
+        const allMatchingProducts = await this.db.product.findMany({
+          where: mainCategoryFilter,
+          select: {
+            price: true,
+            onsalePrice: true,
+            mrp: true,
+            brand: true,
+            additionalInfoSections: true,
+            productOptions: true,
+          },
+          take: 1000,
+        });
+        const dynamicFilters = buildDynamicCategoryFilters(allMatchingProducts);
+        if (!hasOptions && Object.keys(dynamicFilters.productOptions).length > 0) {
+          categoryFilters.productOptions = dynamicFilters.productOptions;
+        }
+        if (!hasSpecs && dynamicFilters.specification.length > 0) {
+          categoryFilters.specification = dynamicFilters.specification;
+        }
+        if ((!categoryFilters.brands || categoryFilters.brands.length === 0) && dynamicFilters.brands.length > 0) {
+          categoryFilters.brands = dynamicFilters.brands;
+        }
+      }
+    } else {
+      const allMatchingProducts = await this.db.product.findMany({
+        where: mainCategoryFilter,
+        select: {
+          price: true,
+          onsalePrice: true,
+          mrp: true,
+          brand: true,
+          additionalInfoSections: true,
+          productOptions: true,
+        },
+        take: 1000,
+      });
+
+      categoryFilters = buildDynamicCategoryFilters(allMatchingProducts);
+    }
+
+    // 7. Strict deduplication of combinedList to eliminate duplicates
+    const seenProductIds = new Set<string>();
+    const deduplicatedCombinedList: any[] = [];
+    for (const p of combinedList) {
+      const pKey = p.id || p.productId;
+      if (pKey && !seenProductIds.has(pKey)) {
+        seenProductIds.add(pKey);
+        deduplicatedCombinedList.push(p);
+      }
+    }
+
+    // 8. Slice exact page window from combined stream (Primary then Fallback)
+    const startIndex = (page - 1) * limit;
+    const pagedProducts = deduplicatedCombinedList.slice(startIndex, startIndex + limit);
+
+    // Determine if this current page slice contains fallback products
+    const currentSliceHasFallback =
+      isFallback &&
+      (startIndex >= primaryInterleaved.length ||
+        startIndex + pagedProducts.length > primaryInterleaved.length ||
+        totalItems === 0);
+
+    const grandTotalItems = currentSliceHasFallback
+      ? Math.max(totalItems + fallbackTotalAvailable, deduplicatedCombinedList.length)
+      : totalItems;
+
+    const grandTotalPages = Math.ceil(grandTotalItems / limit) || 1;
+    const hasMore = pagedProducts.length > 0 && (
+      currentSliceHasFallback
+        ? ((startIndex + limit) < grandTotalItems || (startIndex + limit) < deduplicatedCombinedList.length)
+        : ((startIndex + limit) < totalItems || fallbackTotalAvailable > 0 || totalItems > (startIndex + pagedProducts.length))
+    );
+    const mappedProducts = pagedProducts.map(mapProductToCard);
+
+    const sortFilter = [
+      { label: 'Popularity', value: 'popularity' },
+      { label: 'Price: Low to High', value: 'price_low_high' },
+      { label: 'Price: High to Low', value: 'price_high_low' },
+      { label: 'Newest First', value: 'newest' },
+    ];
+
+    return {
+      status: 'success',
+      message: {
+        mainCategoryId: resolvedCategoryId || rawMainCategoryId,
+        categoryId: resolvedCategoryId || rawMainCategoryId,
+        totalItems: grandTotalItems,
+        totalPages: grandTotalPages,
+        currentPage: page,
+        lastFetched: mappedProducts.length,
+        hasMore,
+        isFallback: currentSliceHasFallback,
+        fallbackTitle: currentSliceHasFallback ? (fallbackTitle || 'Trending Products') : null,
+        products: mappedProducts,
+        categoryFilters,
+        sortFilter,
+        sortfilter: sortFilter,
+      },
+    };
   }
 
   // Alias for backward compatibility
@@ -2657,7 +3371,48 @@ export function mapToSimilarProductCard(p: any): any {
   };
 }
 
+export function mapToSponsoredCard(p: any): any {
+  if (!p) return null;
+  const pid = p.productId || p.id || '';
 
+  let image = p.mainMedia || '';
+  if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+    const firstMedia: any = p.productImages[0];
+    image = typeof firstMedia === 'string' ? firstMedia : (firstMedia?.url || firstMedia?.src || firstMedia?.image || '');
+  }
+
+  const codVal = p.cod !== undefined && p.cod !== null ? Number(p.cod) : Number(p.price || p.mrp || 0);
+  const mrpVal = p.mrp !== undefined && p.mrp !== null ? Number(p.mrp) : 0;
+  const rawPrice = p.onsalePrice !== undefined && p.onsalePrice !== null
+    ? Number(p.onsalePrice)
+    : (p.price !== undefined && p.price !== null ? Number(p.price) : codVal);
+  const priceVal = isNaN(rawPrice) ? 0 : rawPrice;
+
+  let discountPercentage = 0;
+  if (mrpVal > 0 && priceVal > 0 && mrpVal > priceVal) {
+    discountPercentage = Math.round(((mrpVal - priceVal) / mrpVal) * 100);
+  } else if (p.discount && typeof p.discount === 'object' && p.discount.percentage) {
+    discountPercentage = Number(p.discount.percentage) || 0;
+  }
+
+  const categoryId = p.categoryId || (Array.isArray(p.collections) && p.collections.length > 0 ? p.collections[0] : (typeof p.collections === 'string' ? p.collections : '')) || p.mainCategory || '';
+  const subCategoryId = p.subCategoryId || p.subCategory || '';
+
+  return {
+    productId: pid,
+    id: p.id || pid,
+    name: p.name || '',
+    brand: (p.brand === 'Generic' || !p.brand) ? 'Generic' : String(p.brand).trim(),
+    categoryId,
+    subCategoryId,
+    image: image || '',
+    price: priceVal,
+    mrp: isNaN(mrpVal) ? 0 : mrpVal,
+    discount: discountPercentage,
+    activeAd: true,
+    priorityScore: p.priorityScore ?? 0,
+  };
+}
 
 function mapPrismaToRestOutput(p: any): any {
   if (!p) return p;
@@ -2677,16 +3432,13 @@ function mapPrismaToRestOutput(p: any): any {
     newVariantPrice: p.newVariantPrice,
     mrp: p.mrp,
     newMrp: p.newMrp,
-    new_mrp: p.newMrp,
     onsalePrice: p.onsalePrice,
     newOnsale: p.newOnsale,
-    new_onsale: p.newOnsale,
     cod: p.cod,
     upi: p.upi,
     price: p.price,
     discount: p.discount,
     newDiscount: p.newDiscount,
-    new_discount: p.newDiscount,
     status: p.status,
     deliveryCharges: p.deliveryCharges,
     mainCategory: p.mainCategory,
@@ -2773,13 +3525,10 @@ function mapPrismaToWixSellerListing(p: any) {
     price: p.price || 0,
     mrp: p.mrp || 0,
     newMrp: p.newMrp !== undefined ? p.newMrp : null,
-    new_mrp: p.newMrp !== undefined ? p.newMrp : null,
     onsalePrice: p.onsalePrice || 0,
     newOnsale: p.newOnsale !== undefined ? p.newOnsale : null,
-    new_onsale: p.newOnsale !== undefined ? p.newOnsale : null,
     discount: p.discount && typeof p.discount === 'object' && Object.keys(p.discount).length > 0 ? p.discount : {},
     newDiscount: p.newDiscount !== undefined ? p.newDiscount : null,
-    new_discount: p.newDiscount !== undefined ? p.newDiscount : null,
     ribbon: p.ribbon || '',
     productOptions: p.productOptions && typeof p.productOptions === 'object' && Object.keys(p.productOptions).length > 0 ? p.productOptions : {},
     additionalInfoSections: Array.isArray(p.additionalInfoSections) ? p.additionalInfoSections : [],

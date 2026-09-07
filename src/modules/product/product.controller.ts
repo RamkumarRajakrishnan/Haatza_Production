@@ -11,19 +11,10 @@ export class ProductController {
   constructor(private readonly productService: ProductService) { }
 
   @ApiOperation({
-    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET/POST /api/v1/ProductsBySubCategoryId)',
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID (GET /api/v1/ProductsBySubCategoryId)',
     description: 'Queries Bucket A (Ads) and Bucket B (Organic) by sub_category_id in parallel and returns interleaved products with limit=20 per page, along with categoryFilters.',
   })
   @Get([
-    'ProductsBySubCategoryId',
-    'productsBySubCategoryId',
-    'ProductsBySubCategoryId/:subCategoryId',
-    'productsBySubCategoryId/:subCategoryId',
-    'products/category/:categoryId',
-    'api/products/category/:categoryId',
-    'category/:categoryId/products',
-  ])
-  @Post([
     'ProductsBySubCategoryId',
     'productsBySubCategoryId',
     'ProductsBySubCategoryId/:subCategoryId',
@@ -102,6 +93,243 @@ export class ProductController {
       sort: sort || body?.sort,
       module: rawModule,
     });
+  }
+
+  @ApiOperation({
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Sub Category ID via POST (/api/v1/ProductsBySubCategoryId)',
+    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by sub_category_id in parallel via POST body payload and returns interleaved products.',
+  })
+  @Post([
+    'ProductsBySubCategoryId',
+    'productsBySubCategoryId',
+    'ProductsBySubCategoryId/:subCategoryId',
+    'productsBySubCategoryId/:subCategoryId',
+    'products/category/:categoryId',
+    'api/products/category/:categoryId',
+    'category/:categoryId/products',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async postProductsBySubCategoryId(
+    @Param('subCategoryId') paramSubCategoryId?: string,
+    @Param('categoryId') paramCategoryId?: string,
+    @Query('sub_category_id') querySnakeSubCategoryId?: string,
+    @Query('subCategoryId') queryCamelSubCategoryId?: string,
+    @Query('Sub_Category_ID') queryPascalSubCategoryId?: string,
+    @Query('categoryId') queryCategoryId?: string,
+    @Query('category_id') querySnakeCategoryId?: string,
+    @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('pageNo') pageNo?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('brands') brands?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('productOptions') productOptions?: string,
+    @Query('specfication') specfication?: string,
+    @Query('specification') specification?: string,
+    @Query('rating') rating?: string,
+    @Query('sort') sort?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body() body?: any,
+  ) {
+    return this.getProductsBySubCategoryId(
+      paramSubCategoryId,
+      paramCategoryId,
+      querySnakeSubCategoryId,
+      queryCamelSubCategoryId,
+      queryPascalSubCategoryId,
+      queryCategoryId,
+      querySnakeCategoryId,
+      page,
+      currentPage,
+      pageNo,
+      limit,
+      count,
+      pageSize,
+      brands,
+      minPrice,
+      maxPrice,
+      productOptions,
+      specfication,
+      specification,
+      rating,
+      sort,
+      module,
+      pascalModule,
+      body,
+    );
+  }
+
+  @ApiOperation({
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Main Category ID (GET /api/v1/ProductsByMainCategoryId)',
+    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by main_category_id in parallel and returns interleaved products with limit=20 per page, along with categoryFilters.',
+  })
+  @Get([
+    'ProductsByMainCategoryId',
+    'productsByMainCategoryId',
+    'ProductsByMainCategoryId/:mainCategoryId',
+    'productsByMainCategoryId/:mainCategoryId',
+    'ProductsByMainCategory',
+    'productsByMainCategory',
+    'ProductsByMainCategory/:mainCategoryId',
+    'productsByMainCategory/:mainCategoryId',
+    'products/main-category/:mainCategoryId',
+    'mainCategory/:mainCategoryId/products',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async getProductsByMainCategoryId(
+    @Param('mainCategoryId') paramMainCategoryId?: string,
+    @Param('categoryId') paramCategoryId?: string,
+    @Query('main_category_id') querySnakeMainCategoryId?: string,
+    @Query('mainCategoryId') queryCamelMainCategoryId?: string,
+    @Query('Main_Category_ID') queryPascalMainCategoryId?: string,
+    @Query('mainCategory') queryMainCategory?: string,
+    @Query('main_category') querySnakeMainCategory?: string,
+    @Query('categoryId') queryCategoryId?: string,
+    @Query('category_id') querySnakeCategoryId?: string,
+    @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('pageNo') pageNo?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('brands') brands?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('productOptions') productOptions?: string,
+    @Query('specfication') specfication?: string,
+    @Query('specification') specification?: string,
+    @Query('rating') rating?: string,
+    @Query('sort') sort?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body() body?: any,
+  ) {
+    const targetMainCategoryId =
+      paramMainCategoryId ||
+      paramCategoryId ||
+      querySnakeMainCategoryId ||
+      queryCamelMainCategoryId ||
+      queryPascalMainCategoryId ||
+      queryMainCategory ||
+      querySnakeMainCategory ||
+      queryCategoryId ||
+      querySnakeCategoryId ||
+      body?.main_category_id ||
+      body?.mainCategoryId ||
+      body?.Main_Category_ID ||
+      body?.mainCategory ||
+      body?.main_category ||
+      body?.categoryId ||
+      body?.category_id;
+
+    const targetModule = (
+      module ||
+      pascalModule ||
+      body?.module ||
+      body?.Module ||
+      ''
+    ).trim();
+
+    if (!targetModule) {
+      throw new BadRequestException('module is required (haatza or lite)');
+    }
+    const rawModule = targetModule.toLowerCase();
+    if (rawModule !== 'haatza' && rawModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza' and 'lite'");
+    }
+
+    return this.productService.getProductsByMainCategoryIdInterleaved({
+      mainCategoryId: targetMainCategoryId || '',
+      page: page || currentPage || pageNo || body?.page || body?.currentPage || body?.pageNo,
+      limit: limit || count || pageSize || body?.limit || body?.count || body?.pageSize,
+      brands: brands || body?.brands,
+      minPrice: minPrice || body?.minPrice,
+      maxPrice: maxPrice || body?.maxPrice,
+      productOptions: productOptions || body?.productOptions,
+      specification: specification || specfication || body?.specification || body?.specfication,
+      rating: rating || body?.rating,
+      sort: sort || body?.sort,
+      module: rawModule,
+    });
+  }
+
+  @ApiOperation({
+    summary: 'Get interleaved 2-Ad / 2-Organic products by Main Category ID via POST (/api/v1/ProductsByMainCategoryId)',
+    description: 'Queries Bucket A (Ads) and Bucket B (Organic) by main_category_id in parallel via POST body payload and returns interleaved products.',
+  })
+  @Post([
+    'ProductsByMainCategoryId',
+    'productsByMainCategoryId',
+    'ProductsByMainCategoryId/:mainCategoryId',
+    'productsByMainCategoryId/:mainCategoryId',
+    'ProductsByMainCategory',
+    'productsByMainCategory',
+    'ProductsByMainCategory/:mainCategoryId',
+    'productsByMainCategory/:mainCategoryId',
+    'products/main-category/:mainCategoryId',
+    'mainCategory/:mainCategoryId/products',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async postProductsByMainCategoryId(
+    @Param('mainCategoryId') paramMainCategoryId?: string,
+    @Param('categoryId') paramCategoryId?: string,
+    @Query('main_category_id') querySnakeMainCategoryId?: string,
+    @Query('mainCategoryId') queryCamelMainCategoryId?: string,
+    @Query('Main_Category_ID') queryPascalMainCategoryId?: string,
+    @Query('mainCategory') queryMainCategory?: string,
+    @Query('main_category') querySnakeMainCategory?: string,
+    @Query('categoryId') queryCategoryId?: string,
+    @Query('category_id') querySnakeCategoryId?: string,
+    @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('pageNo') pageNo?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('brands') brands?: string,
+    @Query('minPrice') minPrice?: string,
+    @Query('maxPrice') maxPrice?: string,
+    @Query('productOptions') productOptions?: string,
+    @Query('specfication') specfication?: string,
+    @Query('specification') specification?: string,
+    @Query('rating') rating?: string,
+    @Query('sort') sort?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body() body?: any,
+  ) {
+    return this.getProductsByMainCategoryId(
+      paramMainCategoryId,
+      paramCategoryId,
+      querySnakeMainCategoryId,
+      queryCamelMainCategoryId,
+      queryPascalMainCategoryId,
+      queryMainCategory,
+      querySnakeMainCategory,
+      queryCategoryId,
+      querySnakeCategoryId,
+      page,
+      currentPage,
+      pageNo,
+      limit,
+      count,
+      pageSize,
+      brands,
+      minPrice,
+      maxPrice,
+      productOptions,
+      specfication,
+      specification,
+      rating,
+      sort,
+      module,
+      pascalModule,
+      body,
+    );
   }
 
   @ApiOperation({ summary: 'Get list of products with pagination and filters (GET)' })
@@ -184,12 +412,14 @@ export class ProductController {
   }
 
   @ApiOperation({
-    summary: 'Get similar/recommended products for a product (GET/POST /similarProducts)',
-    description: 'E-commerce multi-tier recommendation engine (Amazon/Flipkart model): returns alternative and sibling products in the same subcategory/category, excluding the current product in a lightweight camelCase format.',
+    summary: 'Get product details, sponsored campaign items & similar products (GET/POST /similarProducts)',
+    description: 'Unified PDP recommendation engine (Amazon/Flipkart model): returns full product detail, top 10 high-priority sponsored campaign items, and 2 active + 2 organic interleaved similar products with zero duplicate items.',
   })
   @ApiQuery({ name: 'module', required: false, type: String, description: 'Module name (haatza, lite, HAATZA, or LITE - defaults to haatza)' })
   @ApiQuery({ name: 'productId', required: true, type: String, description: 'Source product ID (aliases: product_id, id)' })
-  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of items to return (default: 10, max: 100)' })
+  @ApiQuery({ name: 'subcategoryId', required: false, type: String, description: 'Optional subcategory ID (defaults to product subcategoryId)' })
+  @ApiQuery({ name: 'toPincode', required: false, type: String, description: 'Optional buyer destination pincode for delivery charges calculation' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, description: 'Number of similar items to return (default: 10, max: 100)' })
   @ApiQuery({ name: 'page', required: false, type: Number, description: 'Page number (default: 1)' })
   @Get([
     'similarProducts',
@@ -198,17 +428,16 @@ export class ProductController {
     'similarProducts/:productId',
     'similar-products/:productId',
   ])
-  @Post([
-    'similarProducts',
-    'similar-products',
-    'products/similar',
-  ])
   @HttpCode(HttpStatus.OK)
   async getSimilarProducts(
     @Param('productId') paramProductId?: string,
     @Query('productId') queryProductId?: string,
     @Query('product_id') querySnakeProductId?: string,
     @Query('id') queryId?: string,
+    @Query('subcategoryId') querySubcategoryId?: string,
+    @Query('subCategoryId') querySubCategoryIdCamel?: string,
+    @Query('subcategory_id') querySubCategoryIdSnake?: string,
+    @Query('toPincode') queryToPincode?: string,
     @Query('limit') limit?: string,
     @Query('count') count?: string,
     @Query('pageSize') pageSize?: string,
@@ -259,17 +488,77 @@ export class ProductController {
       throw new BadRequestException('productId is required');
     }
 
+    const targetSubCategoryId =
+      querySubcategoryId ||
+      querySubCategoryIdCamel ||
+      querySubCategoryIdSnake ||
+      body?.subcategoryId ||
+      body?.subCategoryId ||
+      body?.subcategory_id;
+
+    const targetToPincode = queryToPincode || body?.toPincode;
+
     const targetLimit = limit || count || pageSize || body?.limit || body?.count || body?.pageSize;
     const targetPage = page || currentPage || body?.page || body?.currentPage;
     const targetUserId = userId || body?.userId;
 
     return this.productService.getSimilarProducts({
       productId: targetProductId.trim(),
+      subcategoryId: targetSubCategoryId ? String(targetSubCategoryId).trim() : undefined,
+      toPincode: targetToPincode ? String(targetToPincode).trim() : undefined,
       limit: targetLimit,
       page: targetPage,
       module: normalizedModule,
       userId: targetUserId,
     });
+  }
+
+  @Post([
+    'similarProducts',
+    'similar-products',
+    'products/similar',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async postSimilarProducts(
+    @Param('productId') paramProductId?: string,
+    @Query('productId') queryProductId?: string,
+    @Query('product_id') querySnakeProductId?: string,
+    @Query('id') queryId?: string,
+    @Query('subcategoryId') querySubcategoryId?: string,
+    @Query('subCategoryId') querySubCategoryIdCamel?: string,
+    @Query('subcategory_id') querySubCategoryIdSnake?: string,
+    @Query('toPincode') queryToPincode?: string,
+    @Query('limit') limit?: string,
+    @Query('count') count?: string,
+    @Query('pageSize') pageSize?: string,
+    @Query('page') page?: string,
+    @Query('currentPage') currentPage?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Query('userId') userId?: string,
+    @Body() body?: any,
+    @Query() allQueries?: any,
+  ) {
+    return this.getSimilarProducts(
+      paramProductId,
+      queryProductId,
+      querySnakeProductId,
+      queryId,
+      querySubcategoryId,
+      querySubCategoryIdCamel,
+      querySubCategoryIdSnake,
+      queryToPincode,
+      limit,
+      count,
+      pageSize,
+      page,
+      currentPage,
+      module,
+      pascalModule,
+      userId,
+      body,
+      allQueries,
+    );
   }
 
   @ApiOperation({

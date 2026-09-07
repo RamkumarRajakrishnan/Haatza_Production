@@ -59,6 +59,7 @@ Local Base URL: `http://localhost:8080`
 | `/api/v1/products/:product_id` | `PATCH` | Public | **Update Product (REST)**: Partial product update | `Body: { price?, name?, ... }` |
 | `/api/v1/products/:product_id` | `DELETE` | Public | **Delete Product**: Remove product from catalog | *URL Param: product_id* |
 | `/api/v1/productsBySubCategoryId` | `GET / POST`| Public | **Interleaved Buyer Catalog**: 2 Ads / 2 Organic + categoryFilters | `Query: ?module=haatza&subCategoryId=...&page=1&limit=20&brands=...&minPrice=...&maxPrice=...&sort=popularity` |
+| `/api/v1/productsByMainCategoryId` | `GET / POST`| Public | **Interleaved Main Category Catalog**: 2 Ads / 2 Organic + categoryFilters | `Query: ?module=haatza&mainCategoryId=...&page=1&limit=20&brands=...&minPrice=...&maxPrice=...&sort=popularity` |
 | `/api/v1/productsByCategory` | `GET` | Public | **Category Products**: Fetch products by category + filters | `Query: ?module=haatza&categoryId=...&page=1&count=10` |
 | `/api/v1/productDetails` | `GET / POST` | Public | **Product Details (Wix-Compatible)**: Complete details, delivery fees, variants, and reviews in camelCase | `Query: ?productId=...&toPincode=...&userId=...` |
 | `/api/v1/products/:product_id/inventory/increment` | `PATCH` | Public | Increment product stock inventory | `Body: { amount: number }` |
