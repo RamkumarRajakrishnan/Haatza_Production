@@ -248,7 +248,14 @@ export class ProductService {
    * Replicates Wix flow: Cache check -> Product lookup -> Parallel resolution of
    * variants, inventory, seller details, delivery fees, and reviews in camelCase.
    */
-  async getProductDetails(query: { productId?: string; toPincode?: string; userId?: string }) {
+  async getProductDetails(query: {
+    productId?: string;
+    toPincode?: string;
+    userId?: string;
+    subcategoryId?: string;
+    subCategoryId?: string;
+    module?: string;
+  }) {
     const productId = query.productId?.trim();
     const toPincode = query.toPincode?.trim();
     const userId = query.userId?.trim();
@@ -260,7 +267,19 @@ export class ProductService {
       throw new BadRequestException({ error: 'toPincode is required' });
     }
 
-    const responseCacheKey = `product_response_${productId}_${toPincode}`;
+    // Module validation (REQUIRED)
+    const rawModule = query.module?.toString().trim();
+    if (!rawModule) {
+      throw new BadRequestException('module is required');
+    }
+    const normalizedModule = rawModule.toLowerCase();
+    if (normalizedModule !== 'haatza' && normalizedModule !== 'lite') {
+      throw new BadRequestException("Invalid module. Allowed values are 'haatza', 'lite', 'HAATZA', and 'LITE'");
+    }
+    const moduleEnum = normalizedModule === 'lite' ? CategoryModule.LITE : CategoryModule.HAATZA;
+
+    const subCatKey = (query.subcategoryId || query.subCategoryId || '').trim();
+    const responseCacheKey = `product_response_${productId}_${toPincode}_${subCatKey}_${normalizedModule}`;
     const cachedResponse = this.getCache<any>(responseCacheKey);
     if (cachedResponse) {
       return cachedResponse;
@@ -285,31 +304,210 @@ export class ProductService {
       this.setCache(`product_${productId}`, product, 300_000);
     }
 
+    /* ---------------- FETCH TOP 10 SPONSORED CAMPAIGN PRODUCTS ---------------- */
+    const targetSubCategoryId = (
+      query.subcategoryId ||
+      query.subCategoryId ||
+      product.subCategoryId ||
+      ''
+    ).toString().trim();
+    const targetSubCategoryName = product.subCategory?.toString().trim() || '';
+
     /* ---------------- BUILD STANDARDIZED PRODUCT DETAILS RESPONSE ---------------- */
-    const response = await this.buildProductDetailResponse(product, toPincode, userId);
-    this.setCache(responseCacheKey, response, 300_000);
-    return response;
+    const productDetailResponse = await this.buildProductDetailResponse(product, toPincode, userId, targetSubCategoryId);
+    const parentCategoryId = (
+      product.mainCategory ||
+      product.categoryId ||
+      (Array.isArray(product.collections) && product.collections.length > 0 ? product.collections[0] : '')
+    )?.toString().trim() || '';
+
+    // Exclude the hero product (STRICT NO DUPLICATE)
+    const excludeIds = new Set<string>();
+    if (product.id) excludeIds.add(product.id);
+    if (product.productId) excludeIds.add(product.productId);
+
+    // Module category filtering
+    const liteCats = await this.db.categoryList.findMany({
+      where: { module: CategoryModule.LITE },
+      select: { categoryId: true, categoryName: true, id: true },
+    });
+    const liteCatIds = liteCats.flatMap((c) => [c.categoryId, c.id].filter(Boolean));
+    const liteCatNames = liteCats.map((c) => c.categoryName).filter(Boolean);
+
+    const moduleFilter: Prisma.ProductWhereInput | undefined =
+      moduleEnum === CategoryModule.LITE
+        ? (liteCatIds.length > 0 || liteCatNames.length > 0
+            ? {
+                OR: [
+                  { categoryId: { in: liteCatIds } },
+                  { subCategoryId: { in: liteCatIds } },
+                  { collections: { hasSome: liteCatIds } },
+                  { subCategory: { in: liteCatNames } },
+                ],
+              }
+            : undefined)
+        : (liteCatIds.length > 0 || liteCatNames.length > 0
+            ? {
+                NOT: {
+                  OR: [
+                    { categoryId: { in: liteCatIds } },
+                    { subCategoryId: { in: liteCatIds } },
+                    { collections: { hasSome: liteCatIds } },
+                    { subCategory: { in: liteCatNames } },
+                  ],
+                },
+              }
+            : undefined);
+
+    const buildNotExcludedFilter = (excluded: Set<string>): Prisma.ProductWhereInput => {
+      const list = Array.from(excluded).filter(Boolean);
+      if (list.length === 0) return {};
+      return {
+        AND: [
+          { id: { notIn: list } },
+          {
+            OR: [
+              { productId: null },
+              { productId: { notIn: list } },
+            ],
+          },
+        ],
+      };
+    };
+
+    const SPONSORED_PRODUCT_SELECT: Prisma.ProductSelect = {
+      id: true,
+      productId: true,
+      name: true,
+      brand: true,
+      mainMedia: true,
+      productImages: true,
+      price: true,
+      onsalePrice: true,
+      mrp: true,
+      cod: true,
+      upi: true,
+      discount: true,
+      categoryId: true,
+      subCategory: true,
+      subCategoryId: true,
+      mainCategory: true,
+      collections: true,
+      activeAd: true,
+      priorityScore: true,
+      createdDate: true,
+    };
+
+    const subCatAdsConditions: Prisma.ProductWhereInput[] = [];
+    if (targetSubCategoryId) {
+      subCatAdsConditions.push({ subCategoryId: targetSubCategoryId });
+      subCatAdsConditions.push({ collections: { hasSome: [targetSubCategoryId] } });
+    }
+    if (targetSubCategoryName) {
+      subCatAdsConditions.push({ subCategory: { equals: targetSubCategoryName, mode: 'insensitive' } });
+    }
+
+    let sponsoredRaw: any[] = [];
+    if (subCatAdsConditions.length > 0) {
+      sponsoredRaw = await this.db.product.findMany({
+        where: {
+          AND: [
+            buildNotExcludedFilter(excludeIds),
+            { activeAd: true },
+            { OR: subCatAdsConditions },
+            ...(moduleFilter ? [moduleFilter] : []),
+          ],
+        },
+        select: SPONSORED_PRODUCT_SELECT,
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: 10,
+      });
+    }
+
+    // Fallback to parent category ads if exact subcategory ads are fewer than 10
+    if (sponsoredRaw.length < 10 && parentCategoryId) {
+      const remainingAds = 10 - sponsoredRaw.length;
+      const currentExcluded = new Set([...excludeIds]);
+      for (const p of sponsoredRaw) {
+        if (p.id) currentExcluded.add(p.id);
+        if (p.productId) currentExcluded.add(p.productId);
+      }
+
+      const parentAds = await this.db.product.findMany({
+        where: {
+          AND: [
+            buildNotExcludedFilter(currentExcluded),
+            { activeAd: true },
+            {
+              OR: [
+                { mainCategory: parentCategoryId },
+                { categoryId: parentCategoryId },
+                { collections: { hasSome: [parentCategoryId] } },
+              ],
+            },
+            ...(moduleFilter ? [moduleFilter] : []),
+          ],
+        },
+        select: SPONSORED_PRODUCT_SELECT,
+        orderBy: [{ priorityScore: 'desc' }, { createdDate: 'desc' }],
+        take: remainingAds,
+      });
+      sponsoredRaw.push(...parentAds);
+    }
+
+    // Deduplicate sponsored items internally & strictly exclude hero product
+    const seenSponsoredIds = new Set<string>();
+    const deduplicatedSponsored: any[] = [];
+    for (const sp of sponsoredRaw) {
+      if (excludeIds.has(sp.id) || (sp.productId && excludeIds.has(sp.productId))) {
+        continue;
+      }
+      const key = sp.id || sp.productId;
+      if (key && !seenSponsoredIds.has(key)) {
+        seenSponsoredIds.add(key);
+        if (sp.id) seenSponsoredIds.add(sp.id);
+        if (sp.productId) seenSponsoredIds.add(sp.productId);
+        deduplicatedSponsored.push(sp);
+      }
+    }
+    const sponsored = deduplicatedSponsored.map(mapToSponsoredCard);
+
+    // Final response: Return standard { status: 'success', data: { ... } } envelope
+    const finalResponse = {
+      status: 'success',
+      data: {
+        ...productDetailResponse,
+        sponsored,
+      },
+    };
+
+    this.setCache(responseCacheKey, finalResponse, 300_000);
+    return finalResponse;
   }
 
   /**
    * Builds standardized, rich product details object (Wix-compatible / PDP).
    * Supports optional toPincode for delivery charge calculation.
    */
-  async buildProductDetailResponse(product: any, toPincode?: string, userId?: string): Promise<any> {
+  async buildProductDetailResponse(product: any, toPincode?: string, userId?: string, targetSubCategoryId?: string): Promise<any> {
     /* ---------------- SELLER DETAILS LOOKUP ---------------- */
     let sellerDetails: any = null;
-    const sellerIdForQuery = product.sellerId || null;
+    const sellerIdForQuery = product.sellerId?.trim() || null;
 
     if (sellerIdForQuery) {
       try {
+        const sellerOrConditions: any[] = [
+          { sellerId: { equals: sellerIdForQuery, mode: 'insensitive' } },
+          { id: sellerIdForQuery },
+        ];
+        if (product.owner) {
+          sellerOrConditions.push({ id: product.owner });
+          sellerOrConditions.push({ sellerId: { equals: product.owner, mode: 'insensitive' } });
+        }
+
         const [sellerUser, sellerProductsCount] = await Promise.all([
           this.db.user.findFirst({
-            where: {
-              OR: [
-                { sellerId: sellerIdForQuery },
-                { id: sellerIdForQuery },
-              ],
-            },
+            where: { OR: sellerOrConditions },
             select: {
               name: true,
               companyName: true,
@@ -320,16 +518,20 @@ export class ProductService {
           }),
         ]);
 
-        if (sellerUser || sellerProductsCount > 0) {
-          sellerDetails = {
-            sellerName: sellerUser?.companyName || sellerUser?.name || sellerIdForQuery,
-            totalRating: 0,
-            sellerAverageRating: 0,
-            followers: 0,
-            products: sellerProductsCount || 0,
-            badge: false,
-          };
-        }
+        const resolvedSellerName =
+          sellerUser?.companyName?.trim() ||
+          sellerUser?.name?.trim() ||
+          (product.brand && product.brand !== 'Generic' ? product.brand.trim() : '') ||
+          'Haatza Seller';
+
+        sellerDetails = {
+          sellerName: resolvedSellerName,
+          totalRating: 0,
+          sellerAverageRating: 0,
+          followers: 0,
+          products: sellerProductsCount || 0,
+          badge: false,
+        };
       } catch (err: any) {
         this.logger.warn(`Failed to fetch seller details for ${sellerIdForQuery}: ${err.message}`);
       }
@@ -369,20 +571,17 @@ export class ProductService {
         if (option && typeof option === 'object') {
           const choices = Array.isArray(option.choices) ? option.choices : [];
           formattedProductOptions[key] = {
-            ...option,
             choices: choices.map((choice: any) => {
               if (typeof choice === 'string') {
                 return {
                   value: choice,
                   description: choice,
-                  inStock: true,
-                  visible: true,
                   mainMedia: null,
                   orderImage: null,
                   mediaItems: [],
                 };
               }
-              const choiceMainMedia = convertWixMedia(choice?.mainMedia, 'Image');
+              const choiceMainMedia = convertWixMedia(choice?.mainMedia || choice?.orderImage, 'Image');
               const choiceMediaItems = (Array.isArray(choice?.mediaItems) ? choice.mediaItems : []).map((item: any) => {
                 const itemType = item?.type?.toString().toLowerCase() === 'video' ? 'Video' : 'Image';
                 const m = convertWixMedia(item?.src || item, itemType);
@@ -394,9 +593,10 @@ export class ProductService {
               });
 
               return {
-                ...choice,
+                value: choice?.value || '',
+                description: choice?.description || choice?.value || '',
                 mainMedia: choiceMainMedia?.src || null,
-                orderImage: choice?.mainMedia || null,
+                orderImage: choice?.orderImage || choice?.mainMedia || null,
                 mediaItems: choiceMediaItems,
               };
             }),
@@ -442,34 +642,29 @@ export class ProductService {
     const finalPrice = codFinal + deliveryFee;
 
     /* ---------------- VARIANTS ---------------- */
-    const rawVariants = Array.isArray(product.newVariantPrice)
+    const rawVariants = Array.isArray(product.newVariantPrice) && (product.newVariantPrice as any[]).length > 0
       ? (product.newVariantPrice as any[])
-      : (product.newVariantPrice && typeof product.newVariantPrice === 'object'
-        ? Object.values(product.newVariantPrice as Record<string, any>)
-        : []);
+      : (Array.isArray(product.variantPrice) && (product.variantPrice as any[]).length > 0
+        ? (product.variantPrice as any[])
+        : (product.newVariantPrice && typeof product.newVariantPrice === 'object'
+          ? Object.values(product.newVariantPrice as Record<string, any>)
+          : (product.variantPrice && typeof product.variantPrice === 'object'
+            ? Object.values(product.variantPrice as Record<string, any>)
+            : [])));
 
-    const variants = rawVariants.map((v: any, idx: number) => {
+    const variants = rawVariants.map((v: any) => {
       const variant = { ...(v.variant || v) };
       const vOnsalePrice = Number(variant.onsalePrice || variant.price || onsalePrice || 0);
       const vDeliveryFee = deliveryCharges ? Number(cod || 0) : 0;
       const vFinalPrice = vOnsalePrice + vDeliveryFee;
 
-      const mrpPrice = formatCurrencyString(variant.mrpPrice, variant.MRP || mrp);
-      const discountedPrice = formatCurrencyString(variant.discountedPrice, vOnsalePrice);
-
-      const formattedVariant = {
-        mrpPrice,
-        discountedPrice,
-        visible: variant.visible !== false,
-        onsalePrice: vOnsalePrice,
-        deliveryFee: vDeliveryFee,
-        finalPrice: vFinalPrice,
-      };
-
       return {
-        variantId: v.variantId || v.id || `v${idx + 1}`,
         choices: v.choices || {},
-        variant: formattedVariant,
+        variant: {
+          onsalePrice: vOnsalePrice,
+          deliveryFee: vDeliveryFee,
+          finalPrice: vFinalPrice,
+        },
       };
     });
 
@@ -492,7 +687,7 @@ export class ProductService {
       const qty = Number(product.inventory || 0);
       inventory = [
         {
-          variantId: product.id,
+          variantId: product.productId || product.id,
           inStock: qty > 0,
           quantity: qty,
           availableForPreorder: false,
@@ -533,8 +728,11 @@ export class ProductService {
     const webUrl = product.sku || (product.name ? product.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : product.id);
 
     if (!sellerDetails) {
+      const fallbackSellerName =
+        (product.brand && product.brand !== 'Generic' ? product.brand.trim() : '') ||
+        'Haatza Seller';
       sellerDetails = {
-        sellerName: sellerIdForQuery || '',
+        sellerName: fallbackSellerName,
         totalRating: 0,
         sellerAverageRating: 0,
         followers: 0,
@@ -543,84 +741,67 @@ export class ProductService {
       };
     }
 
-    /* ---------------- CONSTRUCT RESPONSE (STRICT SCHEMA) ---------------- */
+    /* ---------------- CONSTRUCT RESPONSE (STRICT WIX SCHEMA - CAMELCASE) ---------------- */
     const response = {
-      // Basic product info
-      id: product.id,
       productId: product.productId || product.id,
-      tableId: product.id,
       name: product.name || '',
       description: product.description ? cleanHtmlText(product.description) : '',
       mainMedia: mainMediaSrc,
       orderImage: product.mainMedia || null,
-      brand: product.brand === 'Generic' ? '' : (product.brand || ''),
+      brand: product.brand || '',
       mediaItems,
 
-      // Category / seller flags
-      subCategory: product.subCategoryId || product.subCategory || '',
+      subCategory: product.subCategoryId || product.subCategory || targetSubCategoryId || '',
       sellerId: product.sellerId || '',
       haatzaVerified: product.haatzaVerified ?? false,
       activeAd: product.activeAd ?? false,
-
-      // Product options (variants selector, e.g. size/color)
-      productOptions: formattedProductOptions,
-
-      webUrl,
-
-      // Cart / wishlist status (only meaningful if userId passed)
-      cartAdded: false,
-      wishlistAdded: false,
-      wishlistId: '',
-
-      // Variants (from Import517.newVarientPrice)
-      variants,
-
-      // Inventory
-      inventory,
-      trackQuantity,
-
-      // Shipping / seller pin
-      shippingWeight,
-      sellerPinCode,
-
-      // Import517 fields (only present if importResult found)
       campaignId: product.campaignId || '',
       paymentType: product.paymentType || 'Any',
       productReturn: product.productReturn || '7 Days Easy Returns',
       collections: Array.isArray(product.collections) ? product.collections : [],
       deliveryCharges,
+      shippingWeight,
+      sellerPinCode,
       sellAndEarn: product.sellAndEarn === 'TRUE' || product.sellAndEarn === 'true' || product.sellAndEarn === true,
-      sellAndEarnCommission: product.sellAndEarnCommission ?? 0,
+      sellAndEarnCommission: product.sellAndEarnCommission !== undefined && product.sellAndEarnCommission !== null ? product.sellAndEarnCommission : null,
       sizeChart,
+
       specification,
 
-      // Pricing (only present if importResult found)
       mrp,
-      newMrp: product.newMrp !== undefined ? product.newMrp : null,
       onsalePrice,
-      newOnsale: product.newOnsale !== undefined ? product.newOnsale : null,
-      discount: product.discount || null,
-      newDiscount: product.newDiscount !== undefined ? product.newDiscount : null,
       codFinal,
       upiFinal,
       upiPaymentDiscount,
 
-      // Delivery charge calc (only present if importResult found)
       prepaid,
       cod,
       deliveryFee,
       finalPrice,
 
-      // Extra info sections (only if productDetails.additionalInfoSections exists)
+      variants,
       additionalInfoSections,
+      productOptions: formattedProductOptions,
 
-      // Seller details (only if sellerIdForQuery found a match)
+      webUrl,
+      cartAdded: false,
+      wishlistAdded: false,
+      wishlistId: '',
+
+      inventory,
+      trackQuantity,
+
       sellerDetails,
 
-      // Reviews
-      averageRating: 0,
-      totalReviews: 0,
-      reviews: [],
+      averageRating: typeof (product as any).averageRating === 'number'
+        ? (product as any).averageRating
+        : (typeof (product as any).rating === 'number' ? (product as any).rating : 0),
+      totalReviews: typeof (product as any).totalReviews === 'number'
+        ? (product as any).totalReviews
+        : 0,
+      reviews: Array.isArray((product as any).reviews)
+        ? (product as any).reviews
+        : [],
     };
 
     return response;
@@ -1291,6 +1472,9 @@ export class ProductService {
     if (query.sub_category) {
       where.subCategory = { equals: query.sub_category, mode: 'insensitive' };
     }
+    if (query.sub_category_id || query.subCategoryId) {
+      where.subCategoryId = query.sub_category_id || query.subCategoryId;
+    }
     if (query.status) {
       where.status = { equals: query.status, mode: 'insensitive' };
     }
@@ -1304,6 +1488,41 @@ export class ProductService {
           ? query.collections.split(',')
           : [query.collections];
       where.collections = { hasSome: colArray };
+    }
+
+    if (query.product_type || query.productType || query.type) {
+      const typeVal = String(query.product_type || query.productType || query.type).trim();
+      if (typeVal && typeVal.toUpperCase() !== 'ALL') {
+        where.productType = { equals: typeVal, mode: 'insensitive' };
+      }
+    }
+
+    if (query.inventory_status || query.inventoryStatus) {
+      const invStatus = String(query.inventory_status || query.inventoryStatus).trim().toUpperCase();
+      if (invStatus === 'OUT_OF_STOCK') {
+        where.OR = [
+          ...(where.OR || []),
+          { inventory: { lte: 0 } },
+          { status: { equals: 'OUT_OF_STOCK', mode: 'insensitive' } },
+        ];
+      } else if (invStatus === 'LOW_STOCK') {
+        where.inventory = { gt: 0, lte: 10 };
+      } else if (invStatus === 'IN_STOCK') {
+        where.inventory = { gt: 10 };
+      }
+    }
+
+    if (query.category) {
+      const catVal = String(query.category).trim();
+      if (catVal && catVal.toUpperCase() !== 'ALL') {
+        where.OR = [
+          ...(where.OR || []),
+          { mainCategory: { equals: catVal, mode: 'insensitive' } },
+          { categoryName: { has: catVal } },
+          { categoryId: { equals: catVal } },
+          { subCategory: { equals: catVal, mode: 'insensitive' } },
+        ];
+      }
     }
 
     if (query.search?.trim()) {
@@ -1327,8 +1546,11 @@ export class ProductService {
       }),
     ]);
 
+    const isFull = query.full === 'true' || query.view === 'full';
+    const mapper = isFull ? mapPrismaToRestOutput : mapPrismaToEssentialProduct;
+
     return {
-      items: products.map(mapPrismaToRestOutput),
+      items: products.map(mapper),
       total,
       page,
       limit,
@@ -3411,6 +3633,126 @@ export function mapToSponsoredCard(p: any): any {
     name: p.name || '',
     price: priceVal,
     discount: discountPercentage,
+  };
+}
+
+export function mapPrismaToEssentialProduct(p: any): any {
+  if (!p) return null;
+
+  const sellingPrice = Number(p.onsalePrice ?? p.price ?? p.cod ?? 0);
+
+  let discountVal = 0;
+  if (p.discount && typeof p.discount === 'object' && p.discount.value !== undefined) {
+    discountVal = Number(p.discount.value) || 0;
+  } else if (typeof p.discount === 'number') {
+    discountVal = p.discount;
+  } else if (Number(p.mrp || 0) > sellingPrice) {
+    discountVal = Math.round(Number(p.mrp) - sellingPrice);
+  }
+
+  let mrp = Number(p.mrp || 0);
+  if (!mrp && discountVal > 0) {
+    mrp = sellingPrice + discountVal;
+  } else if (!mrp) {
+    mrp = sellingPrice;
+  }
+
+  const quantity = typeof p.inventory === 'number' ? p.inventory : (parseInt(String(p.inventory || '0'), 10) || 0);
+  const statusStr = String(p.status || '').toUpperCase();
+  let inventoryStatus: 'IN_STOCK' | 'LOW_STOCK' | 'OUT_OF_STOCK' = 'IN_STOCK';
+  if (quantity <= 0 || statusStr === 'OUT_OF_STOCK') {
+    inventoryStatus = 'OUT_OF_STOCK';
+  } else if (quantity <= 10) {
+    inventoryStatus = 'LOW_STOCK';
+  }
+
+  let image = p.mainMedia || '';
+  if (!image && Array.isArray(p.productImages) && p.productImages.length > 0) {
+    const firstImg = p.productImages[0];
+    image = typeof firstImg === 'string' ? firstImg : (firstImg?.url || firstImg?.src || firstImg?.fileUrl || '');
+  }
+
+  const category = (Array.isArray(p.categoryName) && p.categoryName.length > 0 && p.categoryName[0])
+    ? p.categoryName[0]
+    : (typeof p.categoryName === 'string' && p.categoryName ? p.categoryName : (p.mainCategory || p.categoryId || ''));
+
+  const rawVariants = Array.isArray(p.newVariantPrice)
+    ? (p.newVariantPrice as any[])
+    : (p.newVariantPrice && typeof p.newVariantPrice === 'object'
+      ? Object.values(p.newVariantPrice as Record<string, any>)
+      : (Array.isArray(p.variantPrice)
+        ? (p.variantPrice as any[])
+        : (p.variantPrice && typeof p.variantPrice === 'object'
+          ? Object.values(p.variantPrice as Record<string, any>)
+          : [])));
+
+  // Sanitize SKU & type against dirty legacy data
+  let cleanSku = p.sku || '';
+  if (cleanSku && (cleanSku.includes('{') || cleanSku.includes(']') || cleanSku.length > 50)) {
+    cleanSku = '';
+  }
+
+  let cleanType = (p.productType || 'physical').toLowerCase();
+  if (cleanType.includes(':') || cleanType.includes('{') || cleanType.length > 30) {
+    cleanType = 'physical';
+  }
+
+  const variants = rawVariants.map((v: any, idx: number) => {
+    const vData = v.variant || v;
+    const vPrice = Number(vData.onsalePrice ?? vData.price ?? sellingPrice);
+    const vQty = vData.inventory !== undefined ? Number(vData.inventory) : quantity;
+    const vStatus = vQty <= 0 ? 'OUT_OF_STOCK' : (vQty <= 10 ? 'LOW_STOCK' : 'IN_STOCK');
+    const vSku = vData.sku || (cleanSku ? `${cleanSku}-${idx + 1}` : '');
+    const optionValues = v.choices || v.optionValues || vData.choices || {};
+
+    return {
+      variantId: v.variantId || v.id || `${p.productId || p.id}-var-${idx + 1}`,
+      optionValues,
+      price: vPrice,
+      sku: vSku,
+      inventory: {
+        quantity: vQty,
+        status: vStatus,
+      },
+    };
+  });
+
+  const inventoryVariants = variants.map((v: any) => ({
+    variantId: v.variantId,
+    sku: v.sku,
+    quantity: v.inventory.quantity,
+    status: v.inventory.status,
+  }));
+
+  // Clean name if corrupted with comma prefixes
+  let cleanName = p.name || '';
+  if (cleanName.startsWith(',[')) {
+    cleanName = cleanName.substring(2);
+  }
+
+  return {
+    id: p.id,
+    productId: p.productId || p.id,
+    name: cleanName,
+    image,
+    category,
+    subCategory: p.subCategory || '',
+    subCategoryId: p.subCategoryId || '',
+    sku: cleanSku,
+    type: cleanType,
+    price: sellingPrice,
+    mrp,
+    discountPrice: discountVal,
+    discount: {
+      type: p.discount?.type || 'AMOUNT',
+      value: discountVal,
+    },
+    inventory: {
+      quantity,
+      status: inventoryStatus,
+    },
+    variants,
+    inventoryVariants,
   };
 }
 

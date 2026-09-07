@@ -25,4 +25,21 @@ export class ProductDetailsQueryDto {
   @IsOptional()
   @IsString()
   userId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional subcategory ID to target sponsored campaign ads',
+    example: '271c29fd-5d1d-76f3-94e3-5532f84651be',
+  })
+  @IsOptional()
+  @IsString()
+  subcategoryId?: string;
+
+  @ApiProperty({
+    description: 'Module name (haatza or lite)',
+    example: 'haatza',
+    required: true,
+  })
+  @IsNotEmpty({ message: 'module is required' })
+  @IsString()
+  module: string;
 }

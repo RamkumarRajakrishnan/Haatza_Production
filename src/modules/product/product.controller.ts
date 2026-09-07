@@ -351,15 +351,15 @@ export class ProductController {
 
 
   @ApiOperation({
-    summary: 'Wix-compatible get product details by productId & toPincode (GET/POST /productDetails)',
-    description: 'Retrieves complete product details, dynamic delivery fees, variants, seller info, and reviews in camelCase format.',
+    summary: 'Wix-compatible get product details & sponsored campaign ads by productId, toPincode & subcategoryId (GET/POST /productDetails)',
+    description: 'Retrieves complete product details, dynamic delivery fees, variants, seller info, reviews, and top sponsored campaign items in camelCase format.',
   })
+  @ApiQuery({ name: 'productId', required: true, type: String, description: 'Product ID or UUID' })
+  @ApiQuery({ name: 'toPincode', required: false, type: String, description: 'Destination pincode for delivery charges' })
+  @ApiQuery({ name: 'subcategoryId', required: false, type: String, description: 'Optional subcategory ID to target sponsored campaign ads' })
+  @ApiQuery({ name: 'userId', required: false, type: String, description: 'Optional buyer user ID' })
+  @ApiQuery({ name: 'module', required: true, type: String, description: 'Module name (haatza or lite)' })
   @Get([
-    'productDetails',
-    'get_productDetails',
-    'product-details',
-  ])
-  @Post([
     'productDetails',
     'get_productDetails',
     'product-details',
@@ -374,8 +374,13 @@ export class ProductController {
     @Query('pincode') queryPincode?: string,
     @Query('toPin') queryToPin?: string,
     @Query('to_pin') querySnakeToPin?: string,
+    @Query('subcategoryId') subcategoryId?: string,
+    @Query('subCategoryId') querySubCategoryId?: string,
+    @Query('subcategory_id') querySnakeSubCategoryId?: string,
     @Query('userId') userId?: string,
     @Query('user_id') querySnakeUserId?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
     @Body() body?: any,
   ) {
     const targetProductId =
@@ -398,17 +403,80 @@ export class ProductController {
       body?.toPin ||
       body?.to_pin;
 
+    const targetSubCategoryId =
+      subcategoryId ||
+      querySubCategoryId ||
+      querySnakeSubCategoryId ||
+      body?.subcategoryId ||
+      body?.subCategoryId ||
+      body?.subcategory_id;
+
     const targetUserId =
       userId ||
       querySnakeUserId ||
       body?.userId ||
       body?.user_id;
 
+    const targetModule =
+      module ||
+      pascalModule ||
+      body?.module ||
+      body?.Module;
+
+    if (!targetModule) {
+      throw new BadRequestException('module is required');
+    }
+
     return this.productService.getProductDetails({
       productId: targetProductId,
       toPincode: targetToPincode,
       userId: targetUserId,
+      subcategoryId: targetSubCategoryId ? String(targetSubCategoryId).trim() : undefined,
+      module: String(targetModule).trim(),
     });
+  }
+
+  @Post([
+    'productDetails',
+    'get_productDetails',
+    'product-details',
+  ])
+  @HttpCode(HttpStatus.OK)
+  async postProductDetails(
+    @Query('productId') productId?: string,
+    @Query('product_id') querySnakeProductId?: string,
+    @Query('id') queryId?: string,
+    @Query('toPincode') toPincode?: string,
+    @Query('to_pincode') querySnakeToPincode?: string,
+    @Query('pincode') queryPincode?: string,
+    @Query('toPin') queryToPin?: string,
+    @Query('to_pin') querySnakeToPin?: string,
+    @Query('subcategoryId') subcategoryId?: string,
+    @Query('subCategoryId') querySubCategoryId?: string,
+    @Query('subcategory_id') querySnakeSubCategoryId?: string,
+    @Query('userId') userId?: string,
+    @Query('user_id') querySnakeUserId?: string,
+    @Query('module') module?: string,
+    @Query('Module') pascalModule?: string,
+    @Body() body?: any,
+  ) {
+    return this.getProductDetails(
+      productId,
+      querySnakeProductId,
+      queryId,
+      toPincode,
+      querySnakeToPincode,
+      queryPincode,
+      queryToPin,
+      querySnakeToPin,
+      subcategoryId,
+      querySubCategoryId,
+      querySnakeSubCategoryId,
+      userId,
+      querySnakeUserId,
+      module || pascalModule,
+      body,
+    );
   }
 
   @ApiOperation({
