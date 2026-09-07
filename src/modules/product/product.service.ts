@@ -676,12 +676,7 @@ export class ProductService {
       throw new NotFoundException({ error: 'Product not found' });
     }
 
-    // 2. Build full hero product detail (Wix/PDP schema)
-    const productDetail = await this.buildProductDetailResponse(
-      sourceProduct,
-      params.toPincode?.trim(),
-      params.userId?.trim(),
-    );
+
 
     // 3. Target subcategory & category resolution
     const targetSubCategoryId = (
@@ -869,6 +864,12 @@ export class ProductService {
       mrp: true,
       cod: true,
       upi: true,
+      discount: true,
+      categoryId: true,
+      subCategory: true,
+      subCategoryId: true,
+      mainCategory: true,
+      collections: true,
       inventory: true,
       status: true,
       activeAd: true,
@@ -1036,20 +1037,19 @@ export class ProductService {
     const totalPages = Math.ceil(totalItems / limit) || 1;
 
     const resultData = {
-      productDetail,
-      sponsored,
+      sponsoredProducts: sponsored,
       similarProducts: mappedCards,
-      products: mappedCards, // alias for backwards compatibility
-      totalItems,
-      totalPages,
-      currentPage: page,
-      limit,
+      similarProductsPagination: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        limit,
+      },
     };
 
     return {
       status: 'success',
       data: resultData,
-      message: 'Product details, sponsored campaign items, and similar products retrieved successfully',
     };
   }
 
@@ -3351,23 +3351,27 @@ export function mapToSimilarProductCard(p: any): any {
   const statusStr = String(p.status || '').toUpperCase();
   const inStock = statusStr !== 'OUT_OF_STOCK' && (p.inventory === null || p.inventory === undefined || inventoryVal > 0);
 
+  const categoryId = p.categoryId || (Array.isArray(p.collections) && p.collections.length > 0 ? p.collections[0] : (typeof p.collections === 'string' ? p.collections : '')) || p.mainCategory || '';
+  const subCategoryId = p.subCategoryId || p.subCategory || '';
+
   return {
+    id: p.id || pid,
     productId: pid,
+    categoryId,
+    subCategoryId,
     name: p.name || '',
     brand,
     image: image || '',
-    price: priceVal,
     mrp: isNaN(mrpVal) ? 0 : mrpVal,
-    discount: discountPercentage,
     finalPricing: {
       codFinal: isNaN(codVal) ? 0 : codVal,
       upiFinal: isNaN(upiVal) ? 0 : upiVal,
     },
+    discount: discountPercentage,
     inStock,
     averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
     totalReviews: typeof p.totalReviews === 'number' ? p.totalReviews : 0,
     isWishlist: false,
-    activeAd: p.activeAd === true || p.activeAd === 'true',
   };
 }
 
@@ -3399,18 +3403,14 @@ export function mapToSponsoredCard(p: any): any {
   const subCategoryId = p.subCategoryId || p.subCategory || '';
 
   return {
-    productId: pid,
     id: p.id || pid,
-    name: p.name || '',
-    brand: (p.brand === 'Generic' || !p.brand) ? 'Generic' : String(p.brand).trim(),
+    productId: pid,
     categoryId,
     subCategoryId,
     image: image || '',
+    name: p.name || '',
     price: priceVal,
-    mrp: isNaN(mrpVal) ? 0 : mrpVal,
     discount: discountPercentage,
-    activeAd: true,
-    priorityScore: p.priorityScore ?? 0,
   };
 }
 
