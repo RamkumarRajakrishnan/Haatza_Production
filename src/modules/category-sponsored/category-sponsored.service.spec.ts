@@ -121,6 +121,49 @@ describe('CategorySponsoredService & Controller', () => {
       expect(widget.status).toBe('INACTIVE');
     });
 
+    it('should strictly exclude expired widgets from default active getCategorySponsored response', async () => {
+      mockDbService.queryRawCategorySponsored = jest.fn().mockResolvedValue([
+        {
+          id: 'CAT_SPON_001_ACTIVE',
+          widgetType: 'hero_banner',
+          widgetId: 'WID001',
+          title: 'Active Deal',
+          status: 'ACTIVE',
+          sequence: 1,
+          categoryId: 'cate001',
+          categoryName: 'Electronics',
+          item: [{ image: 'https://example.com/active.jpg' }],
+          warehouseId: null,
+          module: 'HAATZA',
+          expiresAt: new Date(Date.now() + 86400000), // Valid: expires tomorrow
+        },
+        {
+          id: 'CAT_SPON_002_EXPIRED',
+          widgetType: 'hero_banner',
+          widgetId: 'WID002',
+          title: 'Past Deals',
+          status: 'ACTIVE', // Database row says ACTIVE
+          sequence: 2,
+          categoryId: 'cate001',
+          categoryName: 'Electronics',
+          item: [{ image: 'https://example.com/past.jpg' }],
+          warehouseId: null,
+          module: 'HAATZA',
+          expiresAt: new Date(Date.now() - 10000), // Expired 10 seconds ago
+        },
+      ]);
+
+      const result = await service.getCategorySponsored({
+        categoryId: 'cate001',
+        module: DashboardModule.HAATZA,
+      });
+
+      expect(result.status).toBe('success');
+      expect(result.message.data.length).toBe(1);
+      expect(result.message.data[0].widgetId).toBe('WID001');
+      expect(result.message.data[0].status).toBe('ACTIVE');
+    });
+
     it('upsertWidgets should automatically compute status as INACTIVE if expiresAt is in the past', async () => {
       mockDbService.queryRawCategorySponsored = jest
         .fn()

@@ -35,7 +35,31 @@ export class CategorySponsoredService {
       ],
       createdAt: new Date(),
       updatedAt: new Date(),
-      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // Expires in 10 days
+      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // Active: Expires in 10 days
+    },
+    {
+      id: 'CAT_SPON_002_EXPIRED',
+      widgetId: 'WID002_EXPIRED',
+      widgetType: 'category_sponsored',
+      title: 'Expired Clearance Offer',
+      status: 'ACTIVE', // Database field may say ACTIVE, but expiresAt is in the past
+      sequence: 2,
+      categoryId: 'cate001',
+      categoryName: 'Electronics',
+      warehouseId: '',
+      module: 'HAATZA',
+      item: [
+        {
+          id: 'prod_002',
+          name: 'Old Headphone Deal (Expired)',
+          image: 'https://storage.googleapis.com/haatza-media-bucket/expired-banner.jpg',
+          price: 499,
+          redirect_link: '/product/prod_002',
+        },
+      ],
+      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      expiresAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // Expired 5 days ago
     },
   ];
 
@@ -71,13 +95,19 @@ export class CategorySponsoredService {
           }
         }
 
-        // Expiration & Status check
-        const isExpired = w.expiresAt && new Date(w.expiresAt).getTime() <= Date.now();
-        const resolvedStatus = isExpired
-          ? 'INACTIVE'
-          : w.status
-          ? String(w.status).toUpperCase()
-          : 'ACTIVE';
+        // Expiration & Status check: strictly determine status based on expiresAt if provided
+        let resolvedStatus: string;
+        if (w.expiresAt) {
+          const expTime = new Date(w.expiresAt).getTime();
+          if (!isNaN(expTime)) {
+            resolvedStatus = expTime <= Date.now() ? 'INACTIVE' : 'ACTIVE';
+          } else {
+            resolvedStatus = w.status ? String(w.status).toUpperCase() : 'ACTIVE';
+          }
+        } else {
+          resolvedStatus = w.status ? String(w.status).toUpperCase() : 'ACTIVE';
+        }
+        const isExpired = resolvedStatus === 'INACTIVE';
 
         if (reqStatus === 'all') {
           return true;
@@ -215,6 +245,7 @@ export class CategorySponsoredService {
     let sql = `SELECT id, widget_type AS "widgetType", widget_id AS "widgetId", title, 
                       CASE 
                         WHEN expires_at IS NOT NULL AND expires_at <= NOW() THEN 'INACTIVE'
+                        WHEN expires_at IS NOT NULL AND expires_at > NOW() THEN 'ACTIVE'
                         WHEN LOWER(TRIM(status)) = 'inactive' THEN 'INACTIVE'
                         ELSE COALESCE(status, 'ACTIVE')
                       END AS "status",
@@ -376,8 +407,32 @@ export class CategorySponsoredService {
         }
       }
 
-      const isExpired = item.expiresAt && new Date(item.expiresAt).getTime() <= Date.now();
-      const resolvedStatus = isExpired ? 'INACTIVE' : (item.status ? String(item.status).toUpperCase() : 'ACTIVE');
+      // Determine status based on expiration date if provided
+      let resolvedStatus: string;
+      if (item.expiresAt) {
+        const expTime = new Date(item.expiresAt).getTime();
+        if (!isNaN(expTime)) {
+          resolvedStatus = expTime <= Date.now() ? 'INACTIVE' : 'ACTIVE';
+        } else {
+          resolvedStatus = item.status ? String(item.status).toUpperCase() : 'ACTIVE';
+        }
+      } else {
+        resolvedStatus = item.status ? String(item.status).toUpperCase() : 'ACTIVE';
+      }
+      const isExpired = resolvedStatus === 'INACTIVE';
+
+      // STRICT DATE & STATUS VALIDATION:
+      // Default (active only): strictly omit any widget that is expired or inactive!
+      if (!reqStatus || reqStatus === 'active') {
+        if (isExpired || resolvedStatus !== 'ACTIVE') {
+          return;
+        }
+      } else if (reqStatus === 'inactive') {
+        if (!isExpired && resolvedStatus !== 'INACTIVE') {
+          return;
+        }
+      }
+      // If reqStatus === 'all', display both active and inactive widgets with their resolvedStatus
 
       resultWidgets.push({
         id: item.id || undefined,
@@ -457,9 +512,14 @@ export class CategorySponsoredService {
         expiresAtDate = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
       }
 
-      // Automatically set status to INACTIVE if expiration date is in the past
-      const isExpired = expiresAtDate && expiresAtDate.getTime() <= Date.now();
-      const computedStatus = isExpired ? 'INACTIVE' : (w.status ? String(w.status).toUpperCase() : 'ACTIVE');
+      // Automatically set status based on expiration date
+      let computedStatus: string;
+      if (expiresAtDate) {
+        computedStatus = expiresAtDate.getTime() <= Date.now() ? 'INACTIVE' : 'ACTIVE';
+      } else {
+        computedStatus = w.status ? String(w.status).toUpperCase() : 'ACTIVE';
+      }
+      const isExpired = computedStatus === 'INACTIVE';
 
       const data: any = {
         widgetType: w.widgetType || w.widget_type || 'hero_banner',
@@ -615,17 +675,25 @@ export class CategorySponsoredService {
   }
 
   /**
-   * Synchronizes database records: sets status = 'INACTIVE' where expires_at <= NOW()
+   * Synchronizes database records: sets status = 'INACTIVE' where expires_at <= NOW(), and 'ACTIVE' where expires_at > NOW()
    */
   async syncExpiredStatus(): Promise<number> {
     try {
-      return await this.db.executePoolQuery(
+      const inact = await this.db.executePoolQuery(
         `UPDATE public.category_sponsored 
          SET status = 'INACTIVE', updated_at = NOW() 
          WHERE expires_at IS NOT NULL 
            AND expires_at <= NOW() 
            AND (LOWER(TRIM(status)) != 'inactive' OR status IS NULL);`,
       );
+      const act = await this.db.executePoolQuery(
+        `UPDATE public.category_sponsored 
+         SET status = 'ACTIVE', updated_at = NOW() 
+         WHERE expires_at IS NOT NULL 
+           AND expires_at > NOW() 
+           AND LOWER(TRIM(status)) != 'active';`,
+      );
+      return inact + act;
     } catch (err: any) {
       this.logger.warn(`syncExpiredStatus warning: ${err.message}`);
       return 0;

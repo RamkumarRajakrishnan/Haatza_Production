@@ -637,12 +637,16 @@ export class DatabaseService
           END IF;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
-        -- Automatic status resolution trigger (forces status = 'INACTIVE' if expires_at <= NOW())
+        -- Automatic status resolution trigger (sets status = 'INACTIVE' if expires_at <= NOW(), or 'ACTIVE' if expires_at > NOW())
         CREATE OR REPLACE FUNCTION public.fn_trg_category_sponsored_auto_expire()
         RETURNS TRIGGER AS $exp$
         BEGIN
-          IF NEW.expires_at IS NOT NULL AND NEW.expires_at <= NOW() THEN
-            NEW.status := 'INACTIVE';
+          IF NEW.expires_at IS NOT NULL THEN
+            IF NEW.expires_at <= NOW() THEN
+              NEW.status := 'INACTIVE';
+            ELSE
+              NEW.status := 'ACTIVE';
+            END IF;
           END IF;
           RETURN NEW;
         END;
@@ -654,12 +658,18 @@ export class DatabaseService
         FOR EACH ROW
         EXECUTE FUNCTION public.fn_trg_category_sponsored_auto_expire();
 
-        -- Synchronize any existing expired records in table to INACTIVE
+        -- Synchronize any existing records in table based on expires_at
         UPDATE public.category_sponsored
         SET status = 'INACTIVE', updated_at = NOW()
         WHERE expires_at IS NOT NULL
           AND expires_at <= NOW()
           AND (LOWER(TRIM(status)) != 'inactive' OR status IS NULL);
+
+        UPDATE public.category_sponsored
+        SET status = 'ACTIVE', updated_at = NOW()
+        WHERE expires_at IS NOT NULL
+          AND expires_at > NOW()
+          AND LOWER(TRIM(status)) != 'active';
 
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (
