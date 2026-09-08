@@ -479,6 +479,7 @@ export class ProductController {
     );
   }
 
+  /*
   @ApiOperation({
     summary: 'Get product details, sponsored campaign items & similar products (GET/POST /similarProducts)',
     description: 'Unified PDP recommendation engine (Amazon/Flipkart model): returns full product detail, top 10 high-priority sponsored campaign items, and 2 active + 2 organic interleaved similar products with zero duplicate items.',
@@ -628,6 +629,7 @@ export class ProductController {
       allQueries,
     );
   }
+  */
 
   @ApiOperation({
     summary: 'Get seller product details by tableId (GET /sellerProductDetails)',

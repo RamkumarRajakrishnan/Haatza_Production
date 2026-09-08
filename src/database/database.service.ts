@@ -162,6 +162,10 @@ export class DatabaseService
     }
   }
 
+  async queryRawCategorySponsored(text: string, params: any[] = []): Promise<any[]> {
+    return this.queryRawDashboard(text, params);
+  }
+
   async executePoolQuery(text: string, params: any[] = []): Promise<number> {
     if (!this.isConnected) {
       return 0;
@@ -517,6 +521,97 @@ export class DatabaseService
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS warehouse_id text;
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
         ALTER TABLE public.dashboard ADD COLUMN IF NOT EXISTS expires_at timestamp;
+
+        -- Category Sponsored Table DDL (Replicated from dashboard)
+        CREATE TABLE IF NOT EXISTS public.category_sponsored (
+          id text PRIMARY KEY,
+          widget_type text,
+          widget_id text UNIQUE NOT NULL,
+          title text,
+          status text DEFAULT 'ACTIVE',
+          sequence integer,
+          category_id text,
+          category_name text,
+          "Item" jsonb,
+          warehouse_id text,
+          module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule",
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now(),
+          expires_at timestamp
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_category_sponsored_widget_id ON public.category_sponsored(widget_id);
+        CREATE INDEX IF NOT EXISTS idx_category_sponsored_widget_type ON public.category_sponsored(widget_type);
+        CREATE INDEX IF NOT EXISTS idx_category_sponsored_module ON public.category_sponsored(module);
+        CREATE INDEX IF NOT EXISTS idx_category_sponsored_category_id ON public.category_sponsored(category_id);
+
+        -- Automatic ID Generation (CAT_SPON_001, CAT_SPON_002...) for category_sponsored.id
+        CREATE SEQUENCE IF NOT EXISTS public.seq_category_sponsored_id START WITH 1 INCREMENT BY 1 NO MAXVALUE NO MINVALUE CACHE 1;
+
+        CREATE OR REPLACE FUNCTION public.fn_next_category_sponsored_id()
+        RETURNS text AS $fn$
+        BEGIN
+          RETURN 'CAT_SPON_' || lpad(nextval('public.seq_category_sponsored_id')::text, 3, '0');
+        END;
+        $fn$ LANGUAGE plpgsql;
+
+        -- Ensure column default is set to fn_next_category_sponsored_id()
+        ALTER TABLE public.category_sponsored ALTER COLUMN id SET DEFAULT public.fn_next_category_sponsored_id();
+
+        -- BEFORE INSERT Trigger to guarantee CAT_SPON_xxx assignment if ID is NULL or empty
+        CREATE OR REPLACE FUNCTION public.fn_trg_category_sponsored_auto_id()
+        RETURNS TRIGGER AS $trg$
+        BEGIN
+          IF NEW.id IS NULL OR trim(NEW.id) = '' THEN
+            NEW.id := public.fn_next_category_sponsored_id();
+          END IF;
+          RETURN NEW;
+        END;
+        $trg$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS trg_category_sponsored_auto_id ON public.category_sponsored;
+        CREATE TRIGGER trg_category_sponsored_auto_id
+        BEFORE INSERT ON public.category_sponsored
+        FOR EACH ROW
+        EXECUTE FUNCTION public.fn_trg_category_sponsored_auto_id();
+
+        -- Synchronize Sequence with existing max numeric CAT_SPON_xxx IDs
+        DO $$
+        DECLARE
+          v_max_id int;
+        BEGIN
+          SELECT COALESCE(MAX(
+            CASE 
+              WHEN id ~ '^CAT_SPON_[0-9]+$' THEN NULLIF(regexp_replace(id, '^CAT_SPON_', ''), '')::int
+              ELSE 0
+            END
+          ), 0) INTO v_max_id FROM public.category_sponsored;
+
+          IF v_max_id > 0 THEN
+            PERFORM setval('public.seq_category_sponsored_id', v_max_id);
+          END IF;
+        END $$;
+
+        -- Safe column additions for category_sponsored table
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS widget_type text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS widget_id text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS title text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS status text DEFAULT 'ACTIVE';
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS sequence integer;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS category_id text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS category_name text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS "Item" jsonb;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS warehouse_id text;
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS module public."DashboardModule" DEFAULT 'HAATZA'::public."DashboardModule";
+        ALTER TABLE public.category_sponsored ADD COLUMN IF NOT EXISTS expires_at timestamp;
+
+        -- Alias view for "category sponsored" (with space)
+        DO $$ BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_views WHERE schemaname = 'public' AND viewname = 'category sponsored')
+             AND NOT EXISTS (SELECT 1 FROM pg_tables WHERE schemaname = 'public' AND tablename = 'category sponsored') THEN
+            CREATE VIEW public."category sponsored" AS SELECT * FROM public.category_sponsored;
+          END IF;
+        EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (

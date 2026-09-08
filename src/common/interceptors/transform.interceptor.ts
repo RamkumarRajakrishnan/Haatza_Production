@@ -30,6 +30,8 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
             url.includes('check-user') ||
             url.includes('checkuser') ||
             url.includes('dashboard') ||
+            url.includes('categorysponsored') ||
+            url.includes('category-sponsored') ||
             url.includes('register') ||
             url.includes('productdetails') ||
             url.includes('product-details') ||

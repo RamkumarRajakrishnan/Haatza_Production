@@ -807,17 +807,16 @@ export class ProductService {
     return response;
   }
 
-  /**
-   * GET/POST /api/v1/similarProducts
-   * 
-   * Unified Product Detail Page (PDP) & Recommendation Engine (Flipkart / Amazon Model):
-   * 1. productDetail: Complete details of hero product (via productId).
-   * 2. sponsored: Top 10 high-priority active ads (activeAd: true) for the subcategory.
-   *    (categoryId, subCategoryId, productId, image, name, discount, price, etc.)
-   * 3. similarProducts: Multi-tier recommendations interleaved 2 active ads + 2 organic items (priority high to low).
-   * 4. Strict Deduplication: Hero product and all sponsored products are strictly excluded
-   *    from similarProducts so there is zero repetition.
-   */
+  /*
+  // GET/POST /api/v1/similarProducts
+  // 
+  // Unified Product Detail Page (PDP) & Recommendation Engine (Flipkart / Amazon Model):
+  // 1. productDetail: Complete details of hero product (via productId).
+  // 2. sponsored: Top 10 high-priority active ads (activeAd: true) for the subcategory.
+  //    (categoryId, subCategoryId, productId, image, name, discount, price, etc.)
+  // 3. similarProducts: Multi-tier recommendations interleaved 2 active ads + 2 organic items (priority high to low).
+  // 4. Strict Deduplication: Hero product and all sponsored products are strictly excluded
+  //    from similarProducts so there is zero repetition.
   async getSimilarProducts(params: {
     productId?: string;
     subcategoryId?: string;
@@ -1233,6 +1232,7 @@ export class ProductService {
       data: resultData,
     };
   }
+  */
 
   /**
    * GET /api/v1/sellerProductDetails

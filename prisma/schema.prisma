@@ -484,6 +484,28 @@ model Dashboard {
   @@map("dashboard")
 }
 
+model CategorySponsored {
+  id           String           @id @default(dbgenerated("fn_next_category_sponsored_id()")) @map("id")
+  widgetType   String?          @map("widget_type")
+  widgetId     String           @map("widget_id")
+  title        String?          @map("title")
+  status       String?          @default("ACTIVE") @map("status")
+  sequence     Int?             @map("sequence")
+  categoryId   String?          @map("category_id")
+  categoryName String?          @map("category_name")
+  warehouseId  String?          @map("warehouse_id")
+  createdAt    DateTime         @default(now()) @map("created_at")
+  updatedAt    DateTime         @updatedAt @map("updated_at")
+  expiresAt    DateTime?        @map("expires_at")
+  module       DashboardModule? @default(HAATZA) @map("module")
+  item         Json?            @map("Item")
+
+  @@index([widgetId])
+  @@index([widgetType])
+  @@index([module])
+  @@map("category_sponsored")
+}
+
 model PageMaster {
   id              String           @id @default(uuid()) @map("id")
   pageCode        String           @unique @map("page_code")

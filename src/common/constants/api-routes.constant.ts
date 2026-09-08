@@ -83,4 +83,13 @@ export const API_ROUTES = {
     PING: '/api/v1/dashboard/ping',
     DELETE: '/api/v1/dashboard/:id',
   },
+
+  // 7. Category Sponsored
+  CATEGORY_SPONSORED: {
+    GET: '/api/v1/categorySponsored',
+    FETCH: '/api/v1/categorySponsored/get-data',
+    PING: '/api/v1/categorySponsored/ping',
+    UPSERT: '/api/v1/categorySponsored/upsert',
+    DELETE: '/api/v1/categorySponsored/:id',
+  },
 };
