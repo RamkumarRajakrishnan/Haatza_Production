@@ -87,9 +87,7 @@ async function bootstrap() {
       if (
         p === '/productdetails' ||
         p === '/get_productdetails' ||
-        p === '/product-details' ||
-        p === '/categorysponsored' ||
-        p === '/category-sponsored'
+        p === '/product-details'
       ) {
         req.url = `/api/v1${req.url}`;
       }
@@ -105,7 +103,7 @@ async function bootstrap() {
       }),
     );
 
-    // API Versioning Prefix (excluding root '/', '/health', and static '/uploads')
+    // API Versioning Prefix (excluding root '/', '/health', '/categorySponsored', and static '/uploads')
     app.setGlobalPrefix('api/v1', {
       exclude: [
         { path: '/', method: RequestMethod.GET },
@@ -115,6 +113,18 @@ async function bootstrap() {
         { path: 'grow-plans/(.*)', method: RequestMethod.ALL },
         { path: 'api/v1/grow-plans', method: RequestMethod.ALL },
         { path: 'api/v1/grow-plans/(.*)', method: RequestMethod.ALL },
+        { path: 'categorySponsored', method: RequestMethod.ALL },
+        { path: 'categorySponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'categorysponsored', method: RequestMethod.ALL },
+        { path: 'categorysponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'category-sponsored', method: RequestMethod.ALL },
+        { path: 'category-sponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/categorySponsored', method: RequestMethod.ALL },
+        { path: 'api/v1/categorySponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/categorysponsored', method: RequestMethod.ALL },
+        { path: 'api/v1/categorysponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/category-sponsored', method: RequestMethod.ALL },
+        { path: 'api/v1/category-sponsored/(.*)', method: RequestMethod.ALL },
         { path: '_functions', method: RequestMethod.ALL },
         { path: '_functions/(.*)', method: RequestMethod.ALL },
       ],

@@ -65,4 +65,12 @@ export class GetCategorySponsoredDto {
   @IsOptional()
   @IsString()
   Module?: string;
+
+  @ApiPropertyOptional({
+    description: 'Optional status filter: ACTIVE (default), INACTIVE, or ALL',
+    example: 'ACTIVE',
+  })
+  @IsOptional()
+  @IsString()
+  status?: string;
 }

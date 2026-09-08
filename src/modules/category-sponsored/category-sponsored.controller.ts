@@ -15,7 +15,14 @@ import { GetCategorySponsoredDto } from './dto/get-category-sponsored.dto';
 import { DashboardModule } from '@prisma/client';
 
 @ApiTags('Category Sponsored')
-@Controller(['categorySponsored', 'category-sponsored'])
+@Controller([
+  'categorySponsored',
+  'categorysponsored',
+  'category-sponsored',
+  'api/v1/categorySponsored',
+  'api/v1/categorysponsored',
+  'api/v1/category-sponsored',
+])
 export class CategorySponsoredController {
   constructor(private readonly categorySponsoredService: CategorySponsoredService) {}
 

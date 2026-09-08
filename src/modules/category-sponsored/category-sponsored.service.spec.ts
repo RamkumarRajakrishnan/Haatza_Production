@@ -90,6 +90,60 @@ describe('CategorySponsoredService & Controller', () => {
       expect(widget.widgetId).toBe('WID001');
       expect(widget.categoryId).toBe('cate001');
       expect(widget.categoryName).toBe('Electronics');
+      expect(widget.status).toBe('ACTIVE');
+    });
+
+    it('should dynamically return status INACTIVE if widget has expired', async () => {
+      mockDbService.queryRawCategorySponsored = jest.fn().mockResolvedValue([
+        {
+          id: 'CAT_SPON_002',
+          widgetType: 'hero_banner',
+          widgetId: 'WID002',
+          title: 'Past Deals',
+          status: 'ACTIVE', // DB row still says ACTIVE
+          sequence: 1,
+          categoryId: 'cate001',
+          categoryName: 'Electronics',
+          item: [{ image: 'https://example.com/past.jpg' }],
+          warehouseId: null,
+          module: 'HAATZA',
+          expiresAt: new Date(Date.now() - 10000), // Expired 10 seconds ago
+        },
+      ]);
+
+      const result = await service.getCategorySponsored({
+        categoryId: 'cate001',
+        module: DashboardModule.HAATZA,
+        status: 'all',
+      });
+
+      const widget = result.message.data[0];
+      expect(widget.status).toBe('INACTIVE');
+    });
+
+    it('upsertWidgets should automatically compute status as INACTIVE if expiresAt is in the past', async () => {
+      mockDbService.queryRawCategorySponsored = jest
+        .fn()
+        .mockResolvedValueOnce([]) // max widget id
+        .mockResolvedValueOnce([]) // existing record
+        .mockResolvedValueOnce([
+          {
+            id: 'CAT_SPON_003',
+            widgetType: 'hero_banner',
+            widgetId: 'WID001',
+            status: 'INACTIVE',
+          },
+        ]);
+
+      const res = await service.upsertWidgets({
+        widgetType: 'hero_banner',
+        status: 'ACTIVE', // client passed ACTIVE
+        expiresAt: new Date(Date.now() - 60000).toISOString(), // expired
+        categoryId: 'cate001',
+      });
+
+      expect(res.status).toBe('success');
+      expect(mockDbService.queryRawCategorySponsored).toHaveBeenCalled();
     });
 
     it('controller getCategorySponsoredGet should invoke service and return result', async () => {

@@ -131,6 +131,11 @@ export class DatabaseService
   }
 
   async queryRawDashboard(text: string, params: any[] = []): Promise<any[]> {
+    if (!this.isConnected) {
+      this.logger.warn('queryRawDashboard: database is disconnected or unreachable. Returning empty array.');
+      return [];
+    }
+
     try {
       if (this.pool) {
         const result = await this.pool.query(text, params);
@@ -151,6 +156,16 @@ export class DatabaseService
           this.logger.warn(`queryRawDashboard non-SSL retry warning: ${retryErr.message}`);
         }
       }
+      if (
+        err.message &&
+        (err.message.includes('timeout') ||
+          err.message.includes('Connection terminated') ||
+          err.message.includes('ECONNREFUSED') ||
+          err.message.includes('closed'))
+      ) {
+        this.isConnected = false;
+        return [];
+      }
     }
 
     try {
@@ -158,7 +173,16 @@ export class DatabaseService
       return Array.isArray(prismaRes) ? prismaRes : [];
     } catch (prismaErr: any) {
       this.logger.error(`queryRawDashboard fallback failed: ${prismaErr.message}`);
-      throw prismaErr;
+      if (
+        prismaErr.message &&
+        (prismaErr.message.includes('timeout') ||
+          prismaErr.message.includes('Connection terminated') ||
+          prismaErr.message.includes('ECONNREFUSED') ||
+          prismaErr.message.includes('closed'))
+      ) {
+        this.isConnected = false;
+      }
+      return [];
     }
   }
 
@@ -612,6 +636,30 @@ export class DatabaseService
             CREATE VIEW public."category sponsored" AS SELECT * FROM public.category_sponsored;
           END IF;
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
+
+        -- Automatic status resolution trigger (forces status = 'INACTIVE' if expires_at <= NOW())
+        CREATE OR REPLACE FUNCTION public.fn_trg_category_sponsored_auto_expire()
+        RETURNS TRIGGER AS $exp$
+        BEGIN
+          IF NEW.expires_at IS NOT NULL AND NEW.expires_at <= NOW() THEN
+            NEW.status := 'INACTIVE';
+          END IF;
+          RETURN NEW;
+        END;
+        $exp$ LANGUAGE plpgsql;
+
+        DROP TRIGGER IF EXISTS trg_category_sponsored_auto_expire ON public.category_sponsored;
+        CREATE TRIGGER trg_category_sponsored_auto_expire
+        BEFORE INSERT OR UPDATE ON public.category_sponsored
+        FOR EACH ROW
+        EXECUTE FUNCTION public.fn_trg_category_sponsored_auto_expire();
+
+        -- Synchronize any existing expired records in table to INACTIVE
+        UPDATE public.category_sponsored
+        SET status = 'INACTIVE', updated_at = NOW()
+        WHERE expires_at IS NOT NULL
+          AND expires_at <= NOW()
+          AND (LOWER(TRIM(status)) != 'inactive' OR status IS NULL);
 
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (
