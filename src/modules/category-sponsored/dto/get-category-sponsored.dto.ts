@@ -51,20 +51,33 @@ export class GetCategorySponsoredDto {
   })
   @IsOptional()
   @Transform(({ obj, value }) => {
-    const raw = value || obj?.Module || obj?.module;
+    let raw = value;
+    if (!raw && obj && typeof obj === 'object') {
+      const foundKey = Object.keys(obj).find((k) => k.toLowerCase() === 'module');
+      if (foundKey) raw = obj[foundKey];
+    }
     return typeof raw === 'string' ? (raw.toUpperCase().trim() as any) : raw;
   })
   @IsEnum(DashboardModule, { message: 'module must be either HAATZA or LITE.' })
   module?: DashboardModule;
 
   @ApiPropertyOptional({
-    description: 'PascalCase alias for module',
+    description: 'Case-insensitive alias for module',
     enum: DashboardModule,
     example: DashboardModule.HAATZA,
   })
   @IsOptional()
   @IsString()
   Module?: string;
+
+  @ApiPropertyOptional({
+    description: 'Uppercase alias for module',
+    enum: DashboardModule,
+    example: DashboardModule.HAATZA,
+  })
+  @IsOptional()
+  @IsString()
+  MODULE?: string;
 
   @ApiPropertyOptional({
     description: 'Optional status filter: ACTIVE (default), INACTIVE, or ALL',

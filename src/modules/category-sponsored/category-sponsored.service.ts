@@ -11,57 +11,8 @@ export class CategorySponsoredService {
 
   constructor(private readonly db: DatabaseService) {}
 
-  // In-memory cache for local development & fallback when database is offline/unreachable
-  private localWidgetsStore: any[] = [
-    {
-      id: 'CAT_SPON_001',
-      widgetId: 'WID001',
-      widgetType: 'category_sponsored',
-      title: 'Top Category Sponsored Deals',
-      status: 'ACTIVE',
-      sequence: 1,
-      categoryId: 'cate001',
-      categoryName: 'Electronics',
-      warehouseId: '',
-      module: 'HAATZA',
-      item: [
-        {
-          id: 'prod_001',
-          name: 'Sponsored Smart Watch',
-          image: 'https://storage.googleapis.com/haatza-media-bucket/sample-banner.jpg',
-          price: 1999,
-          redirect_link: '/product/prod_001',
-        },
-      ],
-      createdAt: new Date(),
-      updatedAt: new Date(),
-      expiresAt: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // Active: Expires in 10 days
-    },
-    {
-      id: 'CAT_SPON_002_EXPIRED',
-      widgetId: 'WID002_EXPIRED',
-      widgetType: 'category_sponsored',
-      title: 'Expired Clearance Offer',
-      status: 'ACTIVE', // Database field may say ACTIVE, but expiresAt is in the past
-      sequence: 2,
-      categoryId: 'cate001',
-      categoryName: 'Electronics',
-      warehouseId: '',
-      module: 'HAATZA',
-      item: [
-        {
-          id: 'prod_002',
-          name: 'Old Headphone Deal (Expired)',
-          image: 'https://storage.googleapis.com/haatza-media-bucket/expired-banner.jpg',
-          price: 499,
-          redirect_link: '/product/prod_002',
-        },
-      ],
-      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
-      expiresAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000), // Expired 5 days ago
-    },
-  ];
+  // In-memory cache for upserted widgets fallback when database is offline/unreachable
+  private localWidgetsStore: any[] = [];
 
   /** Filter local in-memory store when database is offline or query returns no records */
   private getFromLocalStore(filter: {
@@ -216,7 +167,11 @@ export class CategorySponsoredService {
       dto.category?.trim() ||
       dto.category_id?.trim();
     const warehouseId = dto.warehouseId?.trim() || dto.warehouse_id?.trim();
-    const rawModule = dto.module || (dto as any).Module;
+    let rawModule = dto.module || (dto as any).Module;
+    if (!rawModule && dto && typeof dto === 'object') {
+      const foundKey = Object.keys(dto).find((k) => k.toLowerCase() === 'module');
+      if (foundKey) rawModule = (dto as any)[foundKey];
+    }
 
     if (!rawModule) {
       throw new BadRequestException('module is mandatory (HAATZA or LITE).');
@@ -251,7 +206,7 @@ export class CategorySponsoredService {
                       END AS "status",
                       sequence, category_id AS "categoryId", category_name AS "categoryName", "Item" AS item, warehouse_id AS "warehouseId", module, created_at AS "createdAt", updated_at AS "updatedAt", expires_at AS "expiresAt" 
                FROM public.category_sponsored 
-               WHERE module::text = $1`;
+               WHERE UPPER(module::text) = $1`;
 
     if (reqStatus === 'all') {
       // Return both active and inactive/expired widgets
@@ -530,14 +485,14 @@ export class CategorySponsoredService {
         categoryName: w.categoryName ?? null,
         item: parsedItemArray,
         warehouseId: w.warehouseId ?? null,
-        module: w.module || 'HAATZA',
+        module: w.module ? String(w.module).toUpperCase() : 'HAATZA',
         expiresAt: expiresAtDate,
       };
 
       let record: any;
       try {
         const existingRec = await this.db.queryRawCategorySponsored(
-          `SELECT id FROM public.category_sponsored WHERE widget_id = $1 AND module = $2 LIMIT 1`,
+          `SELECT id FROM public.category_sponsored WHERE widget_id = $1 AND UPPER(module::text) = UPPER($2) LIMIT 1`,
           [widgetId, data.module],
         );
 

@@ -91,6 +91,30 @@ async function bootstrap() {
       ) {
         req.url = `/api/v1${req.url}`;
       }
+
+      // Case-insensitive query param normalization for module, categoryId, warehouseId
+      if (req.query && typeof req.query === 'object') {
+        const queryKeys = Object.keys(req.query);
+        for (const k of queryKeys) {
+          const lowerK = k.toLowerCase();
+          if (lowerK === 'module' && !req.query.module) {
+            req.query.module = req.query[k];
+          }
+          if (
+            (lowerK === 'categoryid' || lowerK === 'category_id' || lowerK === 'category') &&
+            !req.query.categoryId
+          ) {
+            req.query.categoryId = req.query[k];
+          }
+          if (
+            (lowerK === 'warehouseid' || lowerK === 'warehouse_id') &&
+            !req.query.warehouseId
+          ) {
+            req.query.warehouseId = req.query[k];
+          }
+        }
+      }
+
       next();
     });
 
