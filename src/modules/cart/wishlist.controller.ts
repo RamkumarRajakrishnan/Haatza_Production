@@ -1,8 +1,10 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   Query,
+  Req,
   HttpCode,
   HttpStatus,
   Inject,
@@ -13,9 +15,61 @@ import { AddToCartDto } from './dto/add-to-cart.dto';
 import { CartItemActionDto } from './dto/cart-item-action.dto';
 
 @ApiTags('Wishlist')
-@Controller(['api/wishlist', 'api/v1/wishlist', 'wishlist'])
+@Controller(['api/wishlist', 'api/v1/wishlist', 'wishlist', 'api/v1/getWishlist', 'getWishlist', 'api/getWishlist'])
 export class WishlistController {
   constructor(@Inject(CartService) private readonly cartService: CartService) {}
+
+  @ApiOperation({
+    summary: 'Get user wishlist items (GET /api/v1/getWishlist or GET /api/v1/wishlist)',
+    description:
+      'Retrieves all wishlist items (move_to_wishlist = true) for a user or cartId in Wix-style camelCase.',
+  })
+  @ApiQuery({
+    name: 'module',
+    required: true,
+    type: String,
+    description: 'Target module (strictly case-sensitive: haatza or lite)',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    type: String,
+    description: 'User ID',
+  })
+  @ApiQuery({
+    name: 'cartId',
+    required: false,
+    type: String,
+    description: 'Cart ID',
+  })
+  @ApiResponse({ status: 200, description: 'Wishlist retrieved successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
+  @Get(['', 'getWishlist'])
+  @Post(['getWishlist'])
+  @HttpCode(HttpStatus.OK)
+  async getWishlist(
+    @Query('module') queryModule?: string,
+    @Query('userId') queryUserId?: string,
+    @Query('cartId') queryCartId?: string,
+    @Body() body?: { module?: string; userId?: string; cartId?: string },
+    @Req() req?: any,
+  ) {
+    let module = queryModule !== undefined ? queryModule : body?.module;
+    let userId = queryUserId !== undefined ? queryUserId : body?.userId;
+    const cartId = queryCartId !== undefined ? queryCartId : body?.cartId;
+
+    if (!module && req?.query?.userIdmodule) {
+      module = req.query.userIdmodule;
+    }
+    if (!userId && req?.query?.['']) {
+      userId = req.query[''];
+    }
+    if (!userId && (req?.query?.user_id || req?.query?.userid)) {
+      userId = req.query.user_id || req.query.userid;
+    }
+
+    return this.cartService.getWishlist({ module, userId, cartId });
+  }
 
   @ApiOperation({
     summary: 'Add product to wishlist (POST /api/wishlist/addToWishlist)',

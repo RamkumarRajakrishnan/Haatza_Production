@@ -1,4 +1,11 @@
-import { Injectable, BadRequestException, Logger, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  BadRequestException,
+  InternalServerErrorException,
+  HttpException,
+  Logger,
+  Inject,
+} from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { UpdateCartQuantityDto } from './dto/update-cart-quantity.dto';
@@ -21,6 +28,83 @@ export class CartService {
       throw new BadRequestException('Invalid module. Supported modules are haatza and lite.');
     }
     return module.trim();
+  }
+
+  /**
+   * Strictly validate the module query parameter for Get Cart & Get Wishlist APIs.
+   * Case-sensitive: ONLY 'haatza' and 'lite' are allowed.
+   */
+  public validateGetModule(module?: string): 'haatza' | 'lite' {
+    if (module === undefined || module === null || module === '') {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'module is required',
+      });
+    }
+    if (module !== 'haatza' && module !== 'lite') {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'Invalid module. Allowed values are haatza or lite.',
+      });
+    }
+    return module;
+  }
+
+  /**
+   * Strictly validate the userId query parameter for Get Cart & Get Wishlist APIs.
+   */
+  public validateGetUserId(userId?: string): string {
+    if (userId === undefined || userId === null || typeof userId !== 'string' || userId.trim() === '') {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'userId is required',
+      });
+    }
+    return userId.trim();
+  }
+
+  /**
+   * Map database cart row to frontend camelCase line item structure.
+   */
+  public transformCartRowToLineItem(item: any) {
+    return {
+      id: item.id,
+      productId: item.productId ?? item.product_id,
+      variantId:
+        item.variantId !== null && item.variantId !== undefined
+          ? item.variantId
+          : (item.variant_id ?? null),
+      sellerId: item.sellerId ?? item.seller_id ?? null,
+      quantity:
+        typeof item.quantity === 'number'
+          ? item.quantity
+          : Number(item.quantity || 1),
+      price:
+        typeof item.priceAtAddedTime === 'number'
+          ? item.priceAtAddedTime
+          : Number(
+              item.priceAtAddedTime?.toString() ||
+                item.price_at_added_time?.toString() ||
+                0,
+            ),
+      discount:
+        typeof item.discountAtAddedTime === 'number'
+          ? item.discountAtAddedTime
+          : Number(
+              item.discountAtAddedTime?.toString() ||
+                item.discount_at_added_time?.toString() ||
+                0,
+            ),
+      deliveryEstimate: item.deliveryEstimate ?? item.delivery_estimate ?? null,
+      addedAt:
+        item.addedAt instanceof Date
+          ? item.addedAt.toISOString()
+          : (item.added_at ?? item.addedAt),
+      updatedAt:
+        item.updatedAt instanceof Date
+          ? item.updatedAt.toISOString()
+          : (item.updated_at ?? item.updatedAt),
+    };
   }
 
   /**
@@ -477,5 +561,204 @@ export class CartService {
       success: true,
       message: 'Product removed from wishlist successfully.',
     };
+  }
+
+  /**
+   * Retrieve Cart items (move_to_wishlist = false) adhering to Wix-style camelCase response.
+   */
+  async getCart(params: { module?: string; userId?: string; cartId?: string }) {
+    this.validateGetModule(params.module);
+    const userId = this.validateGetUserId(params.userId);
+
+    try {
+      const records = await this.databaseService.cart.findMany({
+        where: {
+          userId,
+          moveToWishlist: false,
+        },
+        orderBy: { addedAt: 'asc' },
+      });
+
+      if (!records || records.length === 0) {
+        return {
+          status: 'success',
+          message: 'Cart is empty',
+          data: {
+            id: null,
+            userId,
+            lineItems: [],
+            totalItems: 0,
+          },
+        };
+      }
+
+      const lineItems = records.map((r) => this.transformCartRowToLineItem(r));
+      const cartId = (records[0] as any).cartId ?? (records[0] as any).cart_id;
+
+      return {
+        status: 'success',
+        message: 'Cart fetched successfully',
+        data: {
+          id: cartId,
+          userId,
+          lineItems,
+          totalItems: lineItems.length,
+        },
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Unable to fetch cart for user ${userId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Unable to fetch cart',
+      });
+    }
+  }
+
+  /**
+   * Retrieve Wishlist items (move_to_wishlist = true) adhering to Wix-style camelCase response.
+   */
+  async getWishlist(params: { module?: string; userId?: string; cartId?: string }) {
+    this.validateGetModule(params.module);
+    const userId = this.validateGetUserId(params.userId);
+
+    try {
+      const records = await this.databaseService.cart.findMany({
+        where: {
+          userId,
+          moveToWishlist: true,
+        },
+        orderBy: { addedAt: 'asc' },
+      });
+
+      if (!records || records.length === 0) {
+        return {
+          status: 'success',
+          message: 'Wishlist is empty',
+          data: {
+            id: null,
+            userId,
+            items: [],
+            totalItems: 0,
+          },
+        };
+      }
+
+      const items = records.map((r) => this.transformCartRowToLineItem(r));
+      const wishlistId = (records[0] as any).cartId ?? (records[0] as any).cart_id;
+
+      return {
+        status: 'success',
+        message: 'Wishlist fetched successfully',
+        data: {
+          id: wishlistId,
+          userId,
+          items,
+          totalItems: items.length,
+        },
+      };
+    } catch (error: any) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+      this.logger.error(`Unable to fetch wishlist for user ${userId}: ${error.message}`, error.stack);
+      throw new InternalServerErrorException({
+        status: 'error',
+        message: 'Unable to fetch wishlist',
+      });
+    }
+  }
+
+  /**
+   * Helper to attach product details (name, image, current price, MRP, inventory) to cart rows.
+   */
+  private async enrichWithProducts(rows: any[]) {
+    if (!rows || rows.length === 0) {
+      return [];
+    }
+
+    const productIds = Array.from(new Set(rows.map((r) => r.productId).filter(Boolean)));
+
+    const products =
+      productIds.length > 0
+        ? await this.databaseService.product.findMany({
+            where: {
+              OR: [
+                { id: { in: productIds } },
+                { productId: { in: productIds } },
+              ],
+            },
+            select: {
+              id: true,
+              productId: true,
+              name: true,
+              mainMedia: true,
+              productImages: true,
+              brand: true,
+              inventory: true,
+              price: true,
+              mrp: true,
+              onsalePrice: true,
+              sellerId: true,
+            },
+          })
+        : [];
+
+    const productMap = new Map<string, any>();
+    for (const p of products) {
+      if (p.id) productMap.set(p.id, p);
+      if (p.productId) productMap.set(p.productId, p);
+    }
+
+    return rows.map((row) => {
+      const formatted = this.formatCartItem(row) || {
+        id: row.id,
+        cartId: row.cart_id,
+        userId: row.user_id,
+        productId: row.product_id,
+        sellerId: row.seller_id || '',
+        variantId: row.variant_id || '',
+        quantity: row.quantity || 1,
+        priceAtAddedTime: 0,
+        discountAtAddedTime: 0,
+        deliveryEstimate: null,
+        moveToWishlist: false,
+        addedAt: row.added_at,
+        updatedAt: row.updated_at,
+      };
+      const product = productMap.get(row.productId) || null;
+
+      const currentPrice =
+        typeof product?.price === 'number'
+          ? product.price
+          : typeof product?.onsalePrice === 'number'
+            ? product.onsalePrice
+            : (formatted.priceAtAddedTime ?? 0);
+
+      const mrp =
+        typeof product?.mrp === 'number'
+          ? product.mrp
+          : currentPrice;
+
+      return {
+        ...formatted,
+        product: product
+          ? {
+              id: product.id,
+              productId: product.productId || product.id,
+              name: product.name,
+              mainMedia: product.mainMedia || null,
+              brand: product.brand || null,
+              currentPrice,
+              mrp,
+              inStock: (product.inventory ?? 0) > 0,
+              inventory: product.inventory ?? 0,
+              sellerId: product.sellerId || formatted.sellerId,
+            }
+          : null,
+      };
+    });
   }
 }

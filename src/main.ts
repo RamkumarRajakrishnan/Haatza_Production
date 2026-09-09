@@ -81,7 +81,7 @@ async function bootstrap() {
       next();
     });
 
-    // Support root-level Wix endpoints by transparently rewriting to /api/v1
+    // Support root-level Wix endpoints and direct getCart / getWishlist endpoints
     app.use((req: any, res: any, next: any) => {
       const p = (req.path || '').toLowerCase();
       if (
@@ -90,6 +90,35 @@ async function bootstrap() {
         p === '/product-details'
       ) {
         req.url = `/api/v1${req.url}`;
+      }
+
+      // Transparently rewrite /getCart and /getWishlist to controller paths
+      if (
+        p === '/getcart' ||
+        p === '/api/v1/getcart' ||
+        p === '/api/getcart'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/cart/getCart');
+      }
+      if (
+        p === '/getwishlist' ||
+        p === '/api/v1/getwishlist' ||
+        p === '/api/getwishlist'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/wishlist/getWishlist');
+      }
+
+      // Autocorrect malformed query parameters like ?userIdmodule=haatza&=...
+      if (req.query && typeof req.query === 'object') {
+        if (!req.query.module && req.query.userIdmodule) {
+          req.query.module = req.query.userIdmodule;
+        }
+        if (!req.query.userId && req.query['']) {
+          req.query.userId = req.query[''];
+        }
+        if (!req.query.userId && (req.query.user_id || req.query.userid)) {
+          req.query.userId = req.query.user_id || req.query.userid;
+        }
       }
 
       // Case-insensitive query param normalization for module, categoryId, warehouseId (except cart and wishlist which require strict case sensitivity)
@@ -162,6 +191,14 @@ async function bootstrap() {
         { path: 'api/v1/wishlist/(.*)', method: RequestMethod.ALL },
         { path: 'wishlist', method: RequestMethod.ALL },
         { path: 'wishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'getCart', method: RequestMethod.ALL },
+        { path: 'getCart/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/getCart', method: RequestMethod.ALL },
+        { path: 'api/v1/getCart/(.*)', method: RequestMethod.ALL },
+        { path: 'getWishlist', method: RequestMethod.ALL },
+        { path: 'getWishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/getWishlist', method: RequestMethod.ALL },
+        { path: 'api/v1/getWishlist/(.*)', method: RequestMethod.ALL },
         { path: '_functions', method: RequestMethod.ALL },
         { path: '_functions/(.*)', method: RequestMethod.ALL },
       ],

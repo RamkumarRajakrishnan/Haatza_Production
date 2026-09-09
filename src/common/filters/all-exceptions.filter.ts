@@ -65,9 +65,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
     }
 
     if (isCartOrWishlist) {
+      let finalMessage = formattedMessage;
+      let finalStatus = 'error';
+
+      if (typeof message === 'object' && message !== null) {
+        const msgObj = message as Record<string, any>;
+        if (msgObj.message) {
+          finalMessage = Array.isArray(msgObj.message)
+            ? msgObj.message.join(', ')
+            : msgObj.message;
+        }
+        if (msgObj.status) {
+          finalStatus = msgObj.status;
+        }
+      }
+
+      if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
+        finalMessage = url.includes('wishlist')
+          ? 'Unable to fetch wishlist'
+          : 'Unable to fetch cart';
+      }
+
       return response.status(status).json({
-        success: false,
-        message: formattedMessage,
+        status: finalStatus,
+        message: finalMessage,
       });
     }
 

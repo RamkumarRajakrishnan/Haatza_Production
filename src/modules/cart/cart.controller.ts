@@ -1,8 +1,10 @@
 import {
   Controller,
+  Get,
   Post,
   Body,
   Query,
+  Req,
   HttpCode,
   HttpStatus,
   Inject,
@@ -14,9 +16,61 @@ import { UpdateCartQuantityDto } from './dto/update-cart-quantity.dto';
 import { CartItemActionDto } from './dto/cart-item-action.dto';
 
 @ApiTags('Cart')
-@Controller(['api/cart', 'api/v1/cart', 'cart'])
+@Controller(['api/cart', 'api/v1/cart', 'cart', 'api/v1/getCart', 'getCart', 'api/getCart'])
 export class CartController {
   constructor(@Inject(CartService) private readonly cartService: CartService) {}
+
+  @ApiOperation({
+    summary: 'Get user cart items (GET /api/v1/getCart or GET /api/v1/cart)',
+    description:
+      'Retrieves all cart items (move_to_wishlist = false) for a user or cartId in Wix-style camelCase.',
+  })
+  @ApiQuery({
+    name: 'module',
+    required: true,
+    type: String,
+    description: 'Target module (strictly case-sensitive: haatza or lite)',
+  })
+  @ApiQuery({
+    name: 'userId',
+    required: true,
+    type: String,
+    description: 'User ID',
+  })
+  @ApiQuery({
+    name: 'cartId',
+    required: false,
+    type: String,
+    description: 'Cart ID',
+  })
+  @ApiResponse({ status: 200, description: 'Cart retrieved successfully' })
+  @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
+  @Get(['', 'getCart'])
+  @Post(['getCart'])
+  @HttpCode(HttpStatus.OK)
+  async getCart(
+    @Query('module') queryModule?: string,
+    @Query('userId') queryUserId?: string,
+    @Query('cartId') queryCartId?: string,
+    @Body() body?: { module?: string; userId?: string; cartId?: string },
+    @Req() req?: any,
+  ) {
+    let module = queryModule !== undefined ? queryModule : body?.module;
+    let userId = queryUserId !== undefined ? queryUserId : body?.userId;
+    const cartId = queryCartId !== undefined ? queryCartId : body?.cartId;
+
+    if (!module && req?.query?.userIdmodule) {
+      module = req.query.userIdmodule;
+    }
+    if (!userId && req?.query?.['']) {
+      userId = req.query[''];
+    }
+    if (!userId && (req?.query?.user_id || req?.query?.userid)) {
+      userId = req.query.user_id || req.query.userid;
+    }
+
+    return this.cartService.getCart({ module, userId, cartId });
+  }
 
   @ApiOperation({
     summary: 'Add product to cart (POST /api/cart/addToCart)',
