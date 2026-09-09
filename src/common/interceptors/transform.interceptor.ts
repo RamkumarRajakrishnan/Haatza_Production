@@ -36,6 +36,8 @@ export class TransformInterceptor<T> implements NestInterceptor<T, UnifiedRespon
             url.includes('productdetails') ||
             url.includes('product-details') ||
             url.includes('sellerproductdetails') ||
+            url.includes('cart') ||
+            url.includes('wishlist') ||
             url.includes('_functions'))
         ) {
           if ('statusCode' in data) {

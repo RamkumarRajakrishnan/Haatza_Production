@@ -52,16 +52,32 @@ export class AllExceptionsFilter implements ExceptionFilter {
 
     response.setHeader('x-request-id', correlationId);
 
+    const url = (request.url || '').toLowerCase();
+    const isCartOrWishlist = url.includes('cart') || url.includes('wishlist');
+
+    let formattedMessage =
+      typeof message === 'object' && message !== null
+        ? (message as Record<string, unknown>).message || message
+        : message;
+
+    if (Array.isArray(formattedMessage)) {
+      formattedMessage = formattedMessage.join(', ');
+    }
+
+    if (isCartOrWishlist) {
+      return response.status(status).json({
+        success: false,
+        message: formattedMessage,
+      });
+    }
+
     response.status(status).json({
       statusCode: status,
       timestamp: new Date().toISOString(),
       path: request.url,
       correlationId,
       errorDetails: status === 500 ? errorMessageDetails : undefined,
-      message:
-        typeof message === 'object' && message !== null
-          ? (message as Record<string, unknown>).message || message
-          : message,
+      message: formattedMessage,
     });
   }
 }

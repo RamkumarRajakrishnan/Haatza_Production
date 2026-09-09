@@ -879,3 +879,24 @@ model CategoryFilters {
   @@map("category_filters")
 }
 
+model Cart {
+  id                     String   @id @default(dbgenerated("(gen_random_uuid())::text")) @map("id") @db.VarChar
+  cartId                 String   @map("cart_id") @db.VarChar
+  userId                 String   @map("user_id") @db.VarChar
+  productId              String   @map("product_id") @db.VarChar
+  variantId              String?  @map("variant_id") @db.VarChar
+  sellerId               String?  @map("seller_id") @db.VarChar
+  quantity               Int      @default(1) @map("quantity")
+  priceAtAddedTime       Decimal  @map("price_at_added_time") @db.Decimal
+  discountAtAddedTime    Decimal  @default(0) @map("discount_at_added_time") @db.Decimal
+  deliveryEstimate       String?  @map("delivery_estimate") @db.VarChar
+  moveToWishlist         Boolean  @default(false) @map("move_to_wishlist")
+  addedAt                DateTime @default(now()) @map("added_at") @db.Timestamp(6)
+  updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
+
+  @@index([cartId], map: "idx_cart_cart_id")
+  @@index([productId], map: "idx_cart_product_id")
+  @@index([userId], map: "idx_cart_user_id")
+  @@map("cart")
+}
+

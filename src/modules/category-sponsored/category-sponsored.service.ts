@@ -407,6 +407,14 @@ export class CategorySponsoredService {
     // Ensure strict sequence ordering (1, 2, 3...)
     resultWidgets.sort((a, b) => a.sequence - b.sequence);
 
+    if (!resultWidgets || resultWidgets.length === 0) {
+      throw new NotFoundException(
+        categoryId
+          ? `No sponsored widgets found for category ${categoryId}`
+          : 'No sponsored widgets found for categoryId',
+      );
+    }
+
     return {
       status: 'success',
       message: {

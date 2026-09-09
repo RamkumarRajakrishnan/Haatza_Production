@@ -92,8 +92,9 @@ async function bootstrap() {
         req.url = `/api/v1${req.url}`;
       }
 
-      // Case-insensitive query param normalization for module, categoryId, warehouseId
-      if (req.query && typeof req.query === 'object') {
+      // Case-insensitive query param normalization for module, categoryId, warehouseId (except cart and wishlist which require strict case sensitivity)
+      const isCartOrWishlist = p.includes('cart') || p.includes('wishlist');
+      if (!isCartOrWishlist && req.query && typeof req.query === 'object') {
         const queryKeys = Object.keys(req.query);
         for (const k of queryKeys) {
           const lowerK = k.toLowerCase();
@@ -149,6 +150,18 @@ async function bootstrap() {
         { path: 'api/v1/categorysponsored/(.*)', method: RequestMethod.ALL },
         { path: 'api/v1/category-sponsored', method: RequestMethod.ALL },
         { path: 'api/v1/category-sponsored/(.*)', method: RequestMethod.ALL },
+        { path: 'api/cart', method: RequestMethod.ALL },
+        { path: 'api/cart/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/cart', method: RequestMethod.ALL },
+        { path: 'api/v1/cart/(.*)', method: RequestMethod.ALL },
+        { path: 'cart', method: RequestMethod.ALL },
+        { path: 'cart/(.*)', method: RequestMethod.ALL },
+        { path: 'api/wishlist', method: RequestMethod.ALL },
+        { path: 'api/wishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/wishlist', method: RequestMethod.ALL },
+        { path: 'api/v1/wishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'wishlist', method: RequestMethod.ALL },
+        { path: 'wishlist/(.*)', method: RequestMethod.ALL },
         { path: '_functions', method: RequestMethod.ALL },
         { path: '_functions/(.*)', method: RequestMethod.ALL },
       ],
