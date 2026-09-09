@@ -108,18 +108,10 @@ export class CartService {
     });
 
     if (existingItem) {
-      const updated = await this.databaseService.cart.update({
-        where: { id: existingItem.id },
-        data: {
-          quantity: existingItem.quantity + 1,
-          updatedAt: new Date(),
-        },
-      });
-
       return {
         success: true,
-        message: 'Product added to cart successfully.',
-        data: this.formatCartItem(updated),
+        message: 'Product is already in your cart.',
+        data: this.formatCartItem(existingItem),
       };
     }
 
