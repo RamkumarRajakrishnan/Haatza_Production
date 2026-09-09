@@ -8,6 +8,8 @@ import {
   Req,
   Get,
   Res,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiConsumes } from '@nestjs/swagger';
 import { AnyFilesInterceptor } from '@nestjs/platform-express';
@@ -33,6 +35,7 @@ export class MediaStorageController {
   constructor(private readonly mediaStorageService: MediaStorageService) { }
 
   @Post(['uploadUrl', 'media/uploadUrl', 'upload-url', 'media/upload-url'])
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Generate instant direct signed upload URL (<30ms latency)' })
   async getSignedUploadUrl(@Body() dto: GenerateUploadUrlDto) {
     return this.mediaStorageService.generateSignedUploadUrl({
@@ -49,6 +52,7 @@ export class MediaStorageController {
     'seller/uploadMedia',
     'seller/uploadVideo',
   ])
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     AnyFilesInterceptor({
       storage: diskStorage({
