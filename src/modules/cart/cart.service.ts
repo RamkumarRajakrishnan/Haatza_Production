@@ -149,42 +149,114 @@ export class CartService {
     };
   }
 
+  // In-memory cache for ultra-fast mapping lookups: userId -> { cartId, wishlistId }
+  private readonly userCartCache = new Map<string, { cartId: string; wishlistId: string }>();
+
   /**
-   * Resolves the deterministic, permanent 1:1 cartId for a user.
-   * 1 User = Always the exact same 1 Cart ID (CART_<userId>).
+   * Resolves or assigns the permanent sequential cartId and wishlistId for a user (CART_001, WISHLIST_001, etc.).
    */
-  public resolveCartId(userId: string): string {
+  public async getOrAssignUserCartMapping(userId: string): Promise<{ cartId: string; wishlistId: string }> {
     const cleanUserId = (userId || '').trim();
-    return cleanUserId.startsWith('CART_') ? cleanUserId : `CART_${cleanUserId}`;
+    if (!cleanUserId) {
+      return { cartId: 'CART_001', wishlistId: 'WISHLIST_001' };
+    }
+
+    if (this.userCartCache.has(cleanUserId)) {
+      return this.userCartCache.get(cleanUserId)!;
+    }
+
+    try {
+      // 1. Check database for existing mapping
+      const existingRows = await this.databaseService.queryRawDashboard(
+        'SELECT cart_id, wishlist_id FROM public.user_cart_mapping WHERE user_id = $1 LIMIT 1',
+        [cleanUserId],
+      );
+
+      if (existingRows && existingRows.length > 0) {
+        const mapping = {
+          cartId: existingRows[0].cart_id,
+          wishlistId: existingRows[0].wishlist_id,
+        };
+        this.userCartCache.set(cleanUserId, mapping);
+        return mapping;
+      }
+
+      // 2. Generate new sequential IDs
+      const seqRows = await this.databaseService.queryRawDashboard(
+        "SELECT nextval('public.seq_user_cart_id') as num"
+      );
+      const num = seqRows && seqRows[0] ? seqRows[0].num : 1;
+      const formattedNum = String(num).padStart(3, '0');
+      const cartId = `CART_${formattedNum}`;
+      const wishlistId = `WISHLIST_${formattedNum}`;
+
+      await this.databaseService.executePoolQuery(
+        'INSERT INTO public.user_cart_mapping (user_id, cart_id, wishlist_id) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO NOTHING',
+        [cleanUserId, cartId, wishlistId],
+      );
+
+      // Verify in case of race condition conflict
+      const finalCheck = await this.databaseService.queryRawDashboard(
+        'SELECT cart_id, wishlist_id FROM public.user_cart_mapping WHERE user_id = $1 LIMIT 1',
+        [cleanUserId],
+      );
+
+      const mapping =
+        finalCheck && finalCheck.length > 0
+          ? { cartId: finalCheck[0].cart_id, wishlistId: finalCheck[0].wishlist_id }
+          : { cartId, wishlistId };
+
+      this.userCartCache.set(cleanUserId, mapping);
+      return mapping;
+    } catch (err: any) {
+      this.logger.error(`Error resolving user cart mapping for ${cleanUserId}: ${err.message}`);
+      return { cartId: `CART_${cleanUserId}`, wishlistId: `WISHLIST_${cleanUserId}` };
+    }
   }
 
   /**
-   * Resolves the deterministic, permanent 1:1 wishlistId for a user.
-   * 1 User = Always the exact same 1 Wishlist ID (WISHLIST_<userId>).
+   * Resolves the deterministic, permanent 1:1 cartId for a user (e.g. CART_001).
    */
-  public resolveWishlistId(userId: string): string {
-    const cleanUserId = (userId || '').trim();
-    return cleanUserId.startsWith('WISHLIST_') ? cleanUserId : `WISHLIST_${cleanUserId}`;
+  public async resolveCartId(userId: string): Promise<string> {
+    const mapping = await this.getOrAssignUserCartMapping(userId);
+    return mapping.cartId;
   }
 
   /**
-   * Helper to build cartId matching condition supporting CART_<userId>, WISHLIST_<userId>, and <userId>.
+   * Resolves the deterministic, permanent 1:1 wishlistId for a user (e.g. WISHLIST_001).
    */
-  private getCartIdWhereCondition(cartId: string) {
+  public async resolveWishlistId(userId: string): Promise<string> {
+    const mapping = await this.getOrAssignUserCartMapping(userId);
+    return mapping.wishlistId;
+  }
+
+  /**
+   * Helper to build cartId matching condition supporting CART_001, WISHLIST_001, and raw userId.
+   */
+  private async getCartIdWhereCondition(cartId: string) {
     const trimmed = (cartId || '').trim();
-    const rawUserId = trimmed.replace(/^(CART_|WISHLIST_)/, '');
-    const candidateIds = Array.from(
-      new Set([
-        trimmed,
-        `CART_${rawUserId}`,
-        `WISHLIST_${rawUserId}`,
-        rawUserId,
-      ].filter(Boolean)),
-    );
+    const candidateIds = new Set<string>([trimmed]);
 
-    return candidateIds.length === 1
-      ? { cartId: candidateIds[0] }
-      : { cartId: { in: candidateIds } };
+    if (trimmed.startsWith('CART_')) {
+      const suffix = trimmed.replace(/^CART_/, '');
+      candidateIds.add(`WISHLIST_${suffix}`);
+    } else if (trimmed.startsWith('WISHLIST_')) {
+      const suffix = trimmed.replace(/^WISHLIST_/, '');
+      candidateIds.add(`CART_${suffix}`);
+    } else {
+      try {
+        const mapping = await this.getOrAssignUserCartMapping(trimmed);
+        if (mapping?.cartId) candidateIds.add(mapping.cartId);
+        if (mapping?.wishlistId) candidateIds.add(mapping.wishlistId);
+      } catch {
+        // Fallback
+      }
+    }
+
+    const ids = Array.from(candidateIds).filter(Boolean);
+    return ids.length === 1
+      ? { cartId: ids[0] }
+      : { cartId: { in: ids } };
   }
 
   /**
@@ -195,7 +267,7 @@ export class CartService {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId ? dto.variantId.trim() : '';
-    const cartId = this.resolveCartId(dto.userId);
+    const cartId = await this.resolveCartId(dto.userId);
 
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
@@ -250,7 +322,7 @@ export class CartService {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId ? dto.variantId.trim() : '';
-    const wishlistId = this.resolveWishlistId(dto.userId);
+    const wishlistId = await this.resolveWishlistId(dto.userId);
 
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
@@ -307,7 +379,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(dto.cartId),
+        ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -362,7 +434,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(dto.cartId),
+        ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -402,7 +474,7 @@ export class CartService {
 
     const cartItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(dto.cartId),
+        ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -427,7 +499,7 @@ export class CartService {
 
     const existingWishlist = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(cartItem.cartId),
+        ...(await this.getCartIdWhereCondition(cartItem.cartId)),
         productId: dto.productId,
         moveToWishlist: true,
         ...variantCondition,
@@ -448,7 +520,7 @@ export class CartService {
     }
 
     // Update in-place in same table
-    const wishlistId = this.resolveWishlistId(cartItem.userId);
+    const wishlistId = await this.resolveWishlistId(cartItem.userId);
     const updated = await this.databaseService.cart.update({
       where: { id: cartItem.id },
       data: {
@@ -478,7 +550,7 @@ export class CartService {
 
     const wishlistItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(dto.cartId),
+        ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
         moveToWishlist: true,
         ...(effectiveVariantId !== undefined
@@ -503,7 +575,7 @@ export class CartService {
 
     const existingCartItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(wishlistItem.cartId),
+        ...(await this.getCartIdWhereCondition(wishlistItem.cartId)),
         productId: dto.productId,
         moveToWishlist: false,
         ...variantCondition,
@@ -532,7 +604,7 @@ export class CartService {
     }
 
     // Update in-place to cart item
-    const cartId = this.resolveCartId(wishlistItem.userId);
+    const cartId = await this.resolveCartId(wishlistItem.userId);
     const updated = await this.databaseService.cart.update({
       where: { id: wishlistItem.id },
       data: {
@@ -560,7 +632,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        ...this.getCartIdWhereCondition(dto.cartId),
+        ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
         moveToWishlist: true,
         ...(effectiveVariantId !== undefined
@@ -618,7 +690,7 @@ export class CartService {
       }
 
       const lineItems = records.map((r) => this.transformCartRowToLineItem(r));
-      const cartId = this.resolveCartId(userId);
+      const cartId = await this.resolveCartId(userId);
 
       return {
         status: 'success',
@@ -672,7 +744,7 @@ export class CartService {
       }
 
       const items = records.map((r) => this.transformCartRowToLineItem(r));
-      const wishlistId = this.resolveWishlistId(userId);
+      const wishlistId = await this.resolveWishlistId(userId);
 
       return {
         status: 'success',

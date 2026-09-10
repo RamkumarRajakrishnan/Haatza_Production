@@ -862,15 +862,42 @@ export class DatabaseService
           DROP TABLE IF EXISTS public.buyers CASCADE;
           DROP TABLE IF EXISTS public."Buyer" CASCADE;
 
-          -- Synchronize existing cart rows so every user has exactly one deterministic cart_id (CART_<user_id>)
-          UPDATE public.cart 
-          SET cart_id = 'CART_' || user_id 
-          WHERE move_to_wishlist = false AND (cart_id IS NULL OR cart_id != ('CART_' || user_id));
+          CREATE TABLE IF NOT EXISTS public.user_cart_mapping (
+            user_id text PRIMARY KEY,
+            cart_id text UNIQUE NOT NULL,
+            wishlist_id text UNIQUE NOT NULL,
+            created_at timestamp DEFAULT now()
+          );
 
-          -- Synchronize existing wishlist rows so every user has exactly one deterministic wishlist_id (WISHLIST_<user_id>)
-          UPDATE public.cart 
-          SET cart_id = 'WISHLIST_' || user_id 
-          WHERE move_to_wishlist = true AND (cart_id IS NULL OR cart_id != ('WISHLIST_' || user_id));
+          CREATE SEQUENCE IF NOT EXISTS public.seq_user_cart_id START WITH 1 INCREMENT BY 1;
+
+          DO $inner$
+          DECLARE
+            v_max_cart_num int;
+          BEGIN
+            SELECT COALESCE(MAX(
+              CASE 
+                WHEN cart_id ~ '^CART_[0-9]+$' THEN NULLIF(regexp_replace(cart_id, '^CART_', ''), '')::int
+                ELSE 0
+              END
+            ), 0) INTO v_max_cart_num FROM public.user_cart_mapping;
+
+            IF v_max_cart_num > 0 THEN
+              PERFORM setval('public.seq_user_cart_id', v_max_cart_num);
+            END IF;
+          END $inner$;
+
+          -- Synchronize existing cart rows with user_cart_mapping
+          UPDATE public.cart c
+          SET cart_id = m.cart_id
+          FROM public.user_cart_mapping m
+          WHERE c.user_id = m.user_id AND c.move_to_wishlist = false AND (c.cart_id IS NULL OR c.cart_id != m.cart_id);
+
+          -- Synchronize existing wishlist rows with user_cart_mapping
+          UPDATE public.cart c
+          SET cart_id = m.wishlist_id
+          FROM public.user_cart_mapping m
+          WHERE c.user_id = m.user_id AND c.move_to_wishlist = true AND (c.cart_id IS NULL OR c.cart_id != m.wishlist_id);
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (
