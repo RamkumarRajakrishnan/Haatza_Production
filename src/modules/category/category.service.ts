@@ -252,21 +252,10 @@ export class CategoryService {
       };
     }
 
-    let categories = await this.db.categoryMaster.findMany({
-      where,
-      orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
-    });
-
-    if (categories.length === 0) {
-      try {
-        categories = (await this.db.categoryList.findMany({
-          where,
-          orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
-        })) as any;
-      } catch {
-        // ignore fallback errors
-      }
-    }
+    let categories = (await this.db.categoryList.findMany({
+      where: { categoryType: 'MAIN_CATEGORY' },
+      orderBy: [{ sequence: 'asc' }],
+    }));
 
     if (categories.length === 0) {
       return {
@@ -712,12 +701,12 @@ export class CategoryService {
       categoryImage: category.categoryImage || '',
       description: category.description || '',
       sequence: category.sequence,
-      status: category.status,
-      module: category.module,
-      createdBy: category.createdBy || null,
-      updatedBy: category.updatedBy || null,
-      createdAt: category.createdAt,
-      updatedAt: category.updatedAt,
+      // status: category.status,
+      // module: category.module,
+      // createdBy: category.createdBy || null,
+      // updatedBy: category.updatedBy || null,
+      // createdAt: category.createdAt,
+      // updatedAt: category.updatedAt,
       children: category.children
         ? category.children.map((c: any) => this.formatCategoryOutput(c))
         : undefined,
