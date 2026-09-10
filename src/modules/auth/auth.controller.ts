@@ -22,10 +22,11 @@ import { RefreshTokenSessionDto } from './dto/refresh-token-session.dto';
 import { SelectRoleDto } from './dto/select-role.dto';
 import { SwitchRoleDto } from './dto/switch-role.dto';
 import { EmployeeLoginDto } from './dto/employee-login.dto';
+import { SponsorSignUpDto } from './dto/sponsor-signup.dto';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 
 @ApiTags('Auth')
-@Controller('auth')
+@Controller(['auth', '', 'api/v1'])
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
@@ -63,12 +64,38 @@ export class AuthController {
   })
   @HttpCode(HttpStatus.OK)
   @Post(['login', 'api/login'])
-  login(@Body() data: LoginDto, @Req() req: Request) {
+  login(
+    @Body() data: LoginDto,
+    @Req() req: Request,
+    @Query('module') moduleParam?: string,
+  ) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
     const userAgent = req.headers['user-agent'];
 
+    if (moduleParam?.toLowerCase() === 'sponsor') {
+      return this.authService.sponsorLogin(data, moduleParam, { ipAddress, userAgent });
+    }
+
     return this.authService.login(data, { ipAddress, userAgent });
   }
+
+  @ApiOperation({ summary: 'Sponsor Login (POST /api/v1/sponsorLogin?module=sponsor)' })
+  @ApiResponse({ status: 200, description: 'Sponsor authentication successful', type: LoginSuccessResponseDto })
+  @ApiResponse({ status: 400, description: 'Bad Request - Validation error or missing module=sponsor' })
+  @ApiResponse({ status: 401, description: 'Unauthorized - Invalid credentials' })
+  @HttpCode(HttpStatus.OK)
+  @Post(['sponsorLogin', 'sponsor-login', 'api/v1/sponsorLogin'])
+  sponsorLogin(
+    @Query('module') moduleParam: string,
+    @Body() data: LoginDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent = req.headers['user-agent'];
+
+    return this.authService.sponsorLogin(data, moduleParam, { ipAddress, userAgent });
+  }
+
 
   @ApiOperation({ summary: 'Employee login using email and password' })
   @ApiResponse({
@@ -210,5 +237,18 @@ export class AuthController {
   @Post('switch-role')
   switchRole(@Req() req: any, @Body() data: SwitchRoleDto) {
     return this.authService.switchRole(req.user?.id, data);
+  }
+
+  @ApiOperation({ summary: 'Sponsor Sign-Up (POST /api/v1/sponsorSignup?module=sponsor)' })
+  @ApiResponse({ status: 201, description: 'Sponsor registered successfully and OTP sent' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Validation error or missing module=sponsor' })
+  @ApiResponse({ status: 409, description: 'Conflict - User already exists' })
+  @HttpCode(HttpStatus.CREATED)
+  @Post(['sponsorSignup', 'sponsor-signup', 'api/v1/sponsorSignup'])
+  sponsorSignUp(
+    @Query('module') moduleParam: string,
+    @Body() dto: SponsorSignUpDto,
+  ) {
+    return this.authService.sponsorSignUp(dto, moduleParam);
   }
 }

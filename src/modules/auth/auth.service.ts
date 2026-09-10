@@ -22,6 +22,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { SelectRoleDto } from './dto/select-role.dto';
 import { SwitchRoleDto } from './dto/switch-role.dto';
 import { EmployeeLoginDto } from './dto/employee-login.dto';
+import { SponsorSignUpDto } from './dto/sponsor-signup.dto';
 
 import { AuthRepository } from './auth.repository';
 import { CheckUserDto, Platform } from './dto/check-user.dto';
@@ -1449,51 +1450,36 @@ export class AuthService {
       },
     });
 
-    // If OTP purpose is REGISTRATION, check user state
-    if (targetPurpose === OtpPurpose.REGISTRATION) {
-      if (user && user.status === 'ACTIVE') {
-        throw new BadRequestException('User is already registered and active. Please login instead.');
-      }
-    }
-
-    // If OTP purpose is LOGIN, check user state
-    if (targetPurpose === OtpPurpose.LOGIN) {
-      if (!user) {
-        throw new BadRequestException('User not found for this identifier. Please register first.');
-      }
-    }
-
+    // Mark OTP as verified
     await this.database.otpVerification.update({
       where: { id: otpRecord.id },
       data: { isVerified: true, verifiedAt: new Date() },
     });
 
-    if (targetPurpose === OtpPurpose.REGISTRATION) {
-      return {
-        success: true,
-        message: 'OTP verified successfully.',
-        data: {},
-      };
-    }
-
-    // If OTP purpose is LOGIN or other, update user verification timestamp
+    // Update user verification timestamp & activate PENDING user
     if (user) {
       const isEmailId = rawIdentifier.includes('@');
+      const updateData: any = isEmailId
+        ? { emailVerifiedAt: new Date() }
+        : { phoneVerifiedAt: new Date() };
+
+      if (user.status === 'PENDING') {
+        updateData.status = 'ACTIVE';
+      }
+
       await this.database.user.update({
         where: { id: user.id },
-        data: isEmailId ? { emailVerifiedAt: new Date() } : { phoneVerifiedAt: new Date() },
-      }).catch(err => this.logger.warn(`Failed to update verification timestamp: ${err.message}`));
+        data: updateData,
+      }).catch(err => this.logger.warn(`Failed to update user verification state: ${err.message}`));
+
+      user.status = 'ACTIVE';
     }
 
     let accessToken = '';
     let refreshToken = '';
     let expiresInSeconds = 0;
 
-    if (targetPurpose === OtpPurpose.LOGIN) {
-      if (!user) {
-        throw new BadRequestException('User not found for this identifier. Please register first.');
-      }
-
+    if (user && (targetPurpose === OtpPurpose.LOGIN || targetPurpose === OtpPurpose.REGISTRATION)) {
       const sessionUuid = crypto.randomUUID();
       const payload = {
         sub: user.id,
@@ -1548,21 +1534,27 @@ export class AuthService {
     let message = 'OTP verified successfully.';
     if (targetPurpose === OtpPurpose.LOGIN) {
       message = 'Login successful.';
+    } else if (targetPurpose === OtpPurpose.REGISTRATION) {
+      message = 'Registration OTP verified successfully.';
     }
 
     return {
+      status: 'success',
       success: true,
       message,
       data: {
         userId: user?.id || '',
-        mobile: user?.mobile || '',
+        fullName: user?.name || '',
+        companyName: user?.companyName || '',
         email: user?.email || '',
-        buyer: user?.isBuyer ?? false,
-        seller: user?.isSeller ?? false,
-        employee: user?.isEmployee ?? false,
+        phone: user?.mobile || '',
+        mobile: user?.mobile || '',
+        role: user?.role || 'BUYER',
+        status: user?.status || 'ACTIVE',
         accessToken: accessToken || '',
         refreshToken: refreshToken || '',
         expiresIn: expiresInSeconds || 0,
+        tokenType: 'Bearer',
         user: {
           id: user?.id || '',
           name: user?.name || '',
@@ -1570,7 +1562,7 @@ export class AuthService {
           email: user?.email || '',
           phoneNumber: user?.mobile || '',
           status: user?.status || 'ACTIVE',
-          role: user?.role || 'SELLER',
+          role: user?.role || 'BUYER',
           isEmployee: user?.isEmployee ?? false,
           isBuyer: user?.isBuyer ?? false,
           isSeller: user?.isSeller ?? false,
@@ -2119,5 +2111,156 @@ export class AuthService {
       message: 'Role switched successfully',
     };
   }
+
+  /**
+   * Sponsor Sign-Up API (POST /api/v1/sponsorSignup?module=sponsor)
+   */
+  async sponsorSignUp(dto: SponsorSignUpDto, moduleParam?: string) {
+    const normalizedModule = (moduleParam || '').toString().trim().toLowerCase();
+    if (!normalizedModule || normalizedModule !== 'sponsor') {
+      throw new BadRequestException(
+        "The 'module=sponsor' query parameter is required (case insensitive)."
+      );
+    }
+
+    const fullName = (dto.fullName || dto.name || '').trim();
+    if (!fullName) {
+      throw new BadRequestException('Full Name (fullName) is required.');
+    }
+
+    const companyName = (dto.companyName || dto.businessName || '').trim();
+    const phone = (dto.phone || dto.phoneNumber || dto.mobile || '').trim();
+    if (!phone) {
+      throw new BadRequestException('Phone Number (phone) is required.');
+    }
+
+    if (!dto.password) {
+      throw new BadRequestException('Password is required.');
+    }
+
+    if (!dto.confirmPassword) {
+      throw new BadRequestException('Confirm Password is required.');
+    }
+
+    if (dto.password !== dto.confirmPassword) {
+      throw new BadRequestException('Password and Confirm Password do not match.');
+    }
+
+    const trimmedEmail = dto.email.trim().toLowerCase();
+
+    // Check duplicate user in database
+    const existingUser = await this.database.user.findFirst({
+      where: {
+        OR: [
+          { mobile: phone },
+          { email: { equals: trimmedEmail, mode: 'insensitive' } },
+        ],
+      },
+    });
+
+    if (existingUser) {
+      if (existingUser.status === 'ACTIVE') {
+        if (existingUser.mobile === phone) {
+          throw new ConflictException('Phone number is already registered.');
+        }
+        if (existingUser.email?.toLowerCase() === trimmedEmail) {
+          throw new ConflictException('Email address is already registered.');
+        }
+        throw new ConflictException('User with these credentials already exists.');
+      }
+
+      // If user status is PENDING, cleanup stale user record
+      if (existingUser.status === 'PENDING') {
+        await this.database.user.delete({
+          where: { id: existingUser.id },
+        }).catch((err) => this.logger.warn(`Failed to delete stale PENDING user: ${err.message}`));
+      }
+    }
+
+    const hashedPassword = await bcrypt.hash(dto.password, 10);
+
+    const roleRecord = await this.database.role.findFirst({
+      where: { OR: [{ name: 'SPONSOR' }, { code: 'sponsor' }] },
+    });
+
+    const newSponsor = await this.database.user.create({
+      data: {
+        name: fullName,
+        companyName: companyName || null,
+        email: trimmedEmail,
+        mobile: phone,
+        password: hashedPassword,
+        role: UserRole.SPONSOR,
+        status: 'PENDING',
+        isBuyer: false,
+        isSeller: false,
+        isEmployee: false,
+        roleId: roleRecord ? roleRecord.id : null,
+      },
+    });
+
+    // Generate 6-digit OTP for phone verification
+    const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes expiry
+
+    await this.database.otpVerification.create({
+      data: {
+        userId: newSponsor.id,
+        identifier: phone,
+        identifierType: OtpIdentifierType.PHONE,
+        otpHash: otpCode,
+        purpose: OtpPurpose.REGISTRATION,
+        channel: OtpChannel.SMS,
+        expiresAt,
+        isVerified: false,
+      },
+    });
+
+    // Attempt sending OTP SMS
+    try {
+      if (this.smsService && typeof this.smsService.sendOtp === 'function') {
+        await this.smsService.sendOtp(phone, otpCode);
+      }
+    } catch (smsErr: any) {
+      this.logger.warn(`Failed to dispatch OTP SMS to ${phone}: ${smsErr?.message}`);
+    }
+
+    this.logger.log(`Sponsor registered successfully: ${newSponsor.id} (${newSponsor.email})`);
+
+    return {
+      status: 'success',
+      message: 'Sponsor registered successfully. OTP sent to phone number for verification.',
+      data: {
+        userId: newSponsor.id,
+        fullName: newSponsor.name,
+        companyName: newSponsor.companyName || '',
+        email: newSponsor.email,
+        phone: newSponsor.mobile,
+        role: newSponsor.role,
+        module: 'sponsor',
+        otpSent: true,
+        expiresAt,
+      },
+    };
+  }
+
+  /**
+   * Sponsor Login API (POST /api/v1/sponsorLogin?module=sponsor)
+   */
+  async sponsorLogin(
+    data: LoginDto,
+    moduleParam?: string,
+    reqMeta?: { ipAddress?: string; userAgent?: string },
+  ) {
+    const normalizedModule = (moduleParam || '').toString().trim().toLowerCase();
+    if (!normalizedModule || normalizedModule !== 'sponsor') {
+      throw new BadRequestException(
+        "The 'module=sponsor' query parameter is required (case insensitive)."
+      );
+    }
+
+    return this.login(data, reqMeta);
+  }
 }
+
 
