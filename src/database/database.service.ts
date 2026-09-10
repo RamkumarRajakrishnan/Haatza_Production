@@ -861,6 +861,16 @@ export class DatabaseService
           DROP TABLE IF EXISTS public.warehouses CASCADE;
           DROP TABLE IF EXISTS public.buyers CASCADE;
           DROP TABLE IF EXISTS public."Buyer" CASCADE;
+
+          -- Synchronize existing cart rows so every user has exactly one deterministic cart_id (CART_<user_id>)
+          UPDATE public.cart 
+          SET cart_id = 'CART_' || user_id 
+          WHERE move_to_wishlist = false AND (cart_id IS NULL OR cart_id != ('CART_' || user_id));
+
+          -- Synchronize existing wishlist rows so every user has exactly one deterministic wishlist_id (WISHLIST_<user_id>)
+          UPDATE public.cart 
+          SET cart_id = 'WISHLIST_' || user_id 
+          WHERE move_to_wishlist = true AND (cart_id IS NULL OR cart_id != ('WISHLIST_' || user_id));
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (

@@ -150,20 +150,41 @@ export class CartService {
   }
 
   /**
-   * Find an existing cart_id for the user or generate a new one.
+   * Resolves the deterministic, permanent 1:1 cartId for a user.
+   * 1 User = Always the exact same 1 Cart ID (CART_<userId>).
    */
-  private async resolveCartId(userId: string): Promise<string> {
-    const existing = await this.databaseService.cart.findFirst({
-      where: { userId },
-      select: { cartId: true },
-      orderBy: { addedAt: 'desc' },
-    });
+  public resolveCartId(userId: string): string {
+    const cleanUserId = (userId || '').trim();
+    return cleanUserId.startsWith('CART_') ? cleanUserId : `CART_${cleanUserId}`;
+  }
 
-    if (existing?.cartId) {
-      return existing.cartId;
-    }
+  /**
+   * Resolves the deterministic, permanent 1:1 wishlistId for a user.
+   * 1 User = Always the exact same 1 Wishlist ID (WISHLIST_<userId>).
+   */
+  public resolveWishlistId(userId: string): string {
+    const cleanUserId = (userId || '').trim();
+    return cleanUserId.startsWith('WISHLIST_') ? cleanUserId : `WISHLIST_${cleanUserId}`;
+  }
 
-    return `CART_${Date.now()}`;
+  /**
+   * Helper to build cartId matching condition supporting CART_<userId>, WISHLIST_<userId>, and <userId>.
+   */
+  private getCartIdWhereCondition(cartId: string) {
+    const trimmed = (cartId || '').trim();
+    const rawUserId = trimmed.replace(/^(CART_|WISHLIST_)/, '');
+    const candidateIds = Array.from(
+      new Set([
+        trimmed,
+        `CART_${rawUserId}`,
+        `WISHLIST_${rawUserId}`,
+        rawUserId,
+      ].filter(Boolean)),
+    );
+
+    return candidateIds.length === 1
+      ? { cartId: candidateIds[0] }
+      : { cartId: { in: candidateIds } };
   }
 
   /**
@@ -174,7 +195,7 @@ export class CartService {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId ? dto.variantId.trim() : '';
-    const cartId = await this.resolveCartId(dto.userId);
+    const cartId = this.resolveCartId(dto.userId);
 
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
@@ -229,7 +250,7 @@ export class CartService {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId ? dto.variantId.trim() : '';
-    const cartId = await this.resolveCartId(dto.userId);
+    const wishlistId = this.resolveWishlistId(dto.userId);
 
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
@@ -256,7 +277,7 @@ export class CartService {
 
     const created = await this.databaseService.cart.create({
       data: {
-        cartId,
+        cartId: wishlistId,
         userId: dto.userId,
         productId: dto.productId,
         sellerId: dto.sellerId,
@@ -286,7 +307,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(dto.cartId),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -341,7 +362,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(dto.cartId),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -381,7 +402,7 @@ export class CartService {
 
     const cartItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(dto.cartId),
         productId: dto.productId,
         moveToWishlist: false,
         ...(effectiveVariantId !== undefined
@@ -406,7 +427,7 @@ export class CartService {
 
     const existingWishlist = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(cartItem.cartId),
         productId: dto.productId,
         moveToWishlist: true,
         ...variantCondition,
@@ -427,9 +448,11 @@ export class CartService {
     }
 
     // Update in-place in same table
+    const wishlistId = this.resolveWishlistId(cartItem.userId);
     const updated = await this.databaseService.cart.update({
       where: { id: cartItem.id },
       data: {
+        cartId: wishlistId,
         moveToWishlist: true,
         quantity: 1,
         updatedAt: new Date(),
@@ -455,7 +478,7 @@ export class CartService {
 
     const wishlistItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(dto.cartId),
         productId: dto.productId,
         moveToWishlist: true,
         ...(effectiveVariantId !== undefined
@@ -480,7 +503,7 @@ export class CartService {
 
     const existingCartItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(wishlistItem.cartId),
         productId: dto.productId,
         moveToWishlist: false,
         ...variantCondition,
@@ -509,9 +532,11 @@ export class CartService {
     }
 
     // Update in-place to cart item
+    const cartId = this.resolveCartId(wishlistItem.userId);
     const updated = await this.databaseService.cart.update({
       where: { id: wishlistItem.id },
       data: {
+        cartId,
         moveToWishlist: false,
         updatedAt: new Date(),
       },
@@ -535,7 +560,7 @@ export class CartService {
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
-        cartId: dto.cartId,
+        ...this.getCartIdWhereCondition(dto.cartId),
         productId: dto.productId,
         moveToWishlist: true,
         ...(effectiveVariantId !== undefined
@@ -593,7 +618,7 @@ export class CartService {
       }
 
       const lineItems = records.map((r) => this.transformCartRowToLineItem(r));
-      const cartId = (records[0] as any).cartId ?? (records[0] as any).cart_id;
+      const cartId = this.resolveCartId(userId);
 
       return {
         status: 'success',
@@ -647,7 +672,7 @@ export class CartService {
       }
 
       const items = records.map((r) => this.transformCartRowToLineItem(r));
-      const wishlistId = (records[0] as any).cartId ?? (records[0] as any).cart_id;
+      const wishlistId = this.resolveWishlistId(userId);
 
       return {
         status: 'success',
