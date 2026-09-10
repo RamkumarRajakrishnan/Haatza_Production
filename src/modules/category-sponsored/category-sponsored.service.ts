@@ -408,11 +408,17 @@ export class CategorySponsoredService {
     resultWidgets.sort((a, b) => a.sequence - b.sequence);
 
     if (!resultWidgets || resultWidgets.length === 0) {
-      throw new NotFoundException(
-        categoryId
-          ? `No sponsored widgets found for category ${categoryId}`
-          : 'No sponsored widgets found for categoryId',
-      );
+      return {
+        status: 'success',
+        message: {
+          message: 'No sponsored widgets found for categoryId',
+          categoryId: categoryId || '',
+          categoryName: matchedCategoryName || '',
+          warehouseId: warehouseId || '',
+          module: targetModule,
+          data: [],
+        },
+      };
     }
 
     return {
