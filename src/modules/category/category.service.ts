@@ -126,6 +126,8 @@ export class CategoryService {
       },
     });
 
+    await this.syncToCategoryList(category);
+
     this.logger.log(`Created Category Master: ${category.categoryId} (${category.categoryName})`);
 
     return {
@@ -152,7 +154,7 @@ export class CategoryService {
           ? CategoryModule.HAATZA
           : undefined;
 
-    let category = await this.db.categoryMaster.findFirst({
+    let category = await this.db.categoryList.findFirst({
       where: {
         OR: [{ categoryId: trimmed }, { id: trimmed }],
         ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
@@ -169,25 +171,7 @@ export class CategoryService {
       },
     });
 
-    if (!category) {
-      // Fallback to categoryList
-      category = (await this.db.categoryList.findFirst({
-        where: {
-          OR: [{ categoryId: trimmed }, { id: trimmed }],
-          ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
-        },
-        include: {
-          parent: true,
-          children: {
-            where: {
-              status: CategoryStatus.ACTIVE,
-              ...(moduleEnum ? { module: { in: [moduleEnum, CategoryModule.ALL] } } : {}),
-            },
-            orderBy: { sequence: 'asc' },
-          },
-        },
-      })) as any;
-    }
+
 
     if (!category) {
       throw new NotFoundException(`Category '${trimmed}' not found.`);
@@ -239,6 +223,14 @@ export class CategoryService {
       where.categoryType = query.categoryType;
     }
 
+    const rawCategory = (query as any).category || (query as any).Category;
+    if (rawCategory && typeof rawCategory === 'string') {
+      const lowerCat = rawCategory.trim().toLowerCase();
+      if (lowerCat === 'main' || lowerCat === 'main_category') {
+        where.categoryType = CategoryType.MAIN_CATEGORY;
+      }
+    }
+
     if (query.status) {
       where.status = query.status;
     } else if (!isIncludeInactive) {
@@ -252,10 +244,12 @@ export class CategoryService {
       };
     }
 
-    let categories = (await this.db.categoryList.findMany({
-      where: { categoryType: 'MAIN_CATEGORY' },
+    let categories = await this.db.categoryList.findMany({
+      where,
       orderBy: [{ sequence: 'asc' }],
-    }));
+    });
+
+
 
     if (categories.length === 0) {
       return {
@@ -378,6 +372,8 @@ export class CategoryService {
 
     this.logger.log(`Updated Category Master: ${updated.categoryId} (${updated.categoryName})`);
 
+    await this.syncToCategoryList(updated);
+
     return {
       status: 'success',
       message: 'Category details updated successfully',
@@ -425,6 +421,8 @@ export class CategoryService {
       },
     });
 
+    await this.syncToCategoryList(updated);
+
     return {
       status: 'success',
       message: `Category status updated to ${updated.status} successfully`,
@@ -444,10 +442,12 @@ export class CategoryService {
       where.module = { in: [module, CategoryModule.ALL] };
     }
 
-    const allActiveCategories = await this.db.categoryMaster.findMany({
+    let allActiveCategories = await this.db.categoryList.findMany({
       where,
       orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
     });
+
+
 
     const categoryMap = new Map<string, any>();
     const rootNodes: any[] = [];
@@ -490,11 +490,13 @@ export class CategoryService {
     const trimmedParent = parentCategoryId.trim();
 
     // Verify parent existence
-    const parent = await this.db.categoryMaster.findFirst({
+    let parent = await this.db.categoryList.findFirst({
       where: {
         OR: [{ categoryId: trimmedParent }, { id: trimmedParent }],
       },
     });
+
+
 
     if (!parent) {
       throw new NotFoundException(`Parent category '${trimmedParent}' not found.`);
@@ -509,10 +511,12 @@ export class CategoryService {
       where.module = { in: [module, CategoryModule.ALL] };
     }
 
-    const children = await this.db.categoryMaster.findMany({
+    let children = await this.db.categoryList.findMany({
       where,
       orderBy: [{ sequence: 'asc' }, { createdAt: 'asc' }],
     });
+
+
 
     return {
       status: 'success',
@@ -564,6 +568,8 @@ export class CategoryService {
         data: { status: CategoryStatus.INACTIVE },
       });
 
+      await this.syncToCategoryList(softDeleted);
+
       return {
         status: 'success',
         message: `Category has active dependencies (${dependencies.reason}). Soft-deleted by setting status to INACTIVE.`,
@@ -575,6 +581,12 @@ export class CategoryService {
     await this.db.categoryMaster.delete({
       where: { id: existing.id },
     });
+
+    try {
+      await this.db.categoryList.delete({
+        where: { categoryId: existing.categoryId },
+      });
+    } catch {}
 
     return {
       status: 'success',
@@ -610,11 +622,48 @@ export class CategoryService {
       },
     });
 
+    await this.syncToCategoryList(updated);
+
     return {
       status: 'success',
       message: `Category sequence updated to ${updated.sequence} successfully`,
       data: this.formatCategoryOutput(updated),
     };
+  }
+
+  /** Sync record to categoryList table for high-performance read APIs */
+  private async syncToCategoryList(category: any) {
+    try {
+      await this.db.categoryList.upsert({
+        where: { categoryId: category.categoryId },
+        create: {
+          id: category.id,
+          categoryId: category.categoryId,
+          categoryName: category.categoryName,
+          parentCategoryId: category.parentCategoryId,
+          categoryType: category.categoryType,
+          categoryImage: category.categoryImage,
+          description: category.description,
+          sequence: category.sequence,
+          status: category.status,
+          module: category.module,
+          createdBy: category.createdBy,
+        },
+        update: {
+          categoryName: category.categoryName,
+          parentCategoryId: category.parentCategoryId,
+          categoryType: category.categoryType,
+          categoryImage: category.categoryImage,
+          description: category.description,
+          sequence: category.sequence,
+          status: category.status,
+          module: category.module,
+          updatedBy: category.updatedBy || category.createdBy,
+        },
+      });
+    } catch (err: any) {
+      this.logger.warn(`Failed to sync category '${category.categoryId}' to categoryList: ${err.message}`);
+    }
   }
 
   /** Helper to recursively check if targetId is a descendant of sourceId */
@@ -771,33 +820,7 @@ export class CategoryService {
       let dataRes = await this.db.query(dataSql, dataParams);
       let rows = dataRes?.rows || [];
 
-      // Fallback to category_master if category_list has no rows yet
-      if (rows.length === 0 && total === 0) {
-        const fallbackCountSql = `SELECT COUNT(*)::int AS total FROM public.category_master ${whereClause}`;
-        try {
-          const fbCountRes = await this.db.query(fallbackCountSql, params);
-          total = fbCountRes?.rows?.[0]?.total || 0;
-          if (total > 0) {
-            const fallbackDataSql = `
-              SELECT 
-                id,
-                category_id,
-                category_name,
-                category_image,
-                description,
-                sequence
-              FROM public.category_master
-              ${whereClause}
-              ORDER BY sequence ASC, id ASC
-              LIMIT $${dataParams.length - 1} OFFSET $${dataParams.length}
-            `;
-            const fbDataRes = await this.db.query(fallbackDataSql, dataParams);
-            rows = fbDataRes?.rows || [];
-          }
-        } catch {
-          // ignore fallback if table doesn't match
-        }
-      }
+
 
       const response = {
         success: true,
@@ -856,15 +879,6 @@ export class CategoryService {
       );
       if (parentCheck?.rows?.length > 0) {
         parentExists = true;
-      } else {
-        // Check fallback table category_master
-        const fbCheck = await this.db.query(
-          `SELECT id, category_id, category_name FROM public.category_master WHERE (category_id = $1 OR id = $1) ${moduleCondition} LIMIT 1`,
-          [trimmedParentId],
-        );
-        if (fbCheck?.rows?.length > 0) {
-          parentExists = true;
-        }
       }
     } catch (err: any) {
       this.logger.error(`Error checking parent category existence: ${err.message}`);
@@ -922,48 +936,7 @@ export class CategoryService {
       let result = await this.db.query(recursiveQuery, [trimmedParentId]);
       let allDescendants = result?.rows || [];
 
-      // Fallback to category_master if category_list has no rows
-      if (allDescendants.length === 0) {
-        const fallbackRecursiveQuery = `
-          WITH RECURSIVE category_tree AS (
-            SELECT 
-              id,
-              category_id,
-              category_name,
-              parent_category_id,
-              category_image,
-              description,
-              sequence,
-              module,
-              1 AS level
-            FROM public.category_master
-            WHERE parent_category_id = $1 AND (status::text = 'ACTIVE' OR status::text = '1' OR status::text = 'active') ${modSql}
 
-            UNION ALL
-
-            SELECT 
-              c.id,
-              c.category_id,
-              c.category_name,
-              c.parent_category_id,
-              c.category_image,
-              c.description,
-              c.sequence,
-              c.module,
-              ct.level + 1
-            FROM public.category_master c
-            INNER JOIN category_tree ct ON c.parent_category_id = ct.category_id
-            WHERE (c.status::text = 'ACTIVE' OR c.status::text = '1' OR c.status::text = 'active') ${modSqlRecursive}
-          )
-          SELECT * FROM category_tree ORDER BY sequence ASC, id ASC;
-        `;
-        try {
-          const fbResult = await this.db.query(fallbackRecursiveQuery, [trimmedParentId]);
-          allDescendants = fbResult?.rows || [];
-        } catch {
-          // ignore fallback
-        }
-      }
 
       // 3. Assemble nested subcategories tree in O(N) time
       const tree = this.buildNestedCategoryTree(allDescendants, trimmedParentId);
