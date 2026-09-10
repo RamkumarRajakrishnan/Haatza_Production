@@ -121,9 +121,10 @@ async function bootstrap() {
         }
       }
 
-      // Case-insensitive query param normalization for module, categoryId, warehouseId (except cart and wishlist which require strict case sensitivity)
-      const isCartOrWishlist = p.includes('cart') || p.includes('wishlist');
-      if (!isCartOrWishlist && req.query && typeof req.query === 'object') {
+      // Case-insensitive query param normalization for module, categoryId, warehouseId (except cart, wishlist, and orders which require strict case sensitivity)
+      const isCartOrWishlistOrOrders =
+        p.includes('cart') || p.includes('wishlist') || p.includes('order');
+      if (!isCartOrWishlistOrOrders && req.query && typeof req.query === 'object') {
         const queryKeys = Object.keys(req.query);
         for (const k of queryKeys) {
           const lowerK = k.toLowerCase();
@@ -199,6 +200,30 @@ async function bootstrap() {
         { path: 'getWishlist/(.*)', method: RequestMethod.ALL },
         { path: 'api/v1/getWishlist', method: RequestMethod.ALL },
         { path: 'api/v1/getWishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'getOrders', method: RequestMethod.ALL },
+        { path: 'getOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/getOrders', method: RequestMethod.ALL },
+        { path: 'api/getOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/getOrders', method: RequestMethod.ALL },
+        { path: 'api/v1/getOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'getOrderDetails', method: RequestMethod.ALL },
+        { path: 'getOrderDetails/(.*)', method: RequestMethod.ALL },
+        { path: 'api/getOrderDetails', method: RequestMethod.ALL },
+        { path: 'api/getOrderDetails/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/getOrderDetails', method: RequestMethod.ALL },
+        { path: 'api/v1/getOrderDetails/(.*)', method: RequestMethod.ALL },
+        { path: 'createOrders', method: RequestMethod.ALL },
+        { path: 'createOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/createOrders', method: RequestMethod.ALL },
+        { path: 'api/createOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/createOrders', method: RequestMethod.ALL },
+        { path: 'api/v1/createOrders/(.*)', method: RequestMethod.ALL },
+        { path: 'orders', method: RequestMethod.ALL },
+        { path: 'orders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/orders', method: RequestMethod.ALL },
+        { path: 'api/orders/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/orders', method: RequestMethod.ALL },
+        { path: 'api/v1/orders/(.*)', method: RequestMethod.ALL },
         { path: '_functions', method: RequestMethod.ALL },
         { path: '_functions/(.*)', method: RequestMethod.ALL },
       ],

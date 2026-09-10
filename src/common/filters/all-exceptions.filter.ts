@@ -53,7 +53,6 @@ export class AllExceptionsFilter implements ExceptionFilter {
     response.setHeader('x-request-id', correlationId);
 
     const url = (request.url || '').toLowerCase();
-    const isCartOrWishlist = url.includes('cart') || url.includes('wishlist');
 
     let formattedMessage =
       typeof message === 'object' && message !== null
@@ -64,7 +63,14 @@ export class AllExceptionsFilter implements ExceptionFilter {
       formattedMessage = formattedMessage.join(', ');
     }
 
-    if (isCartOrWishlist) {
+    const isCartOrWishlistOrOrders =
+      url.includes('cart') ||
+      url.includes('wishlist') ||
+      url.includes('order') ||
+      url.includes('getorders') ||
+      url.includes('createorders');
+
+    if (isCartOrWishlistOrOrders) {
       let finalMessage = formattedMessage;
       let finalStatus = 'error';
 
