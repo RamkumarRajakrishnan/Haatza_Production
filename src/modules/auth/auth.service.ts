@@ -2304,6 +2304,61 @@ export class AuthService {
 
     return this.login(data, reqMeta);
   }
+
+  /**
+   * Sponsor Verify OTP API (POST /api/v1/sponsorVerifyOtp?module=sponsor)
+   */
+  async sponsorVerifyOtp(
+    dto: VerifyOtpDto,
+    moduleParam?: string,
+    reqMeta?: { ipAddress?: string; userAgent?: string },
+  ) {
+    const normalizedModule = (moduleParam || '').toString().trim().toLowerCase();
+    if (moduleParam !== undefined && normalizedModule !== 'sponsor') {
+      throw new BadRequestException(
+        "The 'module=sponsor' query parameter is required (case insensitive)."
+      );
+    }
+
+    const result = await this.verifyOtp(dto, reqMeta);
+    if (result && result.data) {
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          module: 'sponsor',
+        },
+      };
+    }
+    return result;
+  }
+
+  /**
+   * Sponsor Resend OTP API (POST /api/v1/sponsorResendOtp?module=sponsor)
+   */
+  async sponsorResendOtp(
+    dto: GenerateOtpDto,
+    moduleParam?: string,
+  ) {
+    const normalizedModule = (moduleParam || '').toString().trim().toLowerCase();
+    if (moduleParam !== undefined && normalizedModule !== 'sponsor') {
+      throw new BadRequestException(
+        "The 'module=sponsor' query parameter is required (case insensitive)."
+      );
+    }
+
+    const result = await this.resendOtp(dto);
+    if (result && result.data) {
+      return {
+        ...result,
+        data: {
+          ...result.data,
+          module: 'sponsor',
+        },
+      };
+    }
+    return result;
+  }
 }
 
 

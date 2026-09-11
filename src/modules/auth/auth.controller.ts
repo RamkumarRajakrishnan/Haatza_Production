@@ -162,9 +162,17 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'OTP verified successfully' })
   @HttpCode(HttpStatus.OK)
   @Post(['verify-otp', 'verifyotp', 'verifyOtp'])
-  verifyOtp(@Body() data: VerifyOtpSessionDto | VerifyOtpDto, @Req() req: Request) {
+  verifyOtp(
+    @Body() data: VerifyOtpSessionDto | VerifyOtpDto,
+    @Req() req: Request,
+    @Query('module') moduleParam?: string,
+  ) {
     const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
     const userAgent = req.headers['user-agent'];
+
+    if (moduleParam?.toLowerCase() === 'sponsor') {
+      return this.authService.sponsorVerifyOtp(data as VerifyOtpDto, moduleParam, { ipAddress, userAgent });
+    }
 
     if ('phoneNumber' in data) {
       return this.authService.verifyOtpSession(data as VerifyOtpSessionDto, { ipAddress, userAgent });
@@ -176,7 +184,13 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'OTP resent successfully' })
   @HttpCode(HttpStatus.OK)
   @Post(['resend-otp', 'resendotp', 'resendOtp'])
-  resendOtp(@Body() data: GenerateOtpDto) {
+  resendOtp(
+    @Body() data: GenerateOtpDto,
+    @Query('module') moduleParam?: string,
+  ) {
+    if (moduleParam?.toLowerCase() === 'sponsor') {
+      return this.authService.sponsorResendOtp(data, moduleParam);
+    }
     return this.authService.resendOtp(data);
   }
 
@@ -250,5 +264,33 @@ export class AuthController {
     @Body() dto: SponsorSignUpDto,
   ) {
     return this.authService.sponsorSignUp(dto, moduleParam);
+  }
+
+  @ApiOperation({ summary: 'Sponsor Verify OTP (POST /api/v1/sponsorVerifyOtp?module=sponsor)' })
+  @ApiResponse({ status: 200, description: 'Sponsor OTP verified successfully' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Validation error or missing module=sponsor' })
+  @HttpCode(HttpStatus.OK)
+  @Post(['sponsorVerifyOtp', 'sponsor-verify-otp', 'api/v1/sponsorVerifyOtp'])
+  sponsorVerifyOtp(
+    @Query('module') moduleParam: string,
+    @Body() dto: VerifyOtpDto,
+    @Req() req: Request,
+  ) {
+    const ipAddress = (req.headers['x-forwarded-for'] as string) || req.ip;
+    const userAgent = req.headers['user-agent'];
+
+    return this.authService.sponsorVerifyOtp(dto, moduleParam, { ipAddress, userAgent });
+  }
+
+  @ApiOperation({ summary: 'Sponsor Resend OTP (POST /api/v1/sponsorResendOtp?module=sponsor)' })
+  @ApiResponse({ status: 200, description: 'Sponsor OTP resent successfully' })
+  @ApiResponse({ status: 400, description: 'Bad Request - Validation error or missing module=sponsor' })
+  @HttpCode(HttpStatus.OK)
+  @Post(['sponsorResendOtp', 'sponsor-resend-otp', 'api/v1/sponsorResendOtp'])
+  sponsorResendOtp(
+    @Query('module') moduleParam: string,
+    @Body() data: GenerateOtpDto,
+  ) {
+    return this.authService.sponsorResendOtp(data, moduleParam);
   }
 }
