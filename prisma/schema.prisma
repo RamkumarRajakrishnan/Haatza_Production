@@ -901,3 +901,25 @@ model Cart {
   @@map("cart")
 }
 
+enum SponsorAdvertiserStatus {
+  PENDING
+  ACTIVE
+  INACTIVE
+}
+
+model SponsorAdvertiser {
+  id             String                  @id @default(uuid()) @map("id")
+  advertiserName String                  @map("advertiser_name")
+  advertiserLogo String?                 @map("advertiser_logo")
+  gstNumber      String                  @map("gst_number")
+  gstCertificate String?                 @map("gst_certificate")
+  pan            String                  @map("pan")
+  panCard        String?                 @map("pan_card")
+  status         SponsorAdvertiserStatus @default(PENDING) @map("status")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  @@map("sponsor_advertisers")
+}
+
+
