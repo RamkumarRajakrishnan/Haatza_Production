@@ -668,6 +668,24 @@ export class DatabaseService
           AND expires_at > NOW()
           AND LOWER(TRIM(status)) != 'active';
 
+        -- Sponsor Advertisers Table DDL
+        DO $$ BEGIN
+          CREATE TYPE public."SponsorAdvertiserStatus" AS ENUM ('PENDING', 'ACTIVE', 'INACTIVE');
+        EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+        CREATE TABLE IF NOT EXISTS public.sponsor_advertisers (
+          id text PRIMARY KEY,
+          advertiser_name text NOT NULL,
+          advertiser_logo text,
+          gst_number text NOT NULL,
+          gst_certificate text,
+          pan text NOT NULL,
+          pan_card text,
+          status public."SponsorAdvertiserStatus" DEFAULT 'PENDING'::public."SponsorAdvertiserStatus",
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (
           id varchar(36) PRIMARY KEY,
