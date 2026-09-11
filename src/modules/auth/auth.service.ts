@@ -1367,13 +1367,23 @@ export class AuthService {
   async verifyOtp(dto: VerifyOtpDto, reqMeta?: { ipAddress?: string; userAgent?: string }) {
     const rawIdentifier = (
       dto.identifier ||
+      (dto as any).phoneNumber ||
+      (dto as any).phone_number ||
       dto.mobile ||
       dto.phone ||
       dto.email ||
+      (dto as any).mobileNumber ||
+      (dto as any).mobile_number ||
       ''
-    ).trim();
+    ).toString().trim();
 
-    const targetOtp = (dto.otp || dto.otpCode || '').trim();
+    const targetOtp = (
+      dto.otp ||
+      dto.otpCode ||
+      (dto as any).otp_code ||
+      (dto as any).code ||
+      ''
+    ).toString().trim();
 
     if (!rawIdentifier || !targetOtp) {
       throw new BadRequestException('Identifier and OTP code are required');
@@ -1407,13 +1417,20 @@ export class AuthService {
       }
     }
 
+    const identifierOrList: any[] = [
+      { identifier: normalizedIdentifier },
+      { identifier: rawIdentifier },
+      { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
+      { identifier: { equals: normalizedIdentifier, mode: 'insensitive' } },
+    ];
+    if (!isEmail) {
+      identifierOrList.push({ identifier: `+91${normalizedIdentifier}` });
+      identifierOrList.push({ identifier: `91${normalizedIdentifier}` });
+    }
+
     let otpRecord = await this.database.otpVerification.findFirst({
       where: {
-        OR: [
-          { identifier: normalizedIdentifier },
-          { identifier: rawIdentifier },
-          { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
-        ],
+        OR: identifierOrList,
         purpose: targetPurpose,
         isVerified: false,
       },
@@ -1424,11 +1441,7 @@ export class AuthService {
     if (!otpRecord) {
       otpRecord = await this.database.otpVerification.findFirst({
         where: {
-          OR: [
-            { identifier: normalizedIdentifier },
-            { identifier: rawIdentifier },
-            { identifier: { equals: rawIdentifier, mode: 'insensitive' } },
-          ],
+          OR: identifierOrList,
           isVerified: false,
         },
         orderBy: { createdAt: 'desc' },
@@ -1456,6 +1469,8 @@ export class AuthService {
           { email: { equals: rawIdentifier, mode: 'insensitive' } },
           { mobile: rawIdentifier },
           { mobile: normalizedIdentifier },
+          { mobile: `+91${normalizedIdentifier}` },
+          { mobile: `91${normalizedIdentifier}` },
         ],
       },
     });
@@ -2318,6 +2333,10 @@ export class AuthService {
       throw new BadRequestException(
         "The 'module=sponsor' query parameter is required (case insensitive)."
       );
+    }
+
+    if (!dto.purpose) {
+      dto.purpose = OtpPurpose.REGISTRATION;
     }
 
     const result = await this.verifyOtp(dto, reqMeta);

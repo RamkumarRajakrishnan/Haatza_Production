@@ -254,10 +254,10 @@ export class AuthController {
   }
 
   @ApiOperation({ summary: 'Sponsor Sign-Up (POST /api/v1/sponsorSignup?module=sponsor)' })
-  @ApiResponse({ status: 201, description: 'Sponsor registered successfully and OTP sent' })
+  @ApiResponse({ status: 200, description: 'Sponsor registered successfully and OTP sent' })
   @ApiResponse({ status: 400, description: 'Bad Request - Validation error or missing module=sponsor' })
   @ApiResponse({ status: 409, description: 'Conflict - User already exists' })
-  @HttpCode(HttpStatus.CREATED)
+  @HttpCode(HttpStatus.OK)
   @Post(['sponsorSignup', 'sponsor-signup', 'api/v1/sponsorSignup'])
   sponsorSignUp(
     @Query('module') moduleParam: string,

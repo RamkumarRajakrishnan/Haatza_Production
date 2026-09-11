@@ -94,7 +94,7 @@ export class SponsorAdvertiserController {
   }
 
   @Post(['', 'create', 'add', 'createSponsorAdvertisers', 'createSponsorAdvertiser'])
-  @HttpCode(HttpStatus.CREATED)
+  @HttpCode(HttpStatus.OK)
   @UseInterceptors(
     FileFieldsInterceptor(
       [
@@ -119,7 +119,7 @@ export class SponsorAdvertiserController {
     description:
       'Creates a new sponsor advertiser record. Endpoint alias: createSponsorAdvertisers. Supports photo/pdf file uploads, query parameters, or JSON body. Output response is in camelCase.',
   })
-  @ApiResponse({ status: 201, description: 'Sponsor advertiser created successfully' })
+  @ApiResponse({ status: 200, description: 'Sponsor advertiser created successfully' })
   async create(
     @Body() body: any,
     @Query() query: any,

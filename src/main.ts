@@ -84,12 +84,51 @@ async function bootstrap() {
     // Support root-level Wix endpoints and direct getCart / getWishlist endpoints
     app.use((req: any, res: any, next: any) => {
       const p = (req.path || '').toLowerCase();
+      // Support root-level Wix endpoints and direct getCart / getWishlist / sponsor auth endpoints
       if (
         p === '/productdetails' ||
         p === '/get_productdetails' ||
         p === '/product-details'
       ) {
         req.url = `/api/v1${req.url}`;
+      }
+
+      // Transparently rewrite /sponsorVerifyOtp and related sponsor auth endpoints
+      if (
+        p === '/sponsorverifyotp' ||
+        p === '/api/v1/sponsorverifyotp' ||
+        p === '/sponsor-verify-otp' ||
+        p === '/api/v1/sponsor-verify-otp' ||
+        p === '/api/v1/auth/sponsorverifyotp'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/auth/sponsorVerifyOtp');
+      }
+      if (
+        p === '/sponsorsignup' ||
+        p === '/api/v1/sponsorsignup' ||
+        p === '/sponsor-signup' ||
+        p === '/api/v1/sponsor-signup' ||
+        p === '/api/v1/auth/sponsorsignup'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/auth/sponsorSignUp');
+      }
+      if (
+        p === '/sponsorlogin' ||
+        p === '/api/v1/sponsorlogin' ||
+        p === '/sponsor-login' ||
+        p === '/api/v1/sponsor-login' ||
+        p === '/api/v1/auth/sponsorlogin'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/auth/sponsorLogin');
+      }
+      if (
+        p === '/sponsorresendotp' ||
+        p === '/api/v1/sponsorresendotp' ||
+        p === '/sponsor-resend-otp' ||
+        p === '/api/v1/sponsor-resend-otp' ||
+        p === '/api/v1/auth/sponsorresendotp'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/auth/sponsorResendOtp');
       }
 
       // Transparently rewrite /getCart and /getWishlist to controller paths
