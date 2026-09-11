@@ -162,6 +162,9 @@ export class AuthService {
       isRegisteredForPlatform = user.isEmployee || user.role === 'EMPLOYEE';
     } else if (data.platform === Platform.SELLER) {
       isRegisteredForPlatform = user.isSeller || user.isEmployee;
+    } else if (data.platform === Platform.SPONSOR) {
+      isRegisteredForPlatform =
+        user.role === UserRole.SPONSOR || (user.role as string) === 'SPONSOR';
     }
 
     // Scenario 2: User exists but not registered for requested platform
@@ -202,7 +205,14 @@ export class AuthService {
         userId: user.id,
         identifierType,
         authMethod,
-        userType: user.isEmployee ? 'EMPLOYEE' : (user.isSeller ? 'SELLER' : 'BUYER'),
+        userType:
+          user.role === UserRole.SPONSOR
+            ? 'SPONSOR'
+            : user.isEmployee
+            ? 'EMPLOYEE'
+            : user.isSeller
+            ? 'SELLER'
+            : 'BUYER',
         isBuyer: user.isBuyer,
         isSeller: user.isSeller,
         isEmployee: user.isEmployee,
@@ -2158,46 +2168,68 @@ export class AuthService {
       },
     });
 
-    if (existingUser) {
-      if (existingUser.status === 'ACTIVE') {
-        if (existingUser.mobile === phone) {
-          throw new ConflictException('Phone number is already registered.');
-        }
-        if (existingUser.email?.toLowerCase() === trimmedEmail) {
-          throw new ConflictException('Email address is already registered.');
-        }
-        throw new ConflictException('User with these credentials already exists.');
-      }
-
-      // If user status is PENDING, cleanup stale user record
-      if (existingUser.status === 'PENDING') {
-        await this.database.user.delete({
-          where: { id: existingUser.id },
-        }).catch((err) => this.logger.warn(`Failed to delete stale PENDING user: ${err.message}`));
-      }
-    }
-
     const hashedPassword = await bcrypt.hash(dto.password, 10);
-
     const roleRecord = await this.database.role.findFirst({
       where: { OR: [{ name: 'SPONSOR' }, { code: 'sponsor' }] },
     });
 
-    const newSponsor = await this.database.user.create({
-      data: {
-        name: fullName,
-        companyName: companyName || null,
-        email: trimmedEmail,
-        mobile: phone,
-        password: hashedPassword,
-        role: UserRole.SPONSOR,
-        status: 'PENDING',
-        isBuyer: false,
-        isSeller: false,
-        isEmployee: false,
-        roleId: roleRecord ? roleRecord.id : null,
-      },
-    });
+    let sponsorUser: any = null;
+
+    if (existingUser) {
+      const isAlreadySponsor =
+        existingUser.role === UserRole.SPONSOR || (existingUser.role as string) === 'SPONSOR';
+
+      if (isAlreadySponsor) {
+        if (existingUser.status === 'ACTIVE') {
+          if (existingUser.mobile === phone) {
+            throw new ConflictException('Phone number is already registered as Sponsor.');
+          }
+          if (existingUser.email?.toLowerCase() === trimmedEmail) {
+            throw new ConflictException('Email address is already registered as Sponsor.');
+          }
+          throw new ConflictException('Sponsor user with these credentials already exists.');
+        }
+
+        // If user status is PENDING and role is SPONSOR, cleanup stale user record
+        if (existingUser.status === 'PENDING') {
+          await this.database.user.delete({
+            where: { id: existingUser.id },
+          }).catch((err) => this.logger.warn(`Failed to delete stale PENDING sponsor user: ${err.message}`));
+        }
+      } else {
+        // User exists in database under another role (EMPLOYEE, SELLER, BUYER, etc.)
+        // Allow registering/enabling the SPONSOR role for this user account!
+        sponsorUser = await this.database.user.update({
+          where: { id: existingUser.id },
+          data: {
+            name: fullName || existingUser.name,
+            companyName: companyName || existingUser.companyName,
+            password: hashedPassword,
+            role: UserRole.SPONSOR,
+            roleId: roleRecord ? roleRecord.id : existingUser.roleId,
+            status: 'PENDING',
+          },
+        });
+      }
+    }
+
+    if (!sponsorUser) {
+      sponsorUser = await this.database.user.create({
+        data: {
+          name: fullName,
+          companyName: companyName || null,
+          email: trimmedEmail,
+          mobile: phone,
+          password: hashedPassword,
+          role: UserRole.SPONSOR,
+          status: 'PENDING',
+          isBuyer: false,
+          isSeller: false,
+          isEmployee: false,
+          roleId: roleRecord ? roleRecord.id : null,
+        },
+      });
+    }
 
     // Generate 6-digit OTP for phone verification
     const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -2205,7 +2237,7 @@ export class AuthService {
 
     await this.database.otpVerification.create({
       data: {
-        userId: newSponsor.id,
+        userId: sponsorUser.id,
         identifier: phone,
         identifierType: OtpIdentifierType.PHONE,
         otpHash: otpCode,
@@ -2225,18 +2257,18 @@ export class AuthService {
       this.logger.warn(`Failed to dispatch OTP SMS to ${phone}: ${smsErr?.message}`);
     }
 
-    this.logger.log(`Sponsor registered successfully: ${newSponsor.id} (${newSponsor.email})`);
+    this.logger.log(`Sponsor registered successfully: ${sponsorUser.id} (${sponsorUser.email})`);
 
     return {
       status: 'success',
       message: 'Sponsor registered successfully. OTP sent to phone number for verification.',
       data: {
-        userId: newSponsor.id,
-        fullName: newSponsor.name,
-        companyName: newSponsor.companyName || '',
-        email: newSponsor.email,
-        phone: newSponsor.mobile,
-        role: newSponsor.role,
+        userId: sponsorUser.id,
+        fullName: sponsorUser.name,
+        companyName: sponsorUser.companyName || '',
+        email: sponsorUser.email,
+        phone: sponsorUser.mobile,
+        role: sponsorUser.role,
         module: 'sponsor',
         otpSent: true,
         expiresAt,
@@ -2257,6 +2289,17 @@ export class AuthService {
       throw new BadRequestException(
         "The 'module=sponsor' query parameter is required (case insensitive)."
       );
+    }
+
+    const rawIdentifier = data.identifier || data.mobile || data.phone;
+    if (rawIdentifier) {
+      const user = await this.authRepository.findUserByIdentifier(rawIdentifier);
+      if (user && user.role !== UserRole.SPONSOR && (user.role as string) !== 'SPONSOR') {
+        throw new ForbiddenException({
+          success: false,
+          message: 'Access denied. Account is not registered for Sponsor module.',
+        });
+      }
     }
 
     return this.login(data, reqMeta);

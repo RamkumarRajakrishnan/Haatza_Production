@@ -677,14 +677,17 @@ export class DatabaseService
           id text PRIMARY KEY,
           advertiser_name text NOT NULL,
           advertiser_logo text,
-          gst_number text NOT NULL,
+          gst_number text NOT NULL UNIQUE,
           gst_certificate text,
-          pan text NOT NULL,
+          pan text NOT NULL UNIQUE,
           pan_card text,
           status public."SponsorAdvertiserStatus" DEFAULT 'PENDING'::public."SponsorAdvertiserStatus",
           created_at timestamp DEFAULT now(),
           updated_at timestamp DEFAULT now()
         );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sponsor_advertisers_gst_number ON public.sponsor_advertisers(LOWER(gst_number));
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_sponsor_advertisers_pan ON public.sponsor_advertisers(LOWER(pan));
 
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (

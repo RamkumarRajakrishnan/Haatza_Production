@@ -15,6 +15,7 @@ export enum Platform {
   BUYER = 'BUYER',
   SELLER = 'SELLER',
   EMPLOYEE = 'EMPLOYEE',
+  SPONSOR = 'SPONSOR',
 }
 
 @ValidatorConstraint({ name: 'isEmailOrPhone', async: false })
@@ -75,10 +76,11 @@ export class CheckUserDto {
       if (normalized === 'BUYER') return Platform.BUYER;
       if (normalized === 'SELLER') return Platform.SELLER;
       if (normalized === 'EMPLOYEE') return Platform.EMPLOYEE;
+      if (normalized === 'SPONSOR') return Platform.SPONSOR;
       return normalized as Platform;
     }
     return value;
   })
-  @IsEnum(Platform, { message: 'Platform must be BUYER, SELLER, or EMPLOYEE.' })
+  @IsEnum(Platform, { message: 'Platform must be BUYER, SELLER, EMPLOYEE, or SPONSOR.' })
   platform?: Platform;
 }

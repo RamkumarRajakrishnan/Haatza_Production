@@ -27,6 +27,7 @@ import { ProductModule } from './modules/product/product.module';
 import { CategorySponsoredModule } from './modules/category-sponsored/category-sponsored.module';
 import { CartModule } from './modules/cart/cart.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { SponsorAdvertiserModule } from './modules/sponsor-advertiser/sponsor-advertiser.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -86,6 +87,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     CategorySponsoredModule,
     CartModule,
     OrdersModule,
+    SponsorAdvertiserModule,
   ],
 
   controllers: [AppController],
