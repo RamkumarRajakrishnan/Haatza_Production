@@ -19,7 +19,7 @@ export class ProductDetailsQueryDto {
   toPincode: string;
 
   @ApiPropertyOptional({
-    description: 'Optional buyer user ID to check cart and wishlist status',
+    description: 'Optional buyer user ID to check cart and saveForLater status',
     example: 'usr_12345678',
   })
   @IsOptional()

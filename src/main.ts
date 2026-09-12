@@ -140,11 +140,14 @@ async function bootstrap() {
         req.url = req.url.replace(req.path, '/api/v1/cart/getCart');
       }
       if (
-        p === '/getwishlist' ||
-        p === '/api/v1/getwishlist' ||
-        p === '/api/getwishlist'
+        p === '/saveforlater' ||
+        p === '/getsaveforlater' ||
+        p === '/api/v1/saveforlater' ||
+        p === '/api/v1/getsaveforlater' ||
+        p === '/api/saveforlater' ||
+        p === '/api/getsaveforlater'
       ) {
-        req.url = req.url.replace(req.path, '/api/v1/wishlist/getWishlist');
+        req.url = req.url.replace(req.path, '/api/v1/saveForLater/saveForLater');
       }
 
       // Transparently rewrite brand endpoints (/createBrands, /createBrand, /listBrands, /getBrands, /viewBrands, /viewBrand, /updateBrands, /updateBrand, /deleteBrands, /deleteBrand)
@@ -322,20 +325,20 @@ async function bootstrap() {
         { path: 'api/v1/cart/(.*)', method: RequestMethod.ALL },
         { path: 'cart', method: RequestMethod.ALL },
         { path: 'cart/(.*)', method: RequestMethod.ALL },
-        { path: 'api/wishlist', method: RequestMethod.ALL },
-        { path: 'api/wishlist/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/wishlist', method: RequestMethod.ALL },
-        { path: 'api/v1/wishlist/(.*)', method: RequestMethod.ALL },
-        { path: 'wishlist', method: RequestMethod.ALL },
-        { path: 'wishlist/(.*)', method: RequestMethod.ALL },
         { path: 'getCart', method: RequestMethod.ALL },
         { path: 'getCart/(.*)', method: RequestMethod.ALL },
         { path: 'api/v1/getCart', method: RequestMethod.ALL },
         { path: 'api/v1/getCart/(.*)', method: RequestMethod.ALL },
-        { path: 'getWishlist', method: RequestMethod.ALL },
-        { path: 'getWishlist/(.*)', method: RequestMethod.ALL },
-        { path: 'api/v1/getWishlist', method: RequestMethod.ALL },
-        { path: 'api/v1/getWishlist/(.*)', method: RequestMethod.ALL },
+        { path: 'api/saveForLater', method: RequestMethod.ALL },
+        { path: 'api/saveForLater/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/saveForLater', method: RequestMethod.ALL },
+        { path: 'api/v1/saveForLater/(.*)', method: RequestMethod.ALL },
+        { path: 'saveForLater', method: RequestMethod.ALL },
+        { path: 'saveForLater/(.*)', method: RequestMethod.ALL },
+        { path: 'getSaveForLater', method: RequestMethod.ALL },
+        { path: 'getSaveForLater/(.*)', method: RequestMethod.ALL },
+        { path: 'api/v1/getSaveForLater', method: RequestMethod.ALL },
+        { path: 'api/v1/getSaveForLater/(.*)', method: RequestMethod.ALL },
         { path: 'getOrders', method: RequestMethod.ALL },
         { path: 'getOrders/(.*)', method: RequestMethod.ALL },
         { path: 'api/getOrders', method: RequestMethod.ALL },

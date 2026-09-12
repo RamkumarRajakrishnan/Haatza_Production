@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { CartController } from './cart.controller';
-import { WishlistController } from './wishlist.controller';
+import { SaveForLaterController } from './save-for-later.controller';
 import { CartService } from './cart.service';
 
 @Module({
-  controllers: [CartController, WishlistController],
+  controllers: [CartController, SaveForLaterController],
   providers: [CartService],
   exports: [CartService],
 })

@@ -14,15 +14,22 @@ import { CartService } from './cart.service';
 import { AddToCartDto } from './dto/add-to-cart.dto';
 import { CartItemActionDto } from './dto/cart-item-action.dto';
 
-@ApiTags('Wishlist')
-@Controller(['api/wishlist', 'api/v1/wishlist', 'wishlist', 'api/v1/getWishlist', 'getWishlist', 'api/getWishlist'])
-export class WishlistController {
+@ApiTags('SaveForLater')
+@Controller([
+  'api/saveForLater',
+  'api/v1/saveForLater',
+  'saveForLater',
+  'api/v1/getSaveForLater',
+  'getSaveForLater',
+  'api/getSaveForLater',
+])
+export class SaveForLaterController {
   constructor(@Inject(CartService) private readonly cartService: CartService) {}
 
   @ApiOperation({
-    summary: 'Get user wishlist items (GET /api/v1/getWishlist or GET /api/v1/wishlist)',
+    summary: 'Get user save for later items (GET /api/v1/saveForLater or GET /api/v1/getSaveForLater)',
     description:
-      'Retrieves all wishlist items (move_to_wishlist = true) for a user or cartId in Wix-style camelCase.',
+      'Retrieves all save for later items (move_to_saveForLater = true) for a user or cartId in Wix-style camelCase.',
   })
   @ApiQuery({
     name: 'module',
@@ -48,12 +55,12 @@ export class WishlistController {
     type: String,
     description: 'Destination pincode for delivery calculation',
   })
-  @ApiResponse({ status: 200, description: 'Wishlist retrieved successfully' })
+  @ApiResponse({ status: 200, description: 'Save for later items retrieved successfully' })
   @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
-  @Get(['', 'getWishlist'])
-  @Post(['getWishlist'])
+  @Get(['', 'saveForLater', 'getSaveForLater'])
+  @Post(['', 'saveForLater', 'getSaveForLater'])
   @HttpCode(HttpStatus.OK)
-  async getWishlist(
+  async getSaveForLater(
     @Query('module') queryModule?: string,
     @Query('userId') queryUserId?: string,
     @Query('cartId') queryCartId?: string,
@@ -82,13 +89,13 @@ export class WishlistController {
       userId = req.query.user_id || req.query.userid;
     }
 
-    return this.cartService.getWishlist({ module, userId, cartId, toPincode });
+    return this.cartService.getSaveForLater({ module, userId, cartId, toPincode });
   }
 
   @ApiOperation({
-    summary: 'Add product to wishlist (POST /api/wishlist/addToWishlist)',
+    summary: 'Add product to save for later (POST /api/saveForLater/addToSaveForLater)',
     description:
-      'Adds a product to wishlist. Stores in the SAME database table as cart with move_to_wishlist = true.',
+      'Adds a product to save for later. Stores in the SAME database table as cart with move_to_saveForLater = true.',
   })
   @ApiQuery({
     name: 'module',
@@ -96,21 +103,21 @@ export class WishlistController {
     type: String,
     description: 'Target module (strictly case-sensitive: haatza or lite)',
   })
-  @ApiResponse({ status: 200, description: 'Product added to wishlist successfully' })
+  @ApiResponse({ status: 200, description: 'Product added to save for later successfully' })
   @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
-  @Post('addToWishlist')
+  @Post('addToSaveForLater')
   @HttpCode(HttpStatus.OK)
-  async addToWishlist(
+  async addToSaveForLater(
     @Query('module') module: string,
     @Body() dto: AddToCartDto,
   ) {
-    return this.cartService.addToWishlist(dto, module);
+    return this.cartService.addToSaveForLater(dto, module);
   }
 
   @ApiOperation({
-    summary: 'Move item from wishlist to cart (POST /api/wishlist/moveToCart)',
+    summary: 'Move item from save for later to cart (POST /api/saveForLater/moveToCart)',
     description:
-      'Updates move_to_wishlist = false in the SAME database table. Increments quantity if cart item already exists.',
+      'Updates move_to_saveForLater = false in the SAME database table. Increments quantity if cart item already exists.',
   })
   @ApiQuery({
     name: 'module',
@@ -130,9 +137,9 @@ export class WishlistController {
   }
 
   @ApiOperation({
-    summary: 'Remove item from wishlist (POST /api/wishlist/removeFromWishlist)',
+    summary: 'Remove item from save for later (POST /api/saveForLater/removeFromSaveForLater)',
     description:
-      'Deletes item from wishlist (move_to_wishlist = true). Does not delete cart rows.',
+      'Deletes item from save for later (move_to_saveForLater = true). Does not delete cart rows.',
   })
   @ApiQuery({
     name: 'module',
@@ -140,14 +147,14 @@ export class WishlistController {
     type: String,
     description: 'Target module (strictly case-sensitive: haatza or lite)',
   })
-  @ApiResponse({ status: 200, description: 'Product removed from wishlist successfully' })
+  @ApiResponse({ status: 200, description: 'Product removed from save for later successfully' })
   @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
-  @Post('removeFromWishlist')
+  @Post('removeFromSaveForLater')
   @HttpCode(HttpStatus.OK)
-  async removeFromWishlist(
+  async removeFromSaveForLater(
     @Query('module') module: string,
     @Body() dto: CartItemActionDto,
   ) {
-    return this.cartService.removeFromWishlist(dto, module);
+    return this.cartService.removeFromSaveForLater(dto, module);
   }
 }

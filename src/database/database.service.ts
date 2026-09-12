@@ -938,17 +938,29 @@ export class DatabaseService
             END IF;
           END $inner$;
 
+          -- Safely rename column move_to_wishlist to move_to_saveForLater in cart table if needed
+          DO $$
+          BEGIN
+            IF EXISTS (
+              SELECT 1 FROM information_schema.columns 
+              WHERE table_name='cart' AND column_name='move_to_wishlist'
+            ) THEN
+              ALTER TABLE public.cart RENAME COLUMN move_to_wishlist TO "move_to_saveForLater";
+            END IF;
+          EXCEPTION WHEN OTHERS THEN NULL;
+          END $$;
+
           -- Synchronize existing cart rows with user_cart_mapping
           UPDATE public.cart c
           SET cart_id = m.cart_id
           FROM public.user_cart_mapping m
-          WHERE c.user_id = m.user_id AND c.move_to_wishlist = false AND (c.cart_id IS NULL OR c.cart_id != m.cart_id);
+          WHERE c.user_id = m.user_id AND c."move_to_saveForLater" = false AND (c.cart_id IS NULL OR c.cart_id != m.cart_id);
 
-          -- Synchronize existing wishlist rows with user_cart_mapping
+          -- Synchronize existing saveForLater rows with user_cart_mapping
           UPDATE public.cart c
           SET cart_id = m.wishlist_id
           FROM public.user_cart_mapping m
-          WHERE c.user_id = m.user_id AND c.move_to_wishlist = true AND (c.cart_id IS NULL OR c.cart_id != m.wishlist_id);
+          WHERE c.user_id = m.user_id AND c."move_to_saveForLater" = true AND (c.cart_id IS NULL OR c.cart_id != m.wishlist_id);
         EXCEPTION WHEN OTHERS THEN NULL; END $$;
 
         CREATE TABLE IF NOT EXISTS public.page_master (

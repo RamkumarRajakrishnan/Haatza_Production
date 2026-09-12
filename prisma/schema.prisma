@@ -891,7 +891,7 @@ model Cart {
   priceAtAddedTime       Decimal  @map("price_at_added_time") @db.Decimal
   discountAtAddedTime    Decimal  @default(0) @map("discount_at_added_time") @db.Decimal
   deliveryEstimate       String?  @map("delivery_estimate") @db.VarChar
-  moveToWishlist         Boolean  @default(false) @map("move_to_wishlist")
+  moveToSaveForLater     Boolean  @default(false) @map("move_to_saveForLater")
   addedAt                DateTime @default(now()) @map("added_at") @db.Timestamp(6)
   updatedAt              DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamp(6)
 

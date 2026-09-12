@@ -193,8 +193,8 @@ export class ProductService {
       mainMedia: p.mainMedia || '',
       activeAd: p.activeAd || false,
       averageRating: 0,
-      isWishlist: false,
-      wishlistTableId: '',
+      isSaveForLater: false,
+      saveForLaterTableId: '',
       sellerId: p.sellerId || '',
       campaignId: p.campaignId || '',
       deliveryCharges: p.deliveryCharges ?? true,
@@ -785,8 +785,8 @@ export class ProductService {
 
       webUrl,
       cartAdded: false,
-      wishlistAdded: false,
-      wishlistId: '',
+      saveForLaterAdded: false,
+      saveForLaterId: '',
 
       inventory,
       trackQuantity,
@@ -3529,8 +3529,8 @@ export function mapProductToCard(p: any): any {
     inStock,
     averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
     totalReviews: typeof p.totalReviews === 'number' ? p.totalReviews : 0,
-    isWishlist: false,
-    wishlistTableId: '',
+    isSaveForLater: false,
+    saveForLaterTableId: '',
     sellerId: p.sellerId || '',
     campaignId: p.campaignId || '',
     deliveryCharges: p.deliveryCharges === true || p.deliveryCharges === 'true',
@@ -3593,7 +3593,7 @@ export function mapToSimilarProductCard(p: any): any {
     inStock,
     averageRating: typeof p.averageRating === 'number' ? p.averageRating : 0,
     totalReviews: typeof p.totalReviews === 'number' ? p.totalReviews : 0,
-    isWishlist: false,
+    isSaveForLater: false,
   };
 }
 

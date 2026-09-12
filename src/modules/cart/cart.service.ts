@@ -17,7 +17,7 @@ const VALID_MODULES = new Set(['haatza', 'HAATZA', 'Haatza', 'lite', 'LITE', 'Li
 export class CartService {
   private readonly logger = new Logger(CartService.name);
 
-  constructor(@Inject(DatabaseService) private readonly databaseService: DatabaseService) {}
+  constructor(@Inject(DatabaseService) private readonly databaseService: DatabaseService) { }
 
   /**
    * Validate the module query parameter strictly with case sensitivity.
@@ -31,7 +31,7 @@ export class CartService {
   }
 
   /**
-   * Strictly validate the module query parameter for Get Cart & Get Wishlist APIs.
+   * Strictly validate the module query parameter for Get Cart & Get SaveForLater APIs.
    * Case-sensitive: ONLY 'haatza' and 'lite' are allowed.
    */
   public validateGetModule(module?: string): 'haatza' | 'lite' {
@@ -51,7 +51,7 @@ export class CartService {
   }
 
   /**
-   * Strictly validate the userId query parameter for Get Cart & Get Wishlist APIs.
+   * Strictly validate the userId query parameter for Get Cart & Get SaveForLater APIs.
    */
   public validateGetUserId(userId?: string): string {
     if (userId === undefined || userId === null || typeof userId !== 'string' || userId.trim() === '') {
@@ -83,18 +83,18 @@ export class CartService {
         typeof item.priceAtAddedTime === 'number'
           ? item.priceAtAddedTime
           : Number(
-              item.priceAtAddedTime?.toString() ||
-                item.price_at_added_time?.toString() ||
-                0,
-            ),
+            item.priceAtAddedTime?.toString() ||
+            item.price_at_added_time?.toString() ||
+            0,
+          ),
       discount:
         typeof item.discountAtAddedTime === 'number'
           ? item.discountAtAddedTime
           : Number(
-              item.discountAtAddedTime?.toString() ||
-                item.discount_at_added_time?.toString() ||
-                0,
-            ),
+            item.discountAtAddedTime?.toString() ||
+            item.discount_at_added_time?.toString() ||
+            0,
+          ),
       deliveryEstimate: item.deliveryEstimate ?? item.delivery_estimate ?? null,
       addedAt:
         item.addedAt instanceof Date
@@ -130,35 +130,37 @@ export class CartService {
         typeof item.priceAtAddedTime === 'number'
           ? item.priceAtAddedTime
           : Number(
-              item.priceAtAddedTime?.toString() ||
-                item.price_at_added_time?.toString() ||
-                0,
-            ),
+            item.priceAtAddedTime?.toString() ||
+            item.price_at_added_time?.toString() ||
+            0,
+          ),
       discountAtAddedTime:
         typeof item.discountAtAddedTime === 'number'
           ? item.discountAtAddedTime
           : Number(
-              item.discountAtAddedTime?.toString() ||
-                item.discount_at_added_time?.toString() ||
-                0,
-            ),
+            item.discountAtAddedTime?.toString() ||
+            item.discount_at_added_time?.toString() ||
+            0,
+          ),
       deliveryEstimate: item.deliveryEstimate ?? item.delivery_estimate ?? null,
-      moveToWishlist: Boolean(item.moveToWishlist ?? item.move_to_wishlist),
+      moveToSaveForLater: Boolean(
+        item.moveToSaveForLater ?? item.move_to_saveForLater ?? item.moveToWishlist ?? item.move_to_wishlist,
+      ),
       addedAt: item.addedAt ?? item.added_at,
       updatedAt: item.updatedAt ?? item.updated_at,
     };
   }
 
-  // In-memory cache for ultra-fast mapping lookups: userId -> { cartId, wishlistId }
-  private readonly userCartCache = new Map<string, { cartId: string; wishlistId: string }>();
+  // In-memory cache for ultra-fast mapping lookups: userId -> { cartId, saveForLaterId }
+  private readonly userCartCache = new Map<string, { cartId: string; saveForLaterId: string }>();
 
   /**
-   * Resolves or assigns the permanent sequential cartId and wishlistId for a user (CART_001, WISHLIST_001, etc.).
+   * Resolves or assigns the permanent sequential cartId and saveForLaterId for a user (CART_001, SAVE_FOR_LATER_001, etc.).
    */
-  public async getOrAssignUserCartMapping(userId: string): Promise<{ cartId: string; wishlistId: string }> {
+  public async getOrAssignUserCartMapping(userId: string): Promise<{ cartId: string; saveForLaterId: string }> {
     const cleanUserId = (userId || '').trim();
     if (!cleanUserId) {
-      return { cartId: 'CART_001', wishlistId: 'WISHLIST_001' };
+      return { cartId: 'CART_001', saveForLaterId: 'SAVE_FOR_LATER_001' };
     }
 
     if (this.userCartCache.has(cleanUserId)) {
@@ -175,7 +177,7 @@ export class CartService {
       if (existingRows && existingRows.length > 0) {
         const mapping = {
           cartId: existingRows[0].cart_id,
-          wishlistId: existingRows[0].wishlist_id,
+          saveForLaterId: existingRows[0].wishlist_id,
         };
         this.userCartCache.set(cleanUserId, mapping);
         return mapping;
@@ -188,11 +190,11 @@ export class CartService {
       const num = seqRows && seqRows[0] ? seqRows[0].num : 1;
       const formattedNum = String(num).padStart(3, '0');
       const cartId = `CART_${formattedNum}`;
-      const wishlistId = `WISHLIST_${formattedNum}`;
+      const saveForLaterId = `SAVE_FOR_LATER_${formattedNum}`;
 
       await this.databaseService.executePoolQuery(
         'INSERT INTO public.user_cart_mapping (user_id, cart_id, wishlist_id) VALUES ($1, $2, $3) ON CONFLICT (user_id) DO NOTHING',
-        [cleanUserId, cartId, wishlistId],
+        [cleanUserId, cartId, saveForLaterId],
       );
 
       // Verify in case of race condition conflict
@@ -203,14 +205,14 @@ export class CartService {
 
       const mapping =
         finalCheck && finalCheck.length > 0
-          ? { cartId: finalCheck[0].cart_id, wishlistId: finalCheck[0].wishlist_id }
-          : { cartId, wishlistId };
+          ? { cartId: finalCheck[0].cart_id, saveForLaterId: finalCheck[0].wishlist_id }
+          : { cartId, saveForLaterId };
 
       this.userCartCache.set(cleanUserId, mapping);
       return mapping;
     } catch (err: any) {
       this.logger.error(`Error resolving user cart mapping for ${cleanUserId}: ${err.message}`);
-      return { cartId: `CART_${cleanUserId}`, wishlistId: `WISHLIST_${cleanUserId}` };
+      return { cartId: `CART_${cleanUserId}`, saveForLaterId: `SAVE_FOR_LATER_${cleanUserId}` };
     }
   }
 
@@ -223,15 +225,19 @@ export class CartService {
   }
 
   /**
-   * Resolves the deterministic, permanent 1:1 wishlistId for a user (e.g. WISHLIST_001).
+   * Resolves the deterministic, permanent 1:1 saveForLaterId for a user (e.g. SAVE_FOR_LATER_001).
    */
-  public async resolveWishlistId(userId: string): Promise<string> {
+  public async resolveSaveForLaterId(userId: string): Promise<string> {
     const mapping = await this.getOrAssignUserCartMapping(userId);
-    return mapping.wishlistId;
+    return mapping.saveForLaterId;
+  }
+
+  public async resolveWishlistId(userId: string): Promise<string> {
+    return this.resolveSaveForLaterId(userId);
   }
 
   /**
-   * Helper to build cartId matching condition supporting CART_001, WISHLIST_001, and raw userId.
+   * Helper to build cartId matching condition supporting CART_001, SAVE_FOR_LATER_001, and raw userId.
    */
   private async getCartIdWhereCondition(cartId: string) {
     const trimmed = (cartId || '').trim();
@@ -240,14 +246,15 @@ export class CartService {
     if (trimmed.startsWith('CART_')) {
       const suffix = trimmed.replace(/^CART_/, '');
       candidateIds.add(`WISHLIST_${suffix}`);
-    } else if (trimmed.startsWith('WISHLIST_')) {
-      const suffix = trimmed.replace(/^WISHLIST_/, '');
+      candidateIds.add(`SAVE_FOR_LATER_${suffix}`);
+    } else if (trimmed.startsWith('WISHLIST_') || trimmed.startsWith('SAVE_FOR_LATER_')) {
+      const suffix = trimmed.replace(/^(WISHLIST_|SAVE_FOR_LATER_)/, '');
       candidateIds.add(`CART_${suffix}`);
     } else {
       try {
         const mapping = await this.getOrAssignUserCartMapping(trimmed);
         if (mapping?.cartId) candidateIds.add(mapping.cartId);
-        if (mapping?.wishlistId) candidateIds.add(mapping.wishlistId);
+        if (mapping?.saveForLaterId) candidateIds.add(mapping.saveForLaterId);
       } catch {
         // Fallback
       }
@@ -272,14 +279,14 @@ export class CartService {
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
       : {
-          OR: [{ variantId: null }, { variantId: '' }],
-        };
+        OR: [{ variantId: null }, { variantId: '' }],
+      };
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
         userId: dto.userId,
         productId: dto.productId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         ...variantCondition,
       },
     });
@@ -302,7 +309,7 @@ export class CartService {
         quantity: 1,
         priceAtAddedTime: dto.priceAtAddedTime ?? 0,
         discountAtAddedTime: dto.discountAtAddedTime ?? 0,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
       },
     });
 
@@ -314,27 +321,27 @@ export class CartService {
   }
 
   /**
-   * Add a product to Wishlist (move_to_wishlist = true).
+   * Add a product to SaveForLater (move_to_saveForLater = true).
    * Stores row in the SAME cart table.
-   * If already present in Wishlist, does not create a duplicate.
+   * If already present in SaveForLater, does not create a duplicate.
    */
-  async addToWishlist(dto: AddToCartDto, module?: string) {
+  async addToSaveForLater(dto: AddToCartDto, module?: string) {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId ? dto.variantId.trim() : '';
-    const wishlistId = await this.resolveWishlistId(dto.userId);
+    const saveForLaterId = await this.resolveSaveForLaterId(dto.userId);
 
     const variantCondition = effectiveVariantId
       ? { variantId: effectiveVariantId }
       : {
-          OR: [{ variantId: null }, { variantId: '' }],
-        };
+        OR: [{ variantId: null }, { variantId: '' }],
+      };
 
     const existingItem = await this.databaseService.cart.findFirst({
       where: {
         userId: dto.userId,
         productId: dto.productId,
-        moveToWishlist: true,
+        moveToSaveForLater: true,
         ...variantCondition,
       },
     });
@@ -342,14 +349,14 @@ export class CartService {
     if (existingItem) {
       return {
         success: true,
-        message: 'Product is already in wishlist.',
+        message: 'Product is already in save for later.',
         data: this.formatCartItem(existingItem),
       };
     }
 
     const created = await this.databaseService.cart.create({
       data: {
-        cartId: wishlistId,
+        cartId: saveForLaterId,
         userId: dto.userId,
         productId: dto.productId,
         sellerId: dto.sellerId,
@@ -357,13 +364,13 @@ export class CartService {
         quantity: 1,
         priceAtAddedTime: dto.priceAtAddedTime ?? 0,
         discountAtAddedTime: dto.discountAtAddedTime ?? 0,
-        moveToWishlist: true,
+        moveToSaveForLater: true,
       },
     });
 
     return {
       success: true,
-      message: 'Product added to wishlist successfully.',
+      message: 'Product added to save for later successfully.',
       data: this.formatCartItem(created),
     };
   }
@@ -381,7 +388,7 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         ...(effectiveVariantId !== undefined
           ? effectiveVariantId
             ? { variantId: effectiveVariantId }
@@ -436,7 +443,7 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         ...(effectiveVariantId !== undefined
           ? effectiveVariantId
             ? { variantId: effectiveVariantId }
@@ -463,11 +470,11 @@ export class CartService {
   }
 
   /**
-   * Move an item from Cart to Wishlist.
-   * Updates move_to_wishlist = true in the SAME table.
-   * Prevents duplicates if the product is already in the wishlist.
+   * Move an item from Cart to SaveForLater.
+   * Updates move_to_saveForLater = true in the SAME table.
+   * Prevents duplicates if the product is already in save for later.
    */
-  async moveToWishlist(dto: CartItemActionDto, module?: string) {
+  async moveToSaveForLater(dto: CartItemActionDto, module?: string) {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId !== undefined ? dto.variantId.trim() : undefined;
@@ -476,7 +483,7 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         ...(effectiveVariantId !== undefined
           ? effectiveVariantId
             ? { variantId: effectiveVariantId }
@@ -492,40 +499,40 @@ export class CartService {
       };
     }
 
-    // Check if item already exists in wishlist
+    // Check if item already exists in save for later
     const variantCondition = cartItem.variantId
       ? { variantId: cartItem.variantId }
       : { OR: [{ variantId: null }, { variantId: '' }] };
 
-    const existingWishlist = await this.databaseService.cart.findFirst({
+    const existingSaveForLater = await this.databaseService.cart.findFirst({
       where: {
         ...(await this.getCartIdWhereCondition(cartItem.cartId)),
         productId: dto.productId,
-        moveToWishlist: true,
+        moveToSaveForLater: true,
         ...variantCondition,
       },
     });
 
-    if (existingWishlist) {
-      // Remove cart item to avoid duplicates, return existing wishlist item
+    if (existingSaveForLater) {
+      // Remove cart item to avoid duplicates, return existing saveForLater item
       await this.databaseService.cart.delete({
         where: { id: cartItem.id },
       });
 
       return {
         success: true,
-        message: 'Product moved to wishlist successfully.',
-        data: this.formatCartItem(existingWishlist),
+        message: 'Product moved to save for later successfully.',
+        data: this.formatCartItem(existingSaveForLater),
       };
     }
 
     // Update in-place in same table
-    const wishlistId = await this.resolveWishlistId(cartItem.userId);
+    const saveForLaterId = await this.resolveSaveForLaterId(cartItem.userId);
     const updated = await this.databaseService.cart.update({
       where: { id: cartItem.id },
       data: {
-        cartId: wishlistId,
-        moveToWishlist: true,
+        cartId: saveForLaterId,
+        moveToSaveForLater: true,
         quantity: 1,
         updatedAt: new Date(),
       },
@@ -533,15 +540,15 @@ export class CartService {
 
     return {
       success: true,
-      message: 'Product moved to wishlist successfully.',
+      message: 'Product moved to save for later successfully.',
       data: this.formatCartItem(updated),
     };
   }
 
   /**
-   * Move an item from Wishlist to Cart.
-   * Updates move_to_wishlist = false in the SAME table.
-   * If item already exists in Cart, increments quantity and cleans up wishlist row.
+   * Move an item from SaveForLater to Cart.
+   * Updates move_to_saveForLater = false in the SAME table.
+   * If item already exists in Cart, increments quantity and cleans up saveForLater row.
    */
   async moveToCart(dto: CartItemActionDto, module?: string) {
     this.validateModule(module);
@@ -552,7 +559,7 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
-        moveToWishlist: true,
+        moveToSaveForLater: true,
         ...(effectiveVariantId !== undefined
           ? effectiveVariantId
             ? { variantId: effectiveVariantId }
@@ -564,7 +571,7 @@ export class CartService {
     if (!wishlistItem) {
       return {
         success: false,
-        message: 'Wishlist item not found.',
+        message: 'Removed from save for later .',
       };
     }
 
@@ -577,13 +584,13 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(wishlistItem.cartId)),
         productId: dto.productId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         ...variantCondition,
       },
     });
 
     if (existingCartItem) {
-      // Increment existing cart item quantity by 1, delete wishlist row
+      // Increment existing cart item quantity by 1, delete saveForLater row
       const updatedCart = await this.databaseService.cart.update({
         where: { id: existingCartItem.id },
         data: {
@@ -609,7 +616,7 @@ export class CartService {
       where: { id: wishlistItem.id },
       data: {
         cartId,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         updatedAt: new Date(),
       },
     });
@@ -622,10 +629,10 @@ export class CartService {
   }
 
   /**
-   * Remove an item from Wishlist (move_to_wishlist = true).
+   * Remove an item from SaveForLater (move_to_saveForLater = true).
    * Does NOT affect cart rows.
    */
-  async removeFromWishlist(dto: CartItemActionDto, module?: string) {
+  async removeFromSaveForLater(dto: CartItemActionDto, module?: string) {
     this.validateModule(module);
 
     const effectiveVariantId = dto.variantId !== undefined ? dto.variantId.trim() : undefined;
@@ -634,7 +641,7 @@ export class CartService {
       where: {
         ...(await this.getCartIdWhereCondition(dto.cartId)),
         productId: dto.productId,
-        moveToWishlist: true,
+        moveToSaveForLater: true,
         ...(effectiveVariantId !== undefined
           ? effectiveVariantId
             ? { variantId: effectiveVariantId }
@@ -646,7 +653,7 @@ export class CartService {
     if (!existingItem) {
       return {
         success: false,
-        message: 'Wishlist item not found.',
+        message: 'Save for later item not found.',
       };
     }
 
@@ -656,7 +663,7 @@ export class CartService {
 
     return {
       success: true,
-      message: 'Product removed from wishlist successfully.',
+      message: 'Product removed from save for later successfully.',
     };
   }
 
@@ -678,7 +685,7 @@ export class CartService {
       const records = await this.databaseService.cart.findMany({
         where: {
           userId,
-          moveToWishlist: false,
+          moveToSaveForLater: false,
         },
         select: {
           id: true,
@@ -736,9 +743,9 @@ export class CartService {
   }
 
   /**
-   * Retrieve Wishlist items (move_to_wishlist = true) adhering to Wix-style camelCase response.
+   * Retrieve SaveForLater items (move_to_saveForLater = true) adhering to Wix-style camelCase response.
    */
-  async getWishlist(params: { module?: string; userId?: string; cartId?: string; toPincode?: string }) {
+  async getSaveForLater(params: { module?: string; userId?: string; cartId?: string; toPincode?: string }) {
     this.validateGetModule(params.module);
     const userId = this.validateGetUserId(params.userId);
     const toPincode = params.toPincode?.trim();
@@ -753,7 +760,7 @@ export class CartService {
       const records = await this.databaseService.cart.findMany({
         where: {
           userId,
-          moveToWishlist: true,
+          moveToSaveForLater: true,
         },
         select: {
           id: true,
@@ -775,37 +782,37 @@ export class CartService {
       if (!records || records.length === 0) {
         return {
           status: 'success',
-          message: 'Wishlist is empty',
+          message: 'Save for later is empty',
           data: {
             id: null,
             userId,
-            wishlistItems: [],
+            saveForLaterItems: [],
             totalItems: 0,
           },
         };
       }
 
-      const wishlistItems = await this.enrichWithProducts(records);
-      const wishlistId = await this.resolveWishlistId(userId);
+      const saveForLaterItems = await this.enrichWithProducts(records);
+      const saveForLaterId = await this.resolveSaveForLaterId(userId);
 
       return {
         status: 'success',
-        message: 'Wishlist fetched successfully',
+        message: 'Save for later items fetched successfully',
         data: {
-          id: wishlistId,
+          id: saveForLaterId,
           userId,
-          wishlistItems,
-          totalItems: wishlistItems.length,
+          saveForLaterItems,
+          totalItems: saveForLaterItems.length,
         },
       };
     } catch (error: any) {
       if (error instanceof HttpException) {
         throw error;
       }
-      this.logger.error(`Unable to fetch wishlist for user ${userId}: ${error.message}`, error.stack);
+      this.logger.error(`Unable to fetch save for later for user ${userId}: ${error.message}`, error.stack);
       throw new InternalServerErrorException({
         status: 'error',
-        message: `Unable to fetch wishlist: ${error.message}`,
+        message: `Unable to fetch save for later: ${error.message}`,
       });
     }
   }
@@ -825,40 +832,40 @@ export class CartService {
     const products =
       productIds.length > 0
         ? await this.databaseService.product.findMany({
-            where: {
-              OR: [
-                { id: { in: productIds } },
-                { productId: { in: productIds } },
-              ],
-            },
-            select: {
-              id: true,
-              productId: true,
-              name: true,
-              mainMedia: true,
-              productImages: true,
-              brand: true,
-              inventory: true,
-              price: true,
-              mrp: true,
-              newMrp: true,
-              onsalePrice: true,
-              cod: true,
-              upi: true,
-              discount: true,
-              newDiscount: true,
-              upiPaymentDiscount: true,
-              categoryId: true,
-              mainCategory: true,
-              subCategory: true,
-              subCategoryId: true,
-              sellerId: true,
-              status: true,
-              productOptions: true,
-              variantPrice: true,
-              newVariantPrice: true,
-            },
-          })
+          where: {
+            OR: [
+              { id: { in: productIds } },
+              { productId: { in: productIds } },
+            ],
+          },
+          select: {
+            id: true,
+            productId: true,
+            name: true,
+            mainMedia: true,
+            productImages: true,
+            brand: true,
+            inventory: true,
+            price: true,
+            mrp: true,
+            newMrp: true,
+            onsalePrice: true,
+            cod: true,
+            upi: true,
+            discount: true,
+            newDiscount: true,
+            upiPaymentDiscount: true,
+            categoryId: true,
+            mainCategory: true,
+            subCategory: true,
+            subCategoryId: true,
+            sellerId: true,
+            status: true,
+            productOptions: true,
+            variantPrice: true,
+            newVariantPrice: true,
+          },
+        })
         : [];
 
     const productMap = new Map<string, any>();
@@ -879,7 +886,7 @@ export class CartService {
         priceAtAddedTime: 0,
         discountAtAddedTime: 0,
         deliveryEstimate: null,
-        moveToWishlist: false,
+        moveToSaveForLater: false,
         addedAt: row.addedAt ?? row.added_at,
         updatedAt: row.updatedAt ?? row.updated_at,
       };

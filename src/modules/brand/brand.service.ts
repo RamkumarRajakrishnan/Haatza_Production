@@ -91,7 +91,7 @@ export class BrandService {
 
     const created = await this.db.brand.create({
       data: {
-        brandName: dto.brandName.trim(),
+        brandName: cleanBrandName,
         brandLogo: dto.brandLogo?.trim() || null,
         brandWebsite: dto.brandWebsite?.trim() || null,
         industry: dto.industry.trim(),
