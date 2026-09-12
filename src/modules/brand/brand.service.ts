@@ -3,6 +3,7 @@ import {
   Logger,
   NotFoundException,
   BadRequestException,
+  ConflictException,
 } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { CreateBrandDto } from './dto/create-brand.dto';
@@ -64,14 +65,28 @@ export class BrandService {
 
     const status = this.normalizeStatus(dto.status);
 
-    let advertiserId: string | null = null;
-    if (dto.advertiserId?.trim()) {
-      const adv = await this.db.sponsorAdvertiser.findUnique({
-        where: { id: dto.advertiserId.trim() },
-      });
-      if (adv) {
-        advertiserId = adv.id;
-      }
+    if (!dto.advertiserId?.trim()) {
+      throw new BadRequestException('Advertiser ID (advertiserId) is required to create a brand.');
+    }
+
+    const cleanAdvId = dto.advertiserId.trim();
+    const adv = await this.db.sponsorAdvertiser.findUnique({
+      where: { id: cleanAdvId },
+    });
+    if (!adv) {
+      throw new NotFoundException(`Sponsor advertiser with ID '${cleanAdvId}' not found.`);
+    }
+    const advertiserId = adv.id;
+
+    const cleanBrandName = dto.brandName.trim();
+    const existingBrand = await this.db.brand.findFirst({
+      where: {
+        brandName: { equals: cleanBrandName, mode: 'insensitive' },
+        advertiserId: advertiserId,
+      },
+    });
+    if (existingBrand) {
+      throw new ConflictException(`A brand with name '${cleanBrandName}' already exists under this advertiser.`);
     }
 
     const created = await this.db.brand.create({
@@ -183,10 +198,22 @@ export class BrandService {
     const updateData: any = {};
 
     if (dto.brandName !== undefined) {
-      if (!dto.brandName.trim()) {
+      const cleanBrandName = dto.brandName.trim();
+      if (!cleanBrandName) {
         throw new BadRequestException('Brand Name cannot be empty.');
       }
-      updateData.brandName = dto.brandName.trim();
+      const targetAdvId = dto.advertiserId !== undefined ? (dto.advertiserId?.trim() || null) : record.advertiserId;
+      const existingBrand = await this.db.brand.findFirst({
+        where: {
+          brandName: { equals: cleanBrandName, mode: 'insensitive' },
+          advertiserId: targetAdvId,
+          id: { not: id },
+        },
+      });
+      if (existingBrand) {
+        throw new ConflictException(`A brand with name '${cleanBrandName}' already exists under this advertiser.`);
+      }
+      updateData.brandName = cleanBrandName;
     }
 
     if (dto.brandLogo !== undefined) {
@@ -217,11 +244,15 @@ export class BrandService {
     }
 
     if (dto.advertiserId !== undefined) {
-      if (dto.advertiserId) {
+      if (dto.advertiserId?.trim()) {
+        const cleanAdvId = dto.advertiserId.trim();
         const adv = await this.db.sponsorAdvertiser.findUnique({
-          where: { id: dto.advertiserId.trim() },
+          where: { id: cleanAdvId },
         });
-        updateData.advertiserId = adv ? adv.id : null;
+        if (!adv) {
+          throw new NotFoundException(`Sponsor advertiser with ID '${cleanAdvId}' not found.`);
+        }
+        updateData.advertiserId = adv.id;
       } else {
         updateData.advertiserId = null;
       }

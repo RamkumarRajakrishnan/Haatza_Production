@@ -169,29 +169,79 @@ async function bootstrap() {
         req.url = req.url.replace(req.path, '/api/v1/brands/listBrands');
       }
       if (
-        p === '/viewbrands' ||
-        p === '/api/v1/viewbrands' ||
-        p === '/viewbrand' ||
-        p === '/api/v1/viewbrand'
+        p.startsWith('/viewbrands') ||
+        p.startsWith('/api/v1/viewbrands') ||
+        p.startsWith('/viewbrand') ||
+        p.startsWith('/api/v1/viewbrand')
       ) {
-        req.url = req.url.replace(req.path, '/api/v1/brands/viewBrands');
+        req.url = req.url.replace(req.path, '/api/v1/brands' + (req.path.includes('/view') ? req.path.substring(req.path.indexOf('/view')) : '/viewBrands'));
       }
       if (
-        p === '/updatebrands' ||
-        p === '/api/v1/updatebrands' ||
-        p === '/updatebrand' ||
-        p === '/api/v1/updatebrand'
+        p.startsWith('/updatebrands') ||
+        p.startsWith('/api/v1/updatebrands') ||
+        p.startsWith('/updatebrand') ||
+        p.startsWith('/api/v1/updatebrand')
       ) {
-        req.url = req.url.replace(req.path, '/api/v1/brands/updateBrands');
+        req.url = req.url.replace(req.path, '/api/v1/brands' + (req.path.includes('/update') ? req.path.substring(req.path.indexOf('/update')) : '/updateBrands'));
       }
       if (
-        p === '/deletebrands' ||
-        p === '/api/v1/deletebrands' ||
-        p === '/deletebrand' ||
-        p === '/api/v1/deletebrand'
+        p.startsWith('/deletebrands') ||
+        p.startsWith('/api/v1/deletebrands') ||
+        p.startsWith('/deletebrand') ||
+        p.startsWith('/api/v1/deletebrand')
       ) {
-        req.url = req.url.replace(req.path, '/api/v1/brands/deleteBrands');
+        req.url = req.url.replace(req.path, '/api/v1/brands' + (req.path.includes('/delete') ? req.path.substring(req.path.indexOf('/delete')) : '/deleteBrands'));
       }
+
+      // Transparently rewrite sponsor advertiser endpoints (/createSponsorAdvertisers, /listSponsorAdvertisers, /viewSponsorAdvertisers, /updateSponsorAdvertisers, /deleteSponsorAdvertisers)
+      if (
+        p === '/createsponsoradvertisers' ||
+        p === '/api/v1/createsponsoradvertisers' ||
+        p === '/createsponsoradvertiser' ||
+        p === '/api/v1/createsponsoradvertiser'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/sponsor-advertisers/createSponsorAdvertisers');
+      }
+      if (
+        p === '/listsponsoradvertisers' ||
+        p === '/api/v1/listsponsoradvertisers' ||
+        p === '/listsponsoradvertiser' ||
+        p === '/api/v1/listsponsoradvertiser' ||
+        p === '/getsponsoradvertisers' ||
+        p === '/api/v1/getsponsoradvertisers' ||
+        p === '/getsponsoradvertiser' ||
+        p === '/api/v1/getsponsoradvertiser'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/sponsor-advertisers/listSponsorAdvertisers');
+      }
+      if (
+        p.startsWith('/viewsponsoradvertisers') ||
+        p.startsWith('/api/v1/viewsponsoradvertisers') ||
+        p.startsWith('/viewsponsoradvertiser') ||
+        p.startsWith('/api/v1/viewsponsoradvertiser')
+      ) {
+        const subPath = req.path.replace(/^\/(api\/v1\/)?(viewsponsoradvertisers|viewsponsoradvertiser)/i, '');
+        req.url = req.url.replace(req.path, `/api/v1/sponsor-advertisers/viewSponsorAdvertisers${subPath}`);
+      }
+      if (
+        p.startsWith('/updatesponsoradvertisers') ||
+        p.startsWith('/api/v1/updatesponsoradvertisers') ||
+        p.startsWith('/updatesponsoradvertiser') ||
+        p.startsWith('/api/v1/updatesponsoradvertiser')
+      ) {
+        const subPath = req.path.replace(/^\/(api\/v1\/)?(updatesponsoradvertisers|updatesponsoradvertiser)/i, '');
+        req.url = req.url.replace(req.path, `/api/v1/sponsor-advertisers/updateSponsorAdvertisers${subPath}`);
+      }
+      if (
+        p.startsWith('/deletesponsoradvertisers') ||
+        p.startsWith('/api/v1/deletesponsoradvertisers') ||
+        p.startsWith('/deletesponsoradvertiser') ||
+        p.startsWith('/api/v1/deletesponsoradvertiser')
+      ) {
+        const subPath = req.path.replace(/^\/(api\/v1\/)?(deletesponsoradvertisers|deletesponsoradvertiser)/i, '');
+        req.url = req.url.replace(req.path, `/api/v1/sponsor-advertisers/deleteSponsorAdvertisers${subPath}`);
+      }
+
 
 
       // Autocorrect malformed query parameters like ?userIdmodule=haatza&=...
