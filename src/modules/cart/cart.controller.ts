@@ -43,6 +43,12 @@ export class CartController {
     type: String,
     description: 'Cart ID',
   })
+  @ApiQuery({
+    name: 'toPincode',
+    required: true,
+    type: String,
+    description: 'Destination pincode for delivery calculation',
+  })
   @ApiResponse({ status: 200, description: 'Cart retrieved successfully' })
   @ApiResponse({ status: 400, description: 'Invalid module or missing parameters' })
   @Get(['', 'getCart'])
@@ -52,12 +58,20 @@ export class CartController {
     @Query('module') queryModule?: string,
     @Query('userId') queryUserId?: string,
     @Query('cartId') queryCartId?: string,
-    @Body() body?: { module?: string; userId?: string; cartId?: string },
+    @Query('toPincode') queryToPincode?: string,
+    @Query('pincode') queryPincode?: string,
+    @Body() body?: { module?: string; userId?: string; cartId?: string; toPincode?: string; pincode?: string },
     @Req() req?: any,
   ) {
     let module = queryModule !== undefined ? queryModule : body?.module;
     let userId = queryUserId !== undefined ? queryUserId : body?.userId;
     const cartId = queryCartId !== undefined ? queryCartId : body?.cartId;
+    const toPincode =
+      queryToPincode !== undefined
+        ? queryToPincode
+        : queryPincode !== undefined
+          ? queryPincode
+          : body?.toPincode || body?.pincode;
 
     if (!module && req?.query?.userIdmodule) {
       module = req.query.userIdmodule;
@@ -69,7 +83,7 @@ export class CartController {
       userId = req.query.user_id || req.query.userid;
     }
 
-    return this.cartService.getCart({ module, userId, cartId });
+    return this.cartService.getCart({ module, userId, cartId, toPincode });
   }
 
   @ApiOperation({

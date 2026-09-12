@@ -191,10 +191,23 @@ export class DatabaseService
   }
 
   async executePoolQuery(text: string, params: any[] = []): Promise<number> {
+    if (!this.isConnected) {
+      return 0;
+    }
     try {
       const result = await this.pool.query(text, params);
       return result.rowCount || 0;
     } catch (err: any) {
+      if (
+        err.message?.includes('timeout') ||
+        err.message?.includes('Connection terminated') ||
+        err.message?.includes('ECONNREFUSED') ||
+        err.message?.includes('closed')
+      ) {
+        this.isConnected = false;
+        this.logger.warn(`Database connection lost during query: ${err.message}`);
+        return 0;
+      }
       this.logger.warn(`Pool query initial attempt failed (${err.message}). Retrying query...`);
       try {
         const retryResult = await this.pool.query(text, params);

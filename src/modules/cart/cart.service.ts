@@ -663,15 +663,36 @@ export class CartService {
   /**
    * Retrieve Cart items (move_to_wishlist = false) adhering to Wix-style camelCase response.
    */
-  async getCart(params: { module?: string; userId?: string; cartId?: string }) {
+  async getCart(params: { module?: string; userId?: string; cartId?: string; toPincode?: string }) {
     this.validateGetModule(params.module);
     const userId = this.validateGetUserId(params.userId);
+    const toPincode = params.toPincode?.trim();
+    if (!toPincode) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'toPincode is required',
+      });
+    }
 
     try {
       const records = await this.databaseService.cart.findMany({
         where: {
           userId,
           moveToWishlist: false,
+        },
+        select: {
+          id: true,
+          cartId: true,
+          userId: true,
+          productId: true,
+          variantId: true,
+          sellerId: true,
+          quantity: true,
+          priceAtAddedTime: true,
+          discountAtAddedTime: true,
+          deliveryEstimate: true,
+          addedAt: true,
+          updatedAt: true,
         },
         orderBy: { addedAt: 'asc' },
       });
@@ -683,13 +704,13 @@ export class CartService {
           data: {
             id: null,
             userId,
-            lineItems: [],
+            cartItems: [],
             totalItems: 0,
           },
         };
       }
 
-      const lineItems = records.map((r) => this.transformCartRowToLineItem(r));
+      const cartItems = await this.enrichWithProducts(records);
       const cartId = await this.resolveCartId(userId);
 
       return {
@@ -698,8 +719,8 @@ export class CartService {
         data: {
           id: cartId,
           userId,
-          lineItems,
-          totalItems: lineItems.length,
+          cartItems,
+          totalItems: cartItems.length,
         },
       };
     } catch (error: any) {
@@ -709,7 +730,7 @@ export class CartService {
       this.logger.error(`Unable to fetch cart for user ${userId}: ${error.message}`, error.stack);
       throw new InternalServerErrorException({
         status: 'error',
-        message: 'Unable to fetch cart',
+        message: `Unable to fetch cart: ${error.message}`,
       });
     }
   }
@@ -717,15 +738,36 @@ export class CartService {
   /**
    * Retrieve Wishlist items (move_to_wishlist = true) adhering to Wix-style camelCase response.
    */
-  async getWishlist(params: { module?: string; userId?: string; cartId?: string }) {
+  async getWishlist(params: { module?: string; userId?: string; cartId?: string; toPincode?: string }) {
     this.validateGetModule(params.module);
     const userId = this.validateGetUserId(params.userId);
+    const toPincode = params.toPincode?.trim();
+    if (!toPincode) {
+      throw new BadRequestException({
+        status: 'error',
+        message: 'toPincode is required',
+      });
+    }
 
     try {
       const records = await this.databaseService.cart.findMany({
         where: {
           userId,
           moveToWishlist: true,
+        },
+        select: {
+          id: true,
+          cartId: true,
+          userId: true,
+          productId: true,
+          variantId: true,
+          sellerId: true,
+          quantity: true,
+          priceAtAddedTime: true,
+          discountAtAddedTime: true,
+          deliveryEstimate: true,
+          addedAt: true,
+          updatedAt: true,
         },
         orderBy: { addedAt: 'asc' },
       });
@@ -737,13 +779,13 @@ export class CartService {
           data: {
             id: null,
             userId,
-            items: [],
+            wishlistItems: [],
             totalItems: 0,
           },
         };
       }
 
-      const items = records.map((r) => this.transformCartRowToLineItem(r));
+      const wishlistItems = await this.enrichWithProducts(records);
       const wishlistId = await this.resolveWishlistId(userId);
 
       return {
@@ -752,8 +794,8 @@ export class CartService {
         data: {
           id: wishlistId,
           userId,
-          items,
-          totalItems: items.length,
+          wishlistItems,
+          totalItems: wishlistItems.length,
         },
       };
     } catch (error: any) {
@@ -763,20 +805,22 @@ export class CartService {
       this.logger.error(`Unable to fetch wishlist for user ${userId}: ${error.message}`, error.stack);
       throw new InternalServerErrorException({
         status: 'error',
-        message: 'Unable to fetch wishlist',
+        message: `Unable to fetch wishlist: ${error.message}`,
       });
     }
   }
 
   /**
-   * Helper to attach product details (name, image, current price, MRP, inventory) to cart rows.
+   * Helper to attach product details (name, image, prices, categories, inventory, variant) to cart rows.
    */
   private async enrichWithProducts(rows: any[]) {
     if (!rows || rows.length === 0) {
       return [];
     }
 
-    const productIds = Array.from(new Set(rows.map((r) => r.productId).filter(Boolean)));
+    const productIds = Array.from(
+      new Set(rows.map((r) => r.productId ?? r.product_id).filter(Boolean)),
+    );
 
     const products =
       productIds.length > 0
@@ -797,8 +841,22 @@ export class CartService {
               inventory: true,
               price: true,
               mrp: true,
+              newMrp: true,
               onsalePrice: true,
+              cod: true,
+              upi: true,
+              discount: true,
+              newDiscount: true,
+              upiPaymentDiscount: true,
+              categoryId: true,
+              mainCategory: true,
+              subCategory: true,
+              subCategoryId: true,
               sellerId: true,
+              status: true,
+              productOptions: true,
+              variantPrice: true,
+              newVariantPrice: true,
             },
           })
         : [];
@@ -812,49 +870,125 @@ export class CartService {
     return rows.map((row) => {
       const formatted = this.formatCartItem(row) || {
         id: row.id,
-        cartId: row.cart_id,
-        userId: row.user_id,
-        productId: row.product_id,
-        sellerId: row.seller_id || '',
-        variantId: row.variant_id || '',
+        cartId: row.cartId ?? row.cart_id,
+        userId: row.userId ?? row.user_id,
+        productId: row.productId ?? row.product_id,
+        sellerId: row.sellerId ?? row.seller_id ?? '',
+        variantId: row.variantId ?? row.variant_id ?? '',
         quantity: row.quantity || 1,
         priceAtAddedTime: 0,
         discountAtAddedTime: 0,
         deliveryEstimate: null,
         moveToWishlist: false,
-        addedAt: row.added_at,
-        updatedAt: row.updated_at,
+        addedAt: row.addedAt ?? row.added_at,
+        updatedAt: row.updatedAt ?? row.updated_at,
       };
-      const product = productMap.get(row.productId) || null;
+      const pId = row.productId ?? row.product_id;
+      const product = productMap.get(pId) || null;
 
-      const currentPrice =
-        typeof product?.price === 'number'
-          ? product.price
-          : typeof product?.onsalePrice === 'number'
-            ? product.onsalePrice
+      const mrp = typeof product?.mrp === 'number' ? product.mrp : typeof product?.newMrp === 'number' ? product.newMrp : 0;
+
+      const onsalePrice =
+        typeof product?.onsalePrice === 'number'
+          ? product.onsalePrice
+          : typeof product?.price === 'number'
+            ? product.price
             : (formatted.priceAtAddedTime ?? 0);
 
-      const mrp =
-        typeof product?.mrp === 'number'
-          ? product.mrp
-          : currentPrice;
+      const codPrice =
+        typeof product?.cod === 'number'
+          ? product.cod
+          : onsalePrice;
+
+      const upiPrice =
+        typeof product?.upi === 'number'
+          ? product.upi
+          : codPrice;
+
+      const upiDiscount =
+        typeof product?.upiPaymentDiscount === 'number'
+          ? product.upiPaymentDiscount
+          : Math.max(codPrice - upiPrice, 0);
+
+      const productDiscount =
+        product?.discount ||
+        product?.newDiscount ||
+        (mrp > onsalePrice && mrp > 0 ? Math.round(((mrp - onsalePrice) / mrp) * 100) : 0);
+
+      const isFortyNineRupee = Boolean(
+        upiPrice === 49 || codPrice === 49 || product?.price === 49 || product?.onsalePrice === 49,
+      );
+
+      const availableQuantity = product?.inventory ?? 0;
+      const outOfStock = availableQuantity <= 0 || product?.status === 'OUT_OF_STOCK';
+      const expectedTat =
+        row.deliveryEstimate ||
+        row.delivery_estimate ||
+        '3-5 Business Days';
+
+      const variantId = row.variantId ?? row.variant_id ?? null;
+      let variant: any = null;
+      if (variantId) {
+        if (Array.isArray(product?.variantPrice)) {
+          variant = product.variantPrice.find(
+            (v: any) => v.id === variantId || v.variantId === variantId || v.sku === variantId,
+          );
+        }
+        if (!variant && Array.isArray(product?.newVariantPrice)) {
+          variant = product.newVariantPrice.find(
+            (v: any) => v.id === variantId || v.variantId === variantId || v.sku === variantId,
+          );
+        }
+        if (!variant && Array.isArray(product?.productOptions)) {
+          variant = product.productOptions.find(
+            (v: any) => v.id === variantId || v.variantId === variantId,
+          );
+        }
+        if (!variant) {
+          variant = {
+            id: variantId,
+            variantId: variantId,
+          };
+        }
+      }
+
+      let mainMedia = product?.mainMedia || null;
+      if (!mainMedia && product?.productImages) {
+        if (Array.isArray(product.productImages) && product.productImages.length > 0) {
+          mainMedia = product.productImages[0];
+        } else if (typeof product.productImages === 'string') {
+          try {
+            const parsed = JSON.parse(product.productImages);
+            if (Array.isArray(parsed) && parsed.length > 0) mainMedia = parsed[0];
+          } catch {
+            mainMedia = product.productImages;
+          }
+        }
+      }
 
       return {
-        ...formatted,
-        product: product
-          ? {
-              id: product.id,
-              productId: product.productId || product.id,
-              name: product.name,
-              mainMedia: product.mainMedia || null,
-              brand: product.brand || null,
-              currentPrice,
-              mrp,
-              inStock: (product.inventory ?? 0) > 0,
-              inventory: product.inventory ?? 0,
-              sellerId: product.sellerId || formatted.sellerId,
-            }
-          : null,
+        id: row.id,
+        cartId: row.cartId ?? row.cart_id,
+        userId: row.userId ?? row.user_id,
+        productId: row.productId ?? row.product_id,
+        sellerId: row.sellerId ?? row.seller_id ?? '',
+        quantity:
+          typeof row.quantity === 'number'
+            ? row.quantity
+            : Number(row.quantity || 1),
+        productName: product?.name || '',
+        productImage: mainMedia || null,
+        outOfStock,
+        availableQuantity,
+        variant,
+        mainCategoryId: product?.categoryId || product?.mainCategory || null,
+        subCategoryId: product?.subCategoryId || product?.subCategory || null,
+        upiPrice,
+        codPrice,
+        productDiscount,
+        upiDiscount,
+        isFortyNineRupee,
+        expectedAt: expectedTat,
       };
     });
   }

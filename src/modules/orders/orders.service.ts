@@ -47,7 +47,9 @@ export class OrdersService implements OnModuleInit {
   constructor(private readonly databaseService: DatabaseService) {}
 
   async onModuleInit() {
-    await this.ensureOrderTablesAndSequences();
+    this.ensureOrderTablesAndSequences().catch((err) => {
+      this.logger.warn(`Background orders schema verification notice: ${err.message}`);
+    });
   }
 
   /**
