@@ -28,6 +28,7 @@ import { CategorySponsoredModule } from './modules/category-sponsored/category-s
 import { CartModule } from './modules/cart/cart.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { SponsorAdvertiserModule } from './modules/sponsor-advertiser/sponsor-advertiser.module';
+import { BrandModule } from './modules/brand/brand.module';
 
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
@@ -88,6 +89,7 @@ import { TransformInterceptor } from './common/interceptors/transform.intercepto
     CartModule,
     OrdersModule,
     SponsorAdvertiserModule,
+    BrandModule,
   ],
 
   controllers: [AppController],

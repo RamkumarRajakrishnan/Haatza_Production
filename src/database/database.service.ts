@@ -702,6 +702,26 @@ export class DatabaseService
         CREATE UNIQUE INDEX IF NOT EXISTS idx_sponsor_advertisers_gst_number ON public.sponsor_advertisers(LOWER(gst_number));
         CREATE UNIQUE INDEX IF NOT EXISTS idx_sponsor_advertisers_pan ON public.sponsor_advertisers(LOWER(pan));
 
+        -- Brands Table DDL
+        CREATE TABLE IF NOT EXISTS public.brands (
+          id text PRIMARY KEY,
+          advertiser_id text REFERENCES public.sponsor_advertisers(id) ON DELETE SET NULL,
+          brand_name text NOT NULL,
+          brand_logo text,
+          brand_website text,
+          industry text NOT NULL,
+          short_description text,
+          self_declaration text,
+          letter_of_authorization text,
+          status text DEFAULT 'ACTIVE',
+          created_at timestamp DEFAULT now(),
+          updated_at timestamp DEFAULT now()
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_brands_advertiser_id ON public.brands(advertiser_id);
+        CREATE INDEX IF NOT EXISTS idx_brands_brand_name ON public.brands(brand_name);
+
+
         -- Grow Plan Subscription Tables DDL
         CREATE TABLE IF NOT EXISTS public.grow_plan (
           id varchar(36) PRIMARY KEY,

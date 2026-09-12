@@ -918,8 +918,30 @@ model SponsorAdvertiser {
   status         SponsorAdvertiserStatus @default(PENDING) @map("status")
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
+  brands         Brand[]
 
   @@map("sponsor_advertisers")
 }
+
+model Brand {
+  id                    String             @id @default(uuid()) @map("id")
+  advertiserId          String?            @map("advertiser_id")
+  brandName             String             @map("brand_name")
+  brandLogo             String?            @map("brand_logo")
+  brandWebsite          String?            @map("brand_website")
+  industry              String             @map("industry")
+  shortDescription      String?            @map("short_description")
+  selfDeclaration       String?            @map("self_declaration")
+  letterOfAuthorization String?            @map("letter_of_authorization")
+  status                String             @default("ACTIVE") @map("status")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+  advertiser            SponsorAdvertiser? @relation(fields: [advertiserId], references: [id], onDelete: SetNull)
+
+  @@index([advertiserId])
+  @@index([brandName])
+  @@map("brands")
+}
+
 
 
