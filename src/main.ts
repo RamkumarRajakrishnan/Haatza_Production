@@ -147,6 +147,53 @@ async function bootstrap() {
         req.url = req.url.replace(req.path, '/api/v1/wishlist/getWishlist');
       }
 
+      // Transparently rewrite brand endpoints (/createBrands, /createBrand, /listBrands, /getBrands, /viewBrands, /viewBrand, /updateBrands, /updateBrand, /deleteBrands, /deleteBrand)
+      if (
+        p === '/createbrands' ||
+        p === '/api/v1/createbrands' ||
+        p === '/createbrand' ||
+        p === '/api/v1/createbrand'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/brands/createBrands');
+      }
+      if (
+        p === '/listbrands' ||
+        p === '/api/v1/listbrands' ||
+        p === '/listbrand' ||
+        p === '/api/v1/listbrand' ||
+        p === '/getbrands' ||
+        p === '/api/v1/getbrands' ||
+        p === '/getbrand' ||
+        p === '/api/v1/getbrand'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/brands/listBrands');
+      }
+      if (
+        p === '/viewbrands' ||
+        p === '/api/v1/viewbrands' ||
+        p === '/viewbrand' ||
+        p === '/api/v1/viewbrand'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/brands/viewBrands');
+      }
+      if (
+        p === '/updatebrands' ||
+        p === '/api/v1/updatebrands' ||
+        p === '/updatebrand' ||
+        p === '/api/v1/updatebrand'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/brands/updateBrands');
+      }
+      if (
+        p === '/deletebrands' ||
+        p === '/api/v1/deletebrands' ||
+        p === '/deletebrand' ||
+        p === '/api/v1/deletebrand'
+      ) {
+        req.url = req.url.replace(req.path, '/api/v1/brands/deleteBrands');
+      }
+
+
       // Autocorrect malformed query parameters like ?userIdmodule=haatza&=...
       if (req.query && typeof req.query === 'object') {
         if (!req.query.module && req.query.userIdmodule) {
