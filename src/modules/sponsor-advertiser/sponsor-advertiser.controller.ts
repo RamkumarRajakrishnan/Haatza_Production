@@ -181,7 +181,7 @@ export class SponsorAdvertiserController {
     return this.sponsorAdvertiserService.create(dto);
   }
 
-  @Get(['', 'list', 'listSponsorAdvertisers', 'listSponsorAdvertiser', 'getSponsorAdvertisers', 'getSponsorAdvertiser'])
+  @Get(['', 'list', 'listSponsorAdvertisers', 'listSponsorAdvertiser', 'getSponsorAdvertisers'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'List Sponsor Advertisers (listSponsorAdvertisers)',
@@ -194,11 +194,18 @@ export class SponsorAdvertiserController {
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiResponse({ status: 200, description: 'Sponsor advertisers retrieved successfully' })
-  async findAll(@Query() query: QuerySponsorAdvertiserDto) {
+  async findAll(@Query() query: any) {
+    if (query?.id || query?.advertiserId || query?.advertiser_id) {
+      const singleId = query?.advertiserId || query?.advertiser_id || query?.id;
+      return this.sponsorAdvertiserService.findOne(singleId, query?.module);
+    }
     return this.sponsorAdvertiserService.findAll(query);
   }
 
   @Get([
+    'getSponsorAdvertiser',
+    'getSponsorAdvertiser/:id',
+    'getSponsorAdvertisers/:id',
     'viewSponsorAdvertisers',
     'viewSponsorAdvertiser',
     'viewSponsorAdvertisers/:id',
@@ -209,9 +216,10 @@ export class SponsorAdvertiserController {
   ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'View Sponsor Advertiser by ID (viewSponsorAdvertisers)',
-    description: 'Retrieves a single sponsor advertiser detail by ID. Endpoint alias: viewSponsorAdvertisers. Response is formatted in camelCase.',
+    summary: 'View Sponsor Advertiser by ID (getSponsorAdvertiser)',
+    description: 'Retrieves a single sponsor advertiser detail by ID or advertiserId. Usage: GET /api/v1/sponsor-advertisers/getSponsorAdvertiser?module=sponsor&advertiserId=<id>',
   })
+  @ApiQuery({ name: 'advertiserId', required: false, type: String, description: 'Advertiser ID' })
   @ApiQuery({ name: 'id', required: false, type: String, description: 'ID if not passed in route parameter' })
   @ApiQuery({ name: 'module', required: false, type: String, example: 'sponsor' })
   @ApiResponse({ status: 200, description: 'Sponsor advertiser details retrieved successfully' })
@@ -219,9 +227,10 @@ export class SponsorAdvertiserController {
     @Param('id') paramId: string,
     @Query('id') queryId?: string,
     @Query('advertiserId') advertiserId?: string,
+    @Query('advertiser_id') advertiserIdSnake?: string,
     @Query('module') module?: string,
   ) {
-    const id = paramId || queryId || advertiserId;
+    const id = paramId || queryId || advertiserId || advertiserIdSnake;
     if (!id) {
       throw new BadRequestException('ID parameter is required to view advertiser.');
     }

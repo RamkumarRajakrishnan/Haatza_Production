@@ -982,6 +982,7 @@ model SponsorCampaign {
 
   advertiser        SponsorAdvertiser        @relation(fields: [advertiserId], references: [id])
   brand             Brand                    @relation(fields: [brandId], references: [id])
+  creatives         SponsorAdCreative[]
 
   @@index([advertiserId])
   @@index([brandId])
@@ -989,3 +990,59 @@ model SponsorCampaign {
   @@index([campaignUid])
   @@map("sponsor_campaigns")
 }
+
+enum CreativeAspectRatio {
+  RATIO_1_1
+  RATIO_4_5
+}
+
+enum CreativeDestinationType {
+  PRODUCT_PAGE
+  BRAND_STORE
+  CATEGORY_PAGE
+  CUSTOM_URL
+}
+
+enum CreativeCtaButtonText {
+  SHOP_NOW
+  LEARN_MORE
+  BOOK_NOW
+  SIGN_UP
+  ORDER_NOW
+}
+
+enum CreativeStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  REJECTED
+  DELETED
+}
+
+model SponsorAdCreative {
+  id               Int                     @id @default(autoincrement()) @map("id")
+  creativeUid      String                  @unique @default(uuid()) @map("creative_uid")
+  campaignId       Int                     @map("campaign_id")
+  creativeName     String                  @map("creative_name")
+  primaryText      String                  @map("primary_text") @db.VarChar(150)
+  headline         String                  @map("headline") @db.VarChar(60)
+  creativeImageUrl String                  @map("creative_image_url")
+  imageAspectRatio CreativeAspectRatio     @map("image_aspect_ratio")
+  destinationType  CreativeDestinationType @map("destination_type")
+  destinationLink  String                  @map("destination_link")
+  ctaButtonText    CreativeCtaButtonText   @map("cta_button_text")
+  status           CreativeStatus          @default(DRAFT) @map("status")
+  createdBy        String?                 @map("created_by")
+  updatedBy        String?                 @map("updated_by")
+  createdAt        DateTime                @default(now()) @map("created_at")
+  updatedAt        DateTime                @updatedAt @map("updated_at")
+  deletedAt        DateTime?               @map("deleted_at")
+
+  campaign         SponsorCampaign         @relation(fields: [campaignId], references: [id])
+
+  @@index([campaignId])
+  @@index([status])
+  @@index([creativeUid])
+  @@map("sponsor_ad_creatives")
+}
+

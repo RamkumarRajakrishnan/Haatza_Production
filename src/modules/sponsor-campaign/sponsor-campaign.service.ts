@@ -101,8 +101,10 @@ export class SponsorCampaignService {
 
   private formatResponse(record: any) {
     if (!record) return null;
+    const campaignCode = record.id ? `CP${String(record.id).padStart(3, '0')}` : null;
     return {
       id: record.id,
+      campaignCode,
       campaignUid: record.campaignUid,
       advertiserId: record.advertiserId,
       advertiserName: record.advertiser?.advertiserName || null,
@@ -126,15 +128,22 @@ export class SponsorCampaignService {
   }
 
   /**
-   * Resolve a campaign by either integer ID or UUID campaignUid.
+   * Resolve a campaign by either integer ID, CP001 code, or UUID campaignUid.
    * Returns the Prisma `where` clause.
    */
   private resolveWhereClause(identifier: string): { id?: number; campaignUid?: string } {
-    const asInt = parseInt(identifier, 10);
-    if (!isNaN(asInt) && String(asInt) === identifier) {
+    const raw = identifier?.toString().trim();
+    if (raw.toUpperCase().startsWith('CP')) {
+      const codeNum = parseInt(raw.slice(2), 10);
+      if (!isNaN(codeNum)) {
+        return { id: codeNum };
+      }
+    }
+    const asInt = parseInt(raw, 10);
+    if (!isNaN(asInt) && String(asInt) === raw) {
       return { id: asInt };
     }
-    return { campaignUid: identifier };
+    return { campaignUid: raw };
   }
 
   // ──────────────────────────── CRUD ────────────────────────────

@@ -193,7 +193,7 @@ export class BrandController {
     return this.brandService.create(dto);
   }
 
-  @Get(['', 'list', 'listBrands', 'listBrand', 'getBrands', 'getBrand'])
+  @Get(['', 'list', 'listBrands', 'listBrand', 'getBrands'])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'List Brands (listBrands / getBrands)',
@@ -208,11 +208,18 @@ export class BrandController {
   @ApiQuery({ name: 'page', required: false, type: Number, example: 1 })
   @ApiQuery({ name: 'limit', required: false, type: Number, example: 10 })
   @ApiResponse({ status: 200, description: 'Brands retrieved successfully' })
-  async findAll(@Query() query: QueryBrandDto) {
+  async findAll(@Query() query: any) {
+    if (query?.id || query?.brandId || query?.brand_id) {
+      const singleId = query?.brandId || query?.brand_id || query?.id;
+      return this.brandService.findOne(singleId, query?.module);
+    }
     return this.brandService.findAll(query);
   }
 
   @Get([
+    'getBrand',
+    'getBrand/:id',
+    'getBrands/:id',
     'viewBrands',
     'viewBrand',
     'viewBrands/:id',
@@ -223,9 +230,10 @@ export class BrandController {
   ])
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'View Brand by ID (viewBrands / viewBrand)',
-    description: 'Retrieves a single brand detail by ID. Endpoint alias: viewBrands, viewBrand. Response is formatted in camelCase.',
+    summary: 'View Brand by ID (getBrand / viewBrand)',
+    description: 'Retrieves a single brand detail by ID or brandId. Usage: GET /api/v1/brands/getBrand?module=sponsor&brandId=<id>',
   })
+  @ApiQuery({ name: 'brandId', required: false, type: String, description: 'Brand ID' })
   @ApiQuery({ name: 'id', required: false, type: String, description: 'ID if not passed in route parameter' })
   @ApiQuery({ name: 'module', required: false, type: String, example: 'sponsor' })
   @ApiResponse({ status: 200, description: 'Brand details retrieved successfully' })
@@ -233,9 +241,10 @@ export class BrandController {
     @Param('id') paramId: string,
     @Query('id') queryId?: string,
     @Query('brandId') brandId?: string,
+    @Query('brand_id') brandIdSnake?: string,
     @Query('module') module?: string,
   ) {
-    const id = paramId || queryId || brandId;
+    const id = paramId || queryId || brandId || brandIdSnake;
     if (!id) {
       throw new BadRequestException('ID parameter is required to view brand.');
     }

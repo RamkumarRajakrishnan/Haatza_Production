@@ -27,8 +27,10 @@ export class BrandService {
 
   private formatCamelCaseResponse(record: any) {
     if (!record) return null;
+    const brandCode = record.id ? `BRD-${record.id.slice(0, 8).toUpperCase()}` : null;
     return {
       id: record.id,
+      brandCode,
       advertiserId: record.advertiserId || null,
       brandName: record.brandName,
       brandLogo: record.brandLogo || null,
@@ -43,6 +45,7 @@ export class BrandService {
       advertiser: record.advertiser
         ? {
             id: record.advertiser.id,
+            advertiserCode: `ADV-${record.advertiser.id.slice(0, 8).toUpperCase()}`,
             advertiserName: record.advertiser.advertiserName,
             advertiserLogo: record.advertiser.advertiserLogo || null,
             gstNumber: record.advertiser.gstNumber,

@@ -28,8 +28,10 @@ export class SponsorAdvertiserService {
 
   private formatCamelCaseResponse(record: any) {
     if (!record) return null;
+    const advertiserCode = record.id ? `ADV-${record.id.slice(0, 8).toUpperCase()}` : null;
     return {
       id: record.id,
+      advertiserCode,
       advertiserName: record.advertiserName,
       advertiserLogo: record.advertiserLogo || null,
       gstNumber: record.gstNumber,
