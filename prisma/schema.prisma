@@ -919,6 +919,7 @@ model SponsorAdvertiser {
   createdAt      DateTime                @default(now()) @map("created_at")
   updatedAt      DateTime                @updatedAt @map("updated_at")
   brands         Brand[]
+  campaigns      SponsorCampaign[]
 
   @@map("sponsor_advertisers")
 }
@@ -937,11 +938,54 @@ model Brand {
   createdAt             DateTime           @default(now()) @map("created_at")
   updatedAt             DateTime           @updatedAt @map("updated_at")
   advertiser            SponsorAdvertiser? @relation(fields: [advertiserId], references: [id], onDelete: SetNull)
+  campaigns             SponsorCampaign[]
 
   @@index([advertiserId])
   @@index([brandName])
   @@map("brands")
 }
 
+enum SponsorCampaignObjective {
+  DRIVE_SALES
+  BRAND_VISIBILITY
+}
 
+enum SponsorCampaignStatus {
+  DRAFT
+  PENDING_CREATIVE
+  ACTIVE
+  PAUSED
+  COMPLETED
+  REJECTED
+  DELETED
+}
 
+model SponsorCampaign {
+  id                Int                      @id @default(autoincrement()) @map("id")
+  campaignUid       String                   @unique @default(uuid()) @map("campaign_uid")
+  advertiserId      String                   @map("advertiser_id")
+  brandId           String                   @map("brand_id")
+  campaignName      String                   @map("campaign_name")
+  campaignObjective SponsorCampaignObjective @map("campaign_objective")
+  primaryCategory   String?                  @map("primary_category")
+  dailyBudget       Decimal                  @map("daily_budget") @db.Decimal(12, 2)
+  currency          String                   @default("INR") @map("currency")
+  startDate         DateTime                 @map("start_date") @db.Date
+  endDate           DateTime?                @map("end_date") @db.Date
+  status            SponsorCampaignStatus    @default(DRAFT) @map("status")
+  launchedAt        DateTime?                @map("launched_at")
+  createdBy         String?                  @map("created_by")
+  updatedBy         String?                  @map("updated_by")
+  createdAt         DateTime                 @default(now()) @map("created_at")
+  updatedAt         DateTime                 @updatedAt @map("updated_at")
+  deletedAt         DateTime?                @map("deleted_at")
+
+  advertiser        SponsorAdvertiser        @relation(fields: [advertiserId], references: [id])
+  brand             Brand                    @relation(fields: [brandId], references: [id])
+
+  @@index([advertiserId])
+  @@index([brandId])
+  @@index([status])
+  @@index([campaignUid])
+  @@map("sponsor_campaigns")
+}
