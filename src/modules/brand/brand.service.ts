@@ -110,7 +110,7 @@ export class BrandService {
       success: true,
       message: 'Brand created successfully',
       module: dto.module || 'sponsor',
-      data: this.formatCamelCaseResponse(created),
+      brandItem: this.formatCamelCaseResponse(created),
     };
   }
 
@@ -162,7 +162,7 @@ export class BrandService {
       total,
       page,
       limit,
-      data: records.map((record) => this.formatCamelCaseResponse(record)),
+      brandItems: records.map((record) => this.formatCamelCaseResponse(record)),
     };
   }
 
@@ -182,7 +182,7 @@ export class BrandService {
       success: true,
       message: 'Brand details retrieved successfully',
       module: module || 'sponsor',
-      data: this.formatCamelCaseResponse(record),
+      brandItem: this.formatCamelCaseResponse(record),
     };
   }
 
@@ -274,7 +274,7 @@ export class BrandService {
       success: true,
       message: 'Brand updated successfully',
       module: dto.module || 'sponsor',
-      data: this.formatCamelCaseResponse(updated),
+      brandItem: this.formatCamelCaseResponse(updated),
     };
   }
 
@@ -295,7 +295,7 @@ export class BrandService {
       success: true,
       message: 'Brand deleted successfully',
       module: module || 'sponsor',
-      data: { id },
+      brandItem: { id },
     };
   }
 }

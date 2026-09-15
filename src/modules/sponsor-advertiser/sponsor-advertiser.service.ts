@@ -92,7 +92,7 @@ export class SponsorAdvertiserService {
       success: true,
       message: 'Sponsor advertiser created successfully',
       module: dto.module || 'sponsor',
-      data: this.formatCamelCaseResponse(created),
+      advertiserItem: this.formatCamelCaseResponse(created),
     };
   }
 
@@ -133,7 +133,7 @@ export class SponsorAdvertiserService {
       total,
       page,
       limit,
-      data: records.map((record) => this.formatCamelCaseResponse(record)),
+      advertiserItems: records.map((record) => this.formatCamelCaseResponse(record)),
     };
   }
 
@@ -150,7 +150,7 @@ export class SponsorAdvertiserService {
       success: true,
       message: 'Sponsor advertiser details retrieved successfully',
       module: module || 'sponsor',
-      data: this.formatCamelCaseResponse(record),
+      advertiserItem: this.formatCamelCaseResponse(record),
     };
   }
 
@@ -231,7 +231,7 @@ export class SponsorAdvertiserService {
       success: true,
       message: 'Sponsor advertiser updated successfully',
       module: dto.module || 'sponsor',
-      data: this.formatCamelCaseResponse(updated),
+      advertiserItem: this.formatCamelCaseResponse(updated),
     };
   }
 
@@ -252,7 +252,7 @@ export class SponsorAdvertiserService {
       success: true,
       message: 'Sponsor advertiser deleted successfully',
       module: module || 'sponsor',
-      data: { id },
+      advertiserItem: { id },
     };
   }
 }

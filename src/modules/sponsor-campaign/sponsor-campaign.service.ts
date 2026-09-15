@@ -238,7 +238,7 @@ export class SponsorCampaignService {
       success: true,
       message: 'Sponsor campaign created successfully',
       module: dto.module || 'sponsor',
-      data: this.formatResponse(created),
+      campaignItem: this.formatResponse(created),
     };
   }
 
@@ -268,7 +268,7 @@ export class SponsorCampaignService {
       success: true,
       message: 'Sponsor campaign details retrieved successfully',
       module: module || 'sponsor',
-      data: this.formatResponse(record),
+      campaignItem: this.formatResponse(record),
     };
   }
 
@@ -343,7 +343,7 @@ export class SponsorCampaignService {
       total,
       page,
       limit,
-      data: records.map((r) => this.formatResponse(r)),
+      campaignItems: records.map((r) => this.formatResponse(r)),
     };
   }
 
@@ -482,7 +482,7 @@ export class SponsorCampaignService {
       success: true,
       message: 'Sponsor campaign updated successfully',
       module: dto.module || 'sponsor',
-      data: this.formatResponse(updated),
+      campaignItem: this.formatResponse(updated),
     };
   }
 
@@ -524,7 +524,7 @@ export class SponsorCampaignService {
       success: true,
       message: 'Sponsor campaign deleted successfully',
       module: module || 'sponsor',
-      data: this.formatResponse(updated),
+      campaignItem: this.formatResponse(updated),
     };
   }
 
@@ -605,7 +605,7 @@ export class SponsorCampaignService {
       success: true,
       message: 'Sponsor campaign launched successfully',
       module: module || 'sponsor',
-      data: this.formatResponse(updated),
+      campaignItem: this.formatResponse(updated),
     };
   }
 }

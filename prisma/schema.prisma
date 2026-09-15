@@ -942,7 +942,7 @@ model Brand {
 
   @@index([advertiserId])
   @@index([brandName])
-  @@map("brands")
+  @@map("sponsor_brands")
 }
 
 enum SponsorCampaignObjective {
